@@ -1,0 +1,6 @@
+{
+  "name": "Dqnamo POS — Modern Android Retail Point of Sale",
+  "description": "Mobile-first Android Point of Sale (POS) system featuring Dqnamo Kitchen tactile micro-interactions, offline transactions, inventory control, and bilingual EN/AR support.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
