@@ -777,3 +777,97 @@ test('7. End-to-end server backup, pre-restore checkpoint, restore in place, res
   );
   assert.equal(delResult.ok, true);
 });
+
+// ============================================================================
+// TEST 8: CLIENT LOCAL FALLBACK ENVELOPE & UNCONFIGURED LOCAL STORE RESTORE
+// ============================================================================
+test('8. Client local fallback .backup envelopes (simpleHashHex) and unconfigured local stores (unassigned-operator) unpack and restore seamlessly', () => {
+  const sample = buildSamplePayload('comp-clean-store', 'Local Clean Store');
+  const jsonStr = JSON.stringify(sample);
+
+  const simpleHashHex = (input: string): string => {
+    let h1 = 0xdeadbeef ^ input.length;
+    let h2 = 0x41c6ce57 ^ input.length;
+    for (let i = 0; i < input.length; i++) {
+      const ch = input.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 =
+      Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^
+      Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 =
+      Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^
+      Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    const hex1 = (h1 >>> 0).toString(16).padStart(8, '0');
+    const hex2 = (h2 >>> 0).toString(16).padStart(8, '0');
+    return `${hex1}${hex2}${hex1}${hex2}${hex1}${hex2}${hex1}${hex2}`;
+  };
+
+  const stdEnvelope = packBackupEnvelope({
+    payload: sample,
+    backupType: 'FULL_COMPANY',
+    createdByUserId: 'unassigned-operator',
+    createdByUsername: 'owner',
+    useCompression: false,
+  });
+
+  // Simulate client buildLocalFallbackEnvelope checksums
+  const clientFallbackEnvelope = {
+    ...stdEnvelope,
+    payloadChecksumSha256: simpleHashHex(jsonStr),
+    manifest: {
+      ...stdEnvelope.manifest,
+      moduleChecksumsSha256: { ...stdEnvelope.manifest.moduleChecksumsSha256 },
+    },
+  };
+
+  const unpacked = verifyAndUnpackBackupEnvelope(clientFallbackEnvelope);
+  assert.equal(unpacked.integrityVerified, true);
+  assert.equal(unpacked.payload.products.length, 1);
+
+  const localActor: AuthenticatedActorContext = {
+    user: {
+      id: 'unassigned-operator',
+      companyId: 'comp-clean-store',
+      branchId: 'branch-comp-clean-store-main',
+      assignedBranchIds: ['branch-comp-clean-store-main'],
+      name: 'Store Owner',
+      username: 'owner',
+      role: 'admin',
+      systemRole: 'COMPANY_OWNER',
+      capabilities: unpacked.manifest.modulesIncluded.map(() => 'backup.restore') as any,
+      passwordHash: null,
+      passwordSalt: null,
+      pin: '',
+      hasPassword: false,
+      mustChangePassword: false,
+      isActive: true,
+    } as any,
+    company: {
+      id: 'comp-clean-store',
+      code: 'CMP-LOCAL',
+      legalName: 'Local Clean Store',
+      displayName: 'Local Clean Store',
+      businessType: 'retail',
+      country: 'Sudan',
+      defaultLanguage: 'ar',
+      fiscalYearStartMonth: 1,
+      baseCurrency: 'SDG',
+      isDemo: false,
+      setupCompleted: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+    workspaceMode: 'PRODUCTION',
+  };
+
+  const restored = restoreBackupIntoOriginalCompany(localActor, {
+    envelope: clientFallbackEnvelope,
+    ownerPassword: '',
+    allowCrossCompanyIdOverride: true,
+  });
+  assert.equal(restored.ok, true);
+  assert.equal(restored.restoredPayload.products.length, 1);
+});
+

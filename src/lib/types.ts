@@ -184,6 +184,7 @@ export interface Product {
   priceCurrency?: SupportedCurrency;
   stock: number;
   minStockAlert: number;
+  expiryDate?: string | null;
   // Multi-Unit / Pack & Strip Packaging customization
   enablePackaging?: boolean;
   unitName?: string; // e.g. 'Strip', 'Piece'

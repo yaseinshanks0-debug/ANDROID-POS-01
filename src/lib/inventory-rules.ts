@@ -127,6 +127,84 @@ export function getAllProductBarcodes(
 }
 
 /**
+ * Splits a raw SKU / multi-barcode input string (separated by "|", ",", ";", or spaces)
+ * into clean individual barcode tokens.
+ */
+export function parseBarcodeSkuInput(rawInput?: string | null): string[] {
+  if (!rawInput || typeof rawInput !== 'string') return [];
+  const parts = rawInput
+    .split(/[|,;\n]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return normalizeProductBarcodes(parts[0] || '', parts.slice(1));
+}
+
+/**
+ * Synchronizes a product's SKU with its single barcode or multiple barcodes.
+ * When the product has one or more barcodes, SKU is formatted as those barcode(s) (e.g. "6281001" or "6281001 | 6281002").
+ */
+export function formatProductBarcodeSku(
+  barcodes: string[],
+  fallbackSku?: string | null,
+  serialNumber?: number | null
+): string {
+  const normalized = normalizeProductBarcodes(barcodes[0] || '', barcodes.slice(1));
+  if (normalized.length > 0) {
+    return normalized.join(' | ');
+  }
+  const cleanFallback = (fallbackSku || '').trim();
+  if (cleanFallback) return cleanFallback;
+  const safeSerial = Number(serialNumber);
+  if (Number.isFinite(safeSerial) && safeSerial > 0) {
+    return `ITEM-${String(Math.floor(safeSerial)).padStart(4, '0')}`;
+  }
+  return `ITEM-${Date.now().toString().slice(-4)}`;
+}
+
+export interface ProductExpiryStatusInfo {
+  expiryDate: string | null;
+  status: 'none' | 'expired' | 'expiring_soon' | 'valid';
+  daysRemaining: number | null;
+}
+
+/**
+ * Evaluates the expiry status of a product given its expiryDate (YYYY-MM-DD) or customFields.expiryDate.
+ */
+export function getProductExpiryStatus(
+  productOrDate?: Pick<Product, 'expiryDate' | 'customFields'> | string | null,
+  nowDate: Date = new Date()
+): ProductExpiryStatusInfo {
+  const rawDate =
+    typeof productOrDate === 'string'
+      ? productOrDate
+      : productOrDate && typeof productOrDate === 'object'
+      ? productOrDate.expiryDate || productOrDate.customFields?.expiryDate
+      : null;
+
+  const cleanDate = typeof rawDate === 'string' ? rawDate.trim() : '';
+  if (!cleanDate) {
+    return { expiryDate: null, status: 'none', daysRemaining: null };
+  }
+
+  const parsed = new Date(`${cleanDate.slice(0, 10)}T23:59:59`);
+  if (Number.isNaN(parsed.getTime())) {
+    return { expiryDate: cleanDate, status: 'none', daysRemaining: null };
+  }
+
+  const todayStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate());
+  const expiryDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  const diffDays = Math.round((expiryDay.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    return { expiryDate: cleanDate.slice(0, 10), status: 'expired', daysRemaining: diffDays };
+  }
+  if (diffDays <= 30) {
+    return { expiryDate: cleanDate.slice(0, 10), status: 'expiring_soon', daysRemaining: diffDays };
+  }
+  return { expiryDate: cleanDate.slice(0, 10), status: 'valid', daysRemaining: diffDays };
+}
+
+/**
  * Checks whether a search query or scanned code matches a product's primary barcode or any secondary barcode.
  */
 export function matchesProductBarcode(
@@ -307,6 +385,7 @@ export function matchesProductSearchQuery(
   const sku = (product.sku || '').toLowerCase();
   const catEn = (product.category || '').toLowerCase();
   const catAr = (product.categoryAr || '').toLowerCase();
+  const expiryStr = (product.expiryDate || product.customFields?.expiryDate || '').toString().toLowerCase();
   const barcodes = getAllProductBarcodes({
     barcode: product.barcode || '',
     barcodes: product.barcodes,
@@ -336,6 +415,7 @@ export function matchesProductSearchQuery(
     if (descEn.includes(token) || descAr.includes(token)) return true;
     if (sku.includes(token)) return true;
     if (catEn.includes(token) || catAr.includes(token)) return true;
+    if (expiryStr && expiryStr.includes(token)) return true;
     if (barcodes.some((code) => code.includes(token))) return true;
 
     return false;
@@ -468,6 +548,18 @@ export function buildProductAuditTrail(params: {
     changedFields.push('sku');
     summaryPartsEn.push(`SKU: ${existing.sku} → ${next.sku}`);
     summaryPartsAr.push(`رمز SKU: ${existing.sku} ← ${next.sku}`);
+  }
+  const oldExpiry = (existing.expiryDate || existing.customFields?.expiryDate || '').toString().trim();
+  const newExpiry =
+    next.expiryDate !== undefined
+      ? (next.expiryDate || '').toString().trim()
+      : next.customFields?.expiryDate !== undefined
+      ? (next.customFields?.expiryDate || '').toString().trim()
+      : oldExpiry;
+  if (oldExpiry !== newExpiry) {
+    changedFields.push('expiryDate');
+    summaryPartsEn.push(`Expiry Date: ${oldExpiry || 'None'} → ${newExpiry || 'Cleared'}`);
+    summaryPartsAr.push(`تاريخ الانتهاء: ${oldExpiry || 'غير محدد'} ← ${newExpiry || 'تم مسحه'}`);
   }
 
   let nextPriceHistory = [...prevPriceHistory];

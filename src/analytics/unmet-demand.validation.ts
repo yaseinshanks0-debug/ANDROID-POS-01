@@ -517,3 +517,330 @@ export function redactUnmetDemandRecordForRole(
     customerReference: record.customerReference ? '[REDACTED]' : null,
   };
 }
+
+/**
+ * Normalizes Arabic & English text for flexible product search and canonical deduplication:
+ * - Removes Arabic diacritics (tashkeel) and tatweel
+ * - Normalizes Alef variants (أ، إ، آ، ٱ) -> ا
+ * - Normalizes Ta-Marbuta (ة) -> ه
+ * - Normalizes Alef-Maqsura / Ya variants (ى، ئ) -> ي
+ * - Normalizes Waw-Hamza (ؤ) -> و
+ * - Strips punctuation into spaces and collapses whitespace
+ */
+export function normalizeUnavailableSearchText(text: string | null | undefined): string {
+  if (!text) return '';
+  return String(text)
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/[ىئ]/g, 'ي')
+    .replace(/ؤ/g, 'و')
+    .replace(/[^\p{L}\p{N}\s]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Computes a relevance score (0..100) for a candidate product against a user search query.
+ * Supports:
+ * - Searching by ANY word, partial word/prefix, or single character in the product name
+ *   (e.g., "كريم", "باريس", "باري", "كريم باريس", or "كريم باري بالكرياتن" all match "كريم باريس الابيض")
+ * - Barcode / SKU substring matching
+ */
+export function scoreUnavailableProductMatch(
+  candidateFields: (string | null | undefined)[],
+  rawQuery: string
+): number {
+  const normQuery = normalizeUnavailableSearchText(rawQuery);
+  if (!normQuery) return 1;
+
+  const normCandidates = candidateFields
+    .map((f) => normalizeUnavailableSearchText(f))
+    .filter((s) => s.length > 0);
+  if (normCandidates.length === 0) return 0;
+
+  const combinedText = normCandidates.join(' ');
+  const candidateTokens = Array.from(
+    new Set(combinedText.split(' ').filter((t) => t.length > 0))
+  );
+
+  // 1. Exact match on primary name
+  if (normCandidates[0] === normQuery) {
+    return 100;
+  }
+
+  // 2. Full query is a direct substring of any candidate field (handles single char, word, or phrase)
+  if (combinedText.includes(normQuery)) {
+    return normCandidates[0].startsWith(normQuery) ? 95 : 88;
+  }
+
+  const queryTokens = normQuery.split(' ').filter((t) => t.length > 0);
+  if (queryTokens.length === 0) return 0;
+
+  let matchedTokenCount = 0;
+  let strongTokenMatches = 0;
+
+  for (const qToken of queryTokens) {
+    let tokenMatched = false;
+    for (const cToken of candidateTokens) {
+      if (cToken === qToken) {
+        tokenMatched = true;
+        strongTokenMatches += 1;
+        break;
+      }
+      // Substring or prefix match in either direction (e.g., "باري" matches "باريس", or "باريس" matches "باري")
+      if (
+        cToken.includes(qToken) ||
+        (qToken.length >= 2 && cToken.length >= 2 && qToken.includes(cToken))
+      ) {
+        tokenMatched = true;
+        if (cToken.startsWith(qToken) || qToken.startsWith(cToken)) {
+          strongTokenMatches += 1;
+        }
+        break;
+      }
+      // Shared 3-character prefix/root for Arabic/English variants (e.g., "كرياتن" vs "كرياتين")
+      if (qToken.length >= 3 && cToken.length >= 3 && cToken.slice(0, 3) === qToken.slice(0, 3)) {
+        tokenMatched = true;
+        break;
+      }
+    }
+    if (tokenMatched) {
+      matchedTokenCount += 1;
+    }
+  }
+
+  if (matchedTokenCount === 0) {
+    return 0;
+  }
+
+  // If all query tokens matched
+  if (matchedTokenCount === queryTokens.length) {
+    return 80 + Math.min(12, strongTokenMatches * 4);
+  }
+
+  // Partial word/token overlap (e.g. customer asks for "كريم باري بالكرياتن" and DB has "كريم باريس الابيض"):
+  // Any matched meaningful token surfaces the existing product so the cashier can select it!
+  const ratio = matchedTokenCount / queryTokens.length;
+  return Math.round(45 + ratio * 30 + Math.min(10, strongTokenMatches * 5));
+}
+
+export function matchesUnavailableProductQuery(
+  candidateFields: (string | null | undefined)[],
+  rawQuery: string
+): boolean {
+  return scoreUnavailableProductMatch(candidateFields, rawQuery) > 0;
+}
+
+export interface UnavailableProductKnowledgeItem {
+  key: string;
+  productId: string | null;
+  isRegisteredProduct: boolean;
+  productName: string;
+  productNameAr: string | null;
+  sku: string | null;
+  barcode: string | null;
+  category: string;
+  unavailabilityReason: UnavailabilityReason;
+  inquiryCount: number;
+  totalRequestedQuantity: number;
+  totalRequestedBaseUnits: number;
+  confirmedIntentCount: number;
+  firstRequestedAt: string;
+  lastRequestedAt: string;
+  inquiryTimestamps: string[];
+  recentNotes: string[];
+  currentStock: number | null;
+}
+
+/**
+ * Builds the searchable Unavailable Products Knowledge Base (`قاعدة المنتجات غير المتوفرة`)
+ * from all historical unmet demand requests and out-of-stock catalog products.
+ */
+export function buildUnavailableProductsKnowledgeBase(
+  existingRequests: UnmetDemandRequestRecord[],
+  catalogProducts: Product[] = []
+): UnavailableProductKnowledgeItem[] {
+  const catalogById = new Map<string, Product>();
+  const catalogByNormName = new Map<string, Product>();
+  for (const p of catalogProducts) {
+    catalogById.set(p.id, p);
+    const nEn = normalizeUnavailableSearchText(p.name);
+    if (nEn) catalogByNormName.set(nEn, p);
+    if (p.nameAr) {
+      const nAr = normalizeUnavailableSearchText(p.nameAr);
+      if (nAr) catalogByNormName.set(nAr, p);
+    }
+  }
+
+  const map = new Map<string, UnavailableProductKnowledgeItem>();
+
+  // Sort requests chronologically so first/last and canonical name are deterministic
+  const sortedRequests = [...existingRequests].sort(
+    (a, b) =>
+      new Date(a.requestedTimestamp).getTime() - new Date(b.requestedTimestamp).getTime()
+  );
+
+  for (const req of sortedRequests) {
+    const matchedProd =
+      (req.productId ? catalogById.get(req.productId) : undefined) ||
+      catalogByNormName.get(normalizeUnavailableSearchText(req.productNameSnapshot));
+
+    const normName = normalizeUnavailableSearchText(
+      req.productNameSnapshot || req.productNameArSnapshot || 'unknown'
+    );
+    const key = matchedProd
+      ? `prod:${matchedProd.id}`
+      : req.productId
+      ? `prod:${req.productId}`
+      : req.barcode
+      ? `barcode:${req.barcode.trim()}`
+      : `unreg:${normName}`;
+
+    let entry = map.get(key);
+    if (!entry) {
+      entry = {
+        key,
+        productId: matchedProd ? matchedProd.id : req.productId || null,
+        isRegisteredProduct: Boolean(matchedProd || (req.isRegisteredProduct && req.productId)),
+        productName: matchedProd ? matchedProd.name : req.productNameSnapshot,
+        productNameAr: matchedProd
+          ? matchedProd.nameAr || req.productNameArSnapshot || null
+          : req.productNameArSnapshot || req.productNameSnapshot,
+        sku: matchedProd ? matchedProd.sku : req.skuSnapshot || null,
+        barcode: matchedProd ? matchedProd.barcode : req.barcode || null,
+        category: matchedProd
+          ? matchedProd.category
+          : req.categorySnapshot || 'Unregistered',
+        unavailabilityReason: req.unavailabilityReason || 'NOT_STOCKED',
+        inquiryCount: 0,
+        totalRequestedQuantity: 0,
+        totalRequestedBaseUnits: 0,
+        confirmedIntentCount: 0,
+        firstRequestedAt: req.requestedTimestamp,
+        lastRequestedAt: req.requestedTimestamp,
+        inquiryTimestamps: [],
+        recentNotes: [],
+        currentStock: matchedProd ? matchedProd.stock : req.availableStockAtRequest ?? null,
+      };
+      map.set(key, entry);
+    }
+
+    entry.inquiryCount += 1;
+    entry.totalRequestedQuantity += Math.max(1, Number(req.requestedQuantity || 1));
+    entry.totalRequestedBaseUnits += Math.max(
+      1,
+      Number(req.requestedBaseUnits || req.requestedQuantity || 1)
+    );
+    if (req.confirmedPurchaseIntent) {
+      entry.confirmedIntentCount += 1;
+    }
+    if (req.requestedTimestamp < entry.firstRequestedAt) {
+      entry.firstRequestedAt = req.requestedTimestamp;
+    }
+    if (req.requestedTimestamp >= entry.lastRequestedAt) {
+      entry.lastRequestedAt = req.requestedTimestamp;
+      entry.unavailabilityReason = req.unavailabilityReason || entry.unavailabilityReason;
+    }
+    entry.inquiryTimestamps.push(req.requestedTimestamp);
+    if (req.notes && req.notes.trim() && !entry.recentNotes.includes(req.notes.trim())) {
+      entry.recentNotes.unshift(req.notes.trim());
+      if (entry.recentNotes.length > 5) entry.recentNotes.pop();
+    }
+  }
+
+  // Sort inquiryTimestamps newest first for each entry
+  for (const entry of map.values()) {
+    entry.inquiryTimestamps.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+  }
+
+  // Also include out-of-stock or low-stock catalog products that haven't been logged yet so they are searchable in the same unified knowledge base
+  for (const prod of catalogProducts) {
+    const key = `prod:${prod.id}`;
+    if (!map.has(key) && prod.stock <= (prod.minStockAlert || 5)) {
+      map.set(key, {
+        key,
+        productId: prod.id,
+        isRegisteredProduct: true,
+        productName: prod.name,
+        productNameAr: prod.nameAr || null,
+        sku: prod.sku,
+        barcode: prod.barcode,
+        category: prod.category,
+        unavailabilityReason: prod.stock <= 0 ? 'OUT_OF_STOCK' : 'TEMPORARILY_UNAVAILABLE',
+        inquiryCount: 0,
+        totalRequestedQuantity: 0,
+        totalRequestedBaseUnits: 0,
+        confirmedIntentCount: 0,
+        firstRequestedAt: '',
+        lastRequestedAt: '',
+        inquiryTimestamps: [],
+        recentNotes: [],
+        currentStock: prod.stock,
+      });
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => {
+    if (b.inquiryCount !== a.inquiryCount) {
+      return b.inquiryCount - a.inquiryCount;
+    }
+    if (b.lastRequestedAt !== a.lastRequestedAt) {
+      return b.lastRequestedAt.localeCompare(a.lastRequestedAt);
+    }
+    return a.productName.localeCompare(b.productName);
+  });
+}
+
+/**
+ * Searches the Unavailable Products Knowledge Base by any word, partial word, or character.
+ */
+export function searchUnavailableProductsKnowledgeBase(
+  items: UnavailableProductKnowledgeItem[],
+  query: string,
+  options?: { onlyUnregisteredOrPreviouslyAsked?: boolean; limit?: number }
+): (UnavailableProductKnowledgeItem & { matchScore: number })[] {
+  const limit = options?.limit ?? 15;
+  const source = options?.onlyUnregisteredOrPreviouslyAsked
+    ? items.filter((item) => !item.isRegisteredProduct || item.inquiryCount > 0)
+    : items;
+
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return source
+      .slice(0, limit)
+      .map((item) => ({ ...item, matchScore: item.inquiryCount > 0 ? 50 : 10 }));
+  }
+
+  const scored: (UnavailableProductKnowledgeItem & { matchScore: number })[] = [];
+  for (const item of source) {
+    const score = scoreUnavailableProductMatch(
+      [
+        item.productName,
+        item.productNameAr,
+        item.barcode,
+        item.sku,
+        item.category,
+        ...item.recentNotes,
+      ],
+      trimmed
+    );
+    if (score > 0) {
+      scored.push({ ...item, matchScore: score });
+    }
+  }
+
+  scored.sort((a, b) => {
+    if (b.matchScore !== a.matchScore) {
+      return b.matchScore - a.matchScore;
+    }
+    if (b.inquiryCount !== a.inquiryCount) {
+      return b.inquiryCount - a.inquiryCount;
+    }
+    return b.lastRequestedAt.localeCompare(a.lastRequestedAt);
+  });
+
+  return scored.slice(0, limit);
+}
+

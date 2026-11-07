@@ -24,6 +24,7 @@ import {
   Trash2,
   Edit2,
 } from 'lucide-react';
+import { useDebouncedValue } from '../../lib/performance-monitor';
 
 export const CustomersView: React.FC = () => {
   const { customers, addCustomer, updateCustomer, deleteCustomer, transactions, settings } = usePOS();
@@ -31,6 +32,7 @@ export const CustomersView: React.FC = () => {
   const isAr = settings.language === 'ar';
 
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 120);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [selectedCustomerHistory, setSelectedCustomerHistory] = useState<Customer | null>(null);
@@ -44,13 +46,15 @@ export const CustomersView: React.FC = () => {
   const [formDebt, setFormDebt] = useState('');
 
   const filteredCustomers = useMemo(() => {
+    const q = debouncedSearchQuery.toLowerCase();
     return customers.filter((c) => {
-      const matchName = c.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchPhone = c.phone.includes(searchQuery);
-      const matchEmail = c.email?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
-      return searchQuery === '' || matchName || matchPhone || matchEmail;
+      if (!q) return true;
+      const matchName = c.name.toLowerCase().includes(q);
+      const matchPhone = c.phone.includes(debouncedSearchQuery);
+      const matchEmail = c.email?.toLowerCase().includes(q) || false;
+      return matchName || matchPhone || matchEmail;
     });
-  }, [customers, searchQuery]);
+  }, [customers, debouncedSearchQuery]);
 
   const openCreateModal = () => {
     setEditingCustomer(null);

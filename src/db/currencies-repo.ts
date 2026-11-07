@@ -68,17 +68,21 @@ const DEFAULT_RATES: ExchangeRateRecord[] = [
 export async function getBaseCurrency(): Promise<CurrencyRecord> {
   if (db) {
     try {
-      const res = await db.select().from(currencies).where(eq(currencies.isBase, true)).limit(1);
+      const res = await db
+        .select({
+          code: currencies.code,
+          name: currencies.name,
+          nameAr: currencies.nameAr,
+          symbol: currencies.symbol,
+          decimalPlaces: currencies.decimalPlaces,
+          isBase: currencies.isBase,
+          isActive: currencies.isActive,
+        })
+        .from(currencies)
+        .where(eq(currencies.isBase, true))
+        .limit(1);
       if (res.length > 0) {
-        return {
-          code: res[0].code,
-          name: res[0].name,
-          nameAr: res[0].nameAr,
-          symbol: res[0].symbol,
-          decimalPlaces: res[0].decimalPlaces,
-          isBase: res[0].isBase,
-          isActive: res[0].isActive,
-        };
+        return res[0];
       }
     } catch (err) {
       console.warn('PostgreSQL getBaseCurrency failed, falling back:', err);
@@ -89,22 +93,25 @@ export async function getBaseCurrency(): Promise<CurrencyRecord> {
 }
 
 /**
- * Retrieve all registered active currencies.
+ * Retrieve all registered active currencies (#24 Required Columns Only).
  */
 export async function getAllCurrencies(): Promise<CurrencyRecord[]> {
   if (db) {
     try {
-      const res = await db.select().from(currencies).where(eq(currencies.isActive, true));
+      const res = await db
+        .select({
+          code: currencies.code,
+          name: currencies.name,
+          nameAr: currencies.nameAr,
+          symbol: currencies.symbol,
+          decimalPlaces: currencies.decimalPlaces,
+          isBase: currencies.isBase,
+          isActive: currencies.isActive,
+        })
+        .from(currencies)
+        .where(eq(currencies.isActive, true));
       if (res.length > 0) {
-        return res.map((c) => ({
-          code: c.code,
-          name: c.name,
-          nameAr: c.nameAr,
-          symbol: c.symbol,
-          decimalPlaces: c.decimalPlaces,
-          isBase: c.isBase,
-          isActive: c.isActive,
-        }));
+        return res;
       }
     } catch (err) {
       console.warn('PostgreSQL getAllCurrencies failed, falling back:', err);

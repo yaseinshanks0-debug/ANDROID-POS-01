@@ -153,14 +153,16 @@ export const SettingsView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 max-w-4xl mx-auto w-full p-4 md:p-6 space-y-6 pb-28">
+    <div className="flex-1 max-w-6xl mx-auto w-full p-4 md:p-6 space-y-6 pb-28">
       {/* Header */}
       <div>
         <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
           {t.systemSettings}
         </h2>
-        <span className="text-xs text-neutral-400">
-          Hardware preferences, multi-user permissions, localization, tax policies and sync state
+        <span className="text-xs text-neutral-400 mt-0.5 block">
+          {isAr
+            ? 'تفضيلات النظام، صلاحيات المستخدمين، العملات وأسعار الصرف، الضرائب، والنسخ الاحتياطي'
+            : 'Hardware preferences, multi-user permissions, localization, tax policies and sync state'}
         </span>
       </div>
 

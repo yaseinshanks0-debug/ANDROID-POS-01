@@ -50,34 +50,10 @@ import {
   Trash2,
 } from 'lucide-react';
 import { playTactileClick } from '../../lib/sound-fx';
+import { compressImageToOptimalDataUrl, useDebouncedValue } from '../../lib/performance-monitor';
 
 function compressReceiptImageToDataUrl(file: File, maxDim = 640): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-        const width = Math.max(1, Math.round(img.width * scale));
-        const height = Math.max(1, Math.round(img.height * scale));
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(reader.result as string);
-          return;
-        }
-        ctx.clearRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.82));
-      };
-      img.onerror = () => resolve(reader.result as string);
-      img.src = reader.result as string;
-    };
-    reader.onerror = (err) => reject(err);
-    reader.readAsDataURL(file);
-  });
+  return compressImageToOptimalDataUrl(file, maxDim, 0.82);
 }
 
 export const SalesView: React.FC = () => {
@@ -99,6 +75,7 @@ export const SalesView: React.FC = () => {
   const isAr = settings.language === 'ar';
 
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 120);
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'voided'>('all');
   const [valuationMode, setValuationMode] = useState<SalesRateValuationMode>('historical');
   const [anchorCurrency, setAnchorCurrency] = useState<string>('USD');
@@ -183,9 +160,10 @@ export const SalesView: React.FC = () => {
   };
 
   const filteredTransactions = useMemo(() => {
+    const q = debouncedSearchQuery.toLowerCase();
     return transactions.filter((tx) => {
-      const q = searchQuery.toLowerCase();
       const matchSearch =
+        !q ||
         tx.id.toLowerCase().includes(q) ||
         (tx.customerName && tx.customerName.toLowerCase().includes(q)) ||
         tx.paymentMethod.toLowerCase().includes(q) ||
@@ -195,7 +173,7 @@ export const SalesView: React.FC = () => {
 
       return matchSearch && matchStatus;
     });
-  }, [transactions, searchQuery, statusFilter]);
+  }, [transactions, debouncedSearchQuery, statusFilter]);
 
   // Pre-compute converted view for each filtered transaction
   const convertedRows = useMemo(() => {

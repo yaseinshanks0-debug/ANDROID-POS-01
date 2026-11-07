@@ -112,39 +112,50 @@ export const roles = pgTable('roles', {
 });
 
 // 3. System Users & Cashiers
-export const users = pgTable('users', {
-  id: text('id').primaryKey(),
-  companyId: text('company_id').default('comp-default').notNull(),
-  username: text('username').notNull().unique(),
-  name: text('name').notNull(),
-  nameAr: text('name_ar'),
-  email: text('email'),
-  phone: text('phone'),
-  roleId: text('role_id').references(() => roles.id).notNull(),
-  branchId: text('branch_id').references(() => branches.id),
-  assignedBranchIds: jsonb('assigned_branch_ids').$type<string[]>().default([]).notNull(),
-  customPermissions: jsonb('custom_permissions').$type<string[]>().default([]).notNull(),
-  pinCode: text('pin_code'),
-  passwordHash: text('password_hash'),
-  passwordSalt: text('password_salt'),
-  mustChangePassword: boolean('must_change_password').default(false).notNull(),
-  tourProgressJson: jsonb('tour_progress_json').$type<Record<string, any>>().default({}),
-  isActive: boolean('is_active').default(true).notNull(),
-  lastLoginAt: timestamp('last_login_at'),
-  deactivatedAt: timestamp('deactivated_at'),
-  deactivatedBy: text('deactivated_by'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const users = pgTable(
+  'users',
+  {
+    id: text('id').primaryKey(),
+    companyId: text('company_id').default('comp-default').notNull(),
+    username: text('username').notNull().unique(),
+    name: text('name').notNull(),
+    nameAr: text('name_ar'),
+    email: text('email'),
+    phone: text('phone'),
+    roleId: text('role_id').references(() => roles.id).notNull(),
+    branchId: text('branch_id').references(() => branches.id),
+    assignedBranchIds: jsonb('assigned_branch_ids').$type<string[]>().default([]).notNull(),
+    customPermissions: jsonb('custom_permissions').$type<string[]>().default([]).notNull(),
+    pinCode: text('pin_code'),
+    passwordHash: text('password_hash'),
+    passwordSalt: text('password_salt'),
+    mustChangePassword: boolean('must_change_password').default(false).notNull(),
+    tourProgressJson: jsonb('tour_progress_json').$type<Record<string, any>>().default({}),
+    isActive: boolean('is_active').default(true).notNull(),
+    lastLoginAt: timestamp('last_login_at'),
+    deactivatedAt: timestamp('deactivated_at'),
+    deactivatedBy: text('deactivated_by'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('users_company_idx').on(table.companyId),
+    index('users_branch_idx').on(table.branchId),
+  ]
+);
 
 // 4. Categories
-export const categories = pgTable('categories', {
-  id: text('id').primaryKey(),
-  companyId: text('company_id').default('comp-default').notNull(),
-  name: text('name').notNull(),
-  nameAr: text('name_ar'),
-  slug: text('slug').notNull().unique(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const categories = pgTable(
+  'categories',
+  {
+    id: text('id').primaryKey(),
+    companyId: text('company_id').default('comp-default').notNull(),
+    name: text('name').notNull(),
+    nameAr: text('name_ar'),
+    slug: text('slug').notNull().unique(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('categories_company_idx').on(table.companyId)]
+);
 
 // 5. Products & Barcodes
 export const products = pgTable(
@@ -182,31 +193,42 @@ export const products = pgTable(
 );
 
 // 6. Suppliers & Vendors
-export const suppliers = pgTable('suppliers', {
-  id: text('id').primaryKey(),
-  companyId: text('company_id').default('comp-default').notNull(),
-  name: text('name').notNull(),
-  contactName: text('contact_name'),
-  phone: text('phone').notNull(),
-  email: text('email'),
-  address: text('address'),
-  taxNumber: text('tax_number'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const suppliers = pgTable(
+  'suppliers',
+  {
+    id: text('id').primaryKey(),
+    companyId: text('company_id').default('comp-default').notNull(),
+    name: text('name').notNull(),
+    contactName: text('contact_name'),
+    phone: text('phone').notNull(),
+    email: text('email'),
+    address: text('address'),
+    taxNumber: text('tax_number'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('suppliers_company_idx').on(table.companyId)]
+);
 
 // 7. Purchase Orders & Inbound Stock
-export const purchases = pgTable('purchases', {
-  id: text('id').primaryKey(),
-  companyId: text('company_id').default('comp-default').notNull(),
-  purchaseNumber: text('purchase_number').notNull().unique(),
-  supplierId: text('supplier_id').references(() => suppliers.id),
-  branchId: text('branch_id').references(() => branches.id),
-  totalAmount: numeric('total_amount', { precision: 12, scale: 2 }).notNull(),
-  status: text('status').notNull().default('received'), // 'ordered', 'received', 'cancelled'
-  notes: text('notes'),
-  invoiceDate: timestamp('invoice_date').defaultNow().notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const purchases = pgTable(
+  'purchases',
+  {
+    id: text('id').primaryKey(),
+    companyId: text('company_id').default('comp-default').notNull(),
+    purchaseNumber: text('purchase_number').notNull().unique(),
+    supplierId: text('supplier_id').references(() => suppliers.id),
+    branchId: text('branch_id').references(() => branches.id),
+    totalAmount: numeric('total_amount', { precision: 12, scale: 2 }).notNull(),
+    status: text('status').notNull().default('received'), // 'ordered', 'received', 'cancelled'
+    notes: text('notes'),
+    invoiceDate: timestamp('invoice_date').defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('purchases_company_idx').on(table.companyId),
+    index('purchases_invoice_date_idx').on(table.invoiceDate),
+  ]
+);
 
 export const purchaseItems = pgTable('purchase_items', {
   id: text('id').primaryKey(),

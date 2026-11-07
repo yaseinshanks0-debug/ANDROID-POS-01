@@ -131,6 +131,7 @@ export function BusinessIntelligenceDashboard() {
   const activeUserId = currentUser?.id || users[0]?.id || 'user-1';
 
   const syncPersistedLifecycleFromServer = useCallback(async () => {
+    if (!activeUserId || activeUserId === 'unassigned-operator') return;
     try {
       const res = await fetch('/api/intelligence/lifecycle?status=ALL_HISTORY&pageSize=100', {
         headers: { 'x-user-id': activeUserId },
@@ -296,12 +297,22 @@ export function BusinessIntelligenceDashboard() {
   );
 
   const overview = useMemo(() => {
+    const effectiveUsers =
+      users && users.length > 0
+        ? users.some((u) => u.id === currentUser?.id)
+          ? users
+          : currentUser
+          ? [...users, currentUser]
+          : users
+        : currentUser
+        ? [currentUser]
+        : [];
     const snapshot = buildAnalyticsSnapshotFromState({
       products,
       transactions,
       customers,
       stockMovements,
-      users,
+      users: effectiveUsers,
       exchangeRates: settings.exchangeRates,
       exchangeRateHistory,
       branches: DEFAULT_ANALYTICS_BRANCHES,
@@ -455,8 +466,8 @@ export function BusinessIntelligenceDashboard() {
       id: 'section-intelligence',
       targetTab: 'intelligence_center',
       matchTabs: ['intelligence_center', 'smart_intelligence', 'insights'],
-      labelEn: '6. Intelligence Center',
-      labelAr: '6. مركز الذكاء والتوصيات',
+      labelEn: '6. Intelligence',
+      labelAr: '6. مركز الذكاء',
       badge: persistedLifecycleCounts?.active ?? intelligence.overview.totalActiveAlerts,
       icon: <Sparkles className="w-3.5 h-3.5 text-amber-400" />,
     },
@@ -464,8 +475,8 @@ export function BusinessIntelligenceDashboard() {
       id: 'section-reports',
       targetTab: 'technical',
       matchTabs: ['technical', 'customers'],
-      labelEn: '7. Reports & Signals',
-      labelAr: '7. التقارير والمؤشرات',
+      labelEn: '7. Indicators',
+      labelAr: '7. المؤشرات الفنية',
       icon: <Activity className="w-3.5 h-3.5" />,
     },
   ];
@@ -2969,13 +2980,22 @@ export function BusinessIntelligenceDashboard() {
             </div>
           </AppCard>
 
-          {/* Most Requested Unavailable Products Table */}
+          {/* Most Requested Unavailable Products Table & Decision Support */}
           <AppCard className="p-4 overflow-x-auto">
-            <h4 className="text-sm font-bold mb-3">
-              {isAr
-                ? 'أكثر المنتجات غير المتوفرة طلباً ومقارنتها بالمبيعات الفعلية والرصيد الحالي'
-                : 'Most Requested Unavailable Products vs. Actual Sales & Current Stock'}
-            </h4>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div>
+                <h4 className="text-sm font-bold">
+                  {isAr
+                    ? 'قاعدة المنتجات غير المتوفرة الأكثر طلباً وتوصيات اتخاذ القرار (مع أوقات السؤال المختلفة)'
+                    : 'Most Requested Unavailable Products, Inquiry Timestamps & Decision Support'}
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  {isAr
+                    ? 'يجمع كافة المرات التي سُئل فيها عن نفس المنتج في أوقات مختلفة لمساعدة الإدارة في قرار التوريد أو الإضافة للكتالوج'
+                    : 'Aggregates repeat inquiries for each product across different timestamps to guide procurement decisions'}
+                </p>
+              </div>
+            </div>
             <table
               className="w-full text-xs text-left border-collapse"
               data-testid="unmet-top-products-table"
@@ -2984,24 +3004,26 @@ export function BusinessIntelligenceDashboard() {
                 <tr className="border-b border-slate-800 text-slate-400 text-[11px]">
                   <th className="py-2 px-2">{isAr ? 'المنتج' : 'Product'}</th>
                   <th className="py-2 px-2">{isAr ? 'النوع' : 'Catalog Status'}</th>
-                  <th className="py-2 px-2">{isAr ? 'السبب الرئيسي' : 'Primary Reason'}</th>
-                  <th className="py-2 px-2">{isAr ? 'عدد الاستفسارات' : 'Inquiries'}</th>
+                  <th className="py-2 px-2">{isAr ? 'عدد مرات السؤال' : 'Inquiries'}</th>
                   <th className="py-2 px-2">{isAr ? 'الوحدات المطلوبة' : 'Req. Units'}</th>
-                  <th className="py-2 px-2">{isAr ? 'الرصيد الحالي' : 'Current Stock'}</th>
-                  <th className="py-2 px-2">{isAr ? 'المباع فعلياً' : 'Actual Sold'}</th>
-                  <th className="py-2 px-2">{isAr ? 'نسبة التلبية' : 'Capture %'}</th>
+                  <th className="py-2 px-2">{isAr ? 'أوقات وتواريخ السؤال المختلفة' : 'Inquiry Timestamps'}</th>
+                  <th className="py-2 px-2">{isAr ? 'توصية اتخاذ القرار' : 'Decision Support'}</th>
+                  <th className="py-2 px-2">{isAr ? 'الرصيد / المباع' : 'Stock / Sold'}</th>
                   <th className="py-2 px-2">
                     {isAr ? 'الإيراد المفقود التقديري' : 'Conservative Lost Rev.'}
                   </th>
+                  <th className="py-2 px-2">{isAr ? 'إجراء' : 'Action'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
                 {unmetDemand.topRequestedProducts.map((item) => (
                   <tr key={item.productKey} className="hover:bg-slate-800/30">
-                    <td className="py-2 px-2 font-sans font-semibold">
-                      <div>{isAr ? item.productNameAr || item.productName : item.productName}</div>
+                    <td className="py-2.5 px-2 font-sans font-semibold">
+                      <div className="text-white font-bold">
+                        {isAr ? item.productNameAr || item.productName : item.productName}
+                      </div>
                       <div className="text-[10px] text-slate-400 font-mono">
-                        {item.sku || item.barcode || 'Unregistered'} • {item.category}
+                        {item.sku || item.barcode || (isAr ? 'غير مسجل' : 'Unregistered')} • {item.category}
                       </div>
                       {item.repeatedStockoutPatternDetected && (
                         <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[10px] font-sans font-bold">
@@ -3009,7 +3031,7 @@ export function BusinessIntelligenceDashboard() {
                         </span>
                       )}
                     </td>
-                    <td className="py-2 px-2 font-sans">
+                    <td className="py-2.5 px-2 font-sans">
                       {item.isRegisteredProduct ? (
                         <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[10px] font-bold">
                           {isAr ? 'مسجل بالكتالوج' : 'Registered'}
@@ -3020,26 +3042,53 @@ export function BusinessIntelligenceDashboard() {
                         </span>
                       )}
                     </td>
-                    <td className="py-2 px-2 font-sans text-[11px] text-amber-300">
-                      {item.primaryReason.replace(/_/g, ' ')}
+                    <td className="py-2.5 px-2">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/15 border border-rose-500/40 font-bold text-rose-300">
+                        {item.inquiryCount} {isAr ? 'مرات' : 'x'}
+                      </span>
                     </td>
-                    <td className="py-2 px-2 font-bold text-rose-400">{item.inquiryCount}</td>
-                    <td className="py-2 px-2 font-bold text-amber-400">
+                    <td className="py-2.5 px-2 font-bold text-amber-400">
                       {item.requestedBaseUnitsTotal}{' '}
                       <span className="text-[10px] text-slate-400">
                         ({item.confirmedPurchaseIntentUnits} {isAr ? 'مؤكد' : 'confirmed'})
                       </span>
                     </td>
-                    <td className="py-2 px-2">
-                      {item.currentStock !== null ? item.currentStock : '—'}
+                    <td className="py-2.5 px-2 font-sans">
+                      <div className="flex flex-wrap gap-1 max-w-[230px]">
+                        {(item.inquiryTimestamps && item.inquiryTimestamps.length > 0
+                          ? item.inquiryTimestamps
+                          : [item.lastRequestedAt]
+                        )
+                          .slice(0, 4)
+                          .map((ts, idx) => (
+                            <span
+                              key={`${ts}-${idx}`}
+                              className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-mono text-slate-300"
+                            >
+                              {new Date(ts).toLocaleString(isAr ? 'ar-SA' : 'en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          ))}
+                      </div>
                     </td>
-                    <td className="py-2 px-2 text-emerald-400">{item.actualUnitsSoldInPeriod}</td>
-                    <td className="py-2 px-2">
-                      {item.demandCaptureRatioPercent !== null
-                        ? `${item.demandCaptureRatioPercent}%`
-                        : '—'}
+                    <td className="py-2.5 px-2 font-sans max-w-[260px]">
+                      <div className="text-[11px] leading-relaxed text-amber-200 font-medium">
+                        {isAr
+                          ? item.decisionRecommendationAr || 'يُوصى بمتابعة الطلب وتوفيره'
+                          : item.decisionRecommendationEn || 'Monitor demand and restock'}
+                      </div>
                     </td>
-                    <td className="py-2 px-2 text-rose-300 font-bold">
+                    <td className="py-2.5 px-2 text-[11px]">
+                      <span className="text-slate-300">
+                        {item.currentStock !== null ? item.currentStock : '—'}
+                      </span>{' '}
+                      / <span className="text-emerald-400">{item.actualUnitsSoldInPeriod}</span>
+                    </td>
+                    <td className="py-2.5 px-2 text-rose-300 font-bold">
                       {item.lostSalesEstimationStatus === 'ESTIMATED' &&
                       item.estimatedLostRevenueConservative !== null
                         ? formatCurrency(
@@ -3050,6 +3099,26 @@ export function BusinessIntelligenceDashboard() {
                         : isAr
                         ? 'بدون تسعير (غير مسجل)'
                         : 'INSUFFICIENT_DATA'}
+                    </td>
+                    <td className="py-2.5 px-2 font-sans">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openUnmetDemandModal({
+                            productId: item.productId,
+                            isRegisteredProduct: item.isRegisteredProduct,
+                            productNameSnapshot: item.productName,
+                            productNameArSnapshot: item.productNameAr,
+                            barcode: item.barcode,
+                            categorySnapshot: item.category,
+                            unavailabilityReason: item.primaryReason,
+                            sourceScreen: 'analytics',
+                          })
+                        }
+                        className="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500 hover:text-slate-950 text-[11px] font-bold transition whitespace-nowrap"
+                      >
+                        {isAr ? '+ سؤال جديد' : '+ Log Inquiry'}
+                      </button>
                     </td>
                   </tr>
                 ))}

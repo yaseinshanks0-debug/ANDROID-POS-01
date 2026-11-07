@@ -136,7 +136,15 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
     if (baseFound) {
       setBaseCurrency(baseFound.code);
     }
-    const nextRates = contextRateItems || [];
+    const nextRates =
+      workspaceMode === 'PRODUCTION'
+        ? reconcileRatesWithPersisted(
+            contextRateItems || [],
+            contextExchangeRates || {},
+            [],
+            nextCurrencies
+          )
+        : contextRateItems || [];
     setCurrencies(nextCurrencies);
     setRates(nextRates);
     setEditForms((prev) =>
@@ -166,8 +174,10 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
   const [historyItems, setHistoryItems] = useState<ExchangeRateItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
 
-  // New / Edit Currency Modal state
-  const [currencyModalOpen, setCurrencyModalOpen] = useState<boolean>(false);
+  // New / Edit Currency Modal state (auto-open when no currencies are configured so fields are immediately visible)
+  const [currencyModalOpen, setCurrencyModalOpen] = useState<boolean>(
+    () => !Array.isArray(contextCurrencies) || contextCurrencies.length === 0
+  );
   const [editingCurrency, setEditingCurrency] = useState<Currency | null>(null);
   const [currCode, setCurrCode] = useState<string>('');
   const [currName, setCurrName] = useState<string>('');
@@ -206,10 +216,11 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
           const baseFound = companyCurrencies.find((c) => c.isBase) || companyCurrencies[0];
           const resolvedBase = baseFound ? baseFound.code : 'SDG';
           const companyRatesMap = contextExchangeRatesRef.current || {};
-          const companyRateItems = (contextRateItemsRef.current || []).filter((item) =>
-            companyCurrencies.some(
-              (c) => !c.isBase && c.code.toUpperCase() === item.sourceCurrency.toUpperCase()
-            )
+          const companyRateItems = reconcileRatesWithPersisted(
+            contextRateItemsRef.current || [],
+            companyRatesMap,
+            [],
+            companyCurrencies
           );
 
           setCurrencies(companyCurrencies);
@@ -321,6 +332,7 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
     setCurrNameAr('');
     setCurrSymbol('');
     setCurrInitialRate('');
+    setCurrIsBase(false);
     setCurrencyError(null);
     setCurrencyModalOpen(true);
   };
@@ -333,6 +345,7 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
     setCurrName(c.name);
     setCurrNameAr(c.nameAr || '');
     setCurrSymbol(c.symbol);
+    setCurrIsBase(Boolean(c.isBase || c.code.toUpperCase() === 'SDG'));
     const formRate = editForms[c.code]?.rate;
     const activeRate = rates.find((r) => r.sourceCurrency === c.code);
     const persistedRate = contextExchangeRates?.[c.code];
@@ -359,18 +372,19 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
     if (!cleanCode || cleanCode.length < 2 || cleanCode.length > 6) {
       setCurrencyError(
         isAr
-          ? 'يرجى اختيار عملة من القوالب السريعة أو كتابة رمز العملة أو اسمها (مثل EGP أو جنيه مصري)'
-          : 'Please select a currency template or enter a currency code or name (e.g., EGP, QAR)'
+          ? 'يرجى اختيار عملة من القوالب السريعة أو كتابة رمز العملة أو اسمها (مثل USD أو SAR أو EGP)'
+          : 'Please select a currency template or enter a currency code or name (e.g., USD, SAR, EGP)'
       );
       return;
     }
 
+    const isSdgOrBase = cleanCode === 'SDG' || currIsBase;
     const parsedInitialRate = parseNormalizedNumber(currInitialRate, 0);
-    if (cleanCode !== 'SDG' && parsedInitialRate <= 0) {
+    if (!isSdgOrBase && parsedInitialRate <= 0) {
       setCurrencyError(
         isAr
-          ? 'يرجى إدخال سعر صرف ابتدائي صحيح أكبر من 0 مقابل الجنيه السوداني'
-          : 'Please enter a valid initial exchange rate greater than 0 against SDG'
+          ? 'يرجى إدخال سعر الصرف مقابل الجنيه السوداني (SDG) بقيمة أكبر من 0'
+          : 'Please enter a valid exchange rate greater than 0 against the Sudanese Pound (SDG)'
       );
       return;
     }
@@ -386,19 +400,34 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
         nameAr: resolved.nameAr,
         symbol: resolved.symbol,
         decimalPlaces: 2,
-        initialRateToBase: cleanCode !== 'SDG' ? parsedInitialRate : undefined,
+        isBase: isSdgOrBase,
+        initialRateToBase: !isSdgOrBase ? parsedInitialRate : undefined,
       });
 
-      // Immediately update local currencies list
+      // Immediately update local currencies list (and ensure SDG base currency is included when adding a foreign currency)
       setCurrencies((prev) => {
         const exists = prev.some((c) => c.code.toUpperCase() === cleanCode);
-        return exists
+        const updated = exists
           ? prev.map((c) => (c.code.toUpperCase() === cleanCode ? { ...c, ...savedCurr } : c))
           : [...prev, savedCurr];
+
+        if (!isSdgOrBase && !updated.some((c) => c.isBase || c.code.toUpperCase() === 'SDG')) {
+          const sdgBase: Currency = {
+            code: 'SDG',
+            name: 'Sudanese Pound',
+            nameAr: 'جنيه سوداني',
+            symbol: 'ج.س',
+            decimalPlaces: 2,
+            isBase: true,
+            isActive: true,
+          };
+          return [sdgBase, ...updated];
+        }
+        return updated;
       });
 
       // Immediately update local rates list and editForms so the new currency card appears right away
-      if (cleanCode !== 'SDG' && parsedInitialRate > 0) {
+      if (!isSdgOrBase && parsedInitialRate > 0) {
         const nowIso = new Date().toISOString();
         const newRateItem: ExchangeRateItem = {
           id: `rate-${cleanCode.toLowerCase()}-sdg-${Date.now()}`,
@@ -440,9 +469,13 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
       playSuccessChime(settings.soundEnabled);
       setCurrencyModalOpen(false);
       setSuccessBanner(
-        isAr
-          ? `تمت إضافة/حفظ العملة (${cleanCode} - ${resolved.nameAr}) بسعر صرف ${parsedInitialRate} ج.س بنجاح!`
-          : `Currency (${cleanCode} - ${resolved.name}) saved with rate ${parsedInitialRate} SDG!`
+        isSdgOrBase
+          ? isAr
+            ? `تمت إضافة/حفظ العملة الأساسية (${cleanCode} - ${resolved.nameAr}) بنجاح!`
+            : `Base currency (${cleanCode} - ${resolved.name}) saved successfully!`
+          : isAr
+            ? `تمت إضافة/حفظ العملة (${cleanCode} - ${resolved.nameAr}) بسعر صرف ${parsedInitialRate} ج.س بنجاح!`
+            : `Currency (${cleanCode} - ${resolved.name}) saved with rate ${parsedInitialRate} SDG!`
       );
       setTimeout(() => setSuccessBanner(null), 5000);
     } catch (err: any) {
@@ -874,13 +907,13 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
               </div>
             )}
 
-            {/* Quick Templates shown ONLY in Practice Mode */}
-            {!editingCurrency && workspaceMode === 'PRACTICE' && (
+            {/* Quick Templates for fast currency selection */}
+            {!editingCurrency && (
               <div>
                 <span className="text-[11px] text-neutral-300 font-semibold block mb-1.5">
                   {isAr
-                    ? 'قوالب عملات جاهزة للتدريب (اضغط على أي عملة لتعبئة بياناتها):'
-                    : 'Practice currency templates (click to auto-fill):'}
+                    ? 'اختيار سريع للعملة (اضغط لتعبئة رمز واسم العملة تلقائياً):'
+                    : 'Quick currency templates (click to auto-fill currency details):'}
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {CURRENCY_TEMPLATES.map((tpl) => {
@@ -889,13 +922,19 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
                       <button
                         key={tpl.code}
                         type="button"
+                        data-testid={`currency-template-btn-${tpl.code}`}
                         onClick={() => {
                           playTactileClick(settings.soundEnabled);
                           setCurrCode(tpl.code);
                           setCurrName(tpl.name);
                           setCurrNameAr(tpl.nameAr);
                           setCurrSymbol(tpl.symbol);
-                          setCurrInitialRate(tpl.defaultRate.toString());
+                          setCurrIsBase(tpl.code === 'SDG');
+                          if (tpl.code === 'SDG') {
+                            setCurrInitialRate('1');
+                          } else if (workspaceMode === 'PRACTICE' || !currInitialRate) {
+                            setCurrInitialRate(tpl.defaultRate.toString());
+                          }
                           setCurrencyError(null);
                         }}
                         className={`px-2.5 py-1.5 rounded-xl border text-xs font-mono transition-all ${
@@ -915,7 +954,7 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <div>
                 <label className="text-xs font-semibold text-neutral-300 block mb-1">
-                  {isAr ? 'رمز العملة (مثل SDG أو USD) *' : 'Currency Code (e.g. SDG, USD) *'}
+                  {isAr ? 'رمز العملة (مثل USD أو SAR أو SDG) *' : 'Currency Code (e.g. USD, SAR, SDG) *'}
                 </label>
                 <input
                   type="text"
@@ -925,10 +964,16 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
                   maxLength={6}
                   value={currCode}
                   onChange={(e) => {
-                    setCurrCode(e.target.value.toUpperCase());
+                    const nextCode = e.target.value.toUpperCase();
+                    setCurrCode(nextCode);
+                    if (nextCode === 'SDG') {
+                      setCurrIsBase(true);
+                    } else if (currCode === 'SDG') {
+                      setCurrIsBase(false);
+                    }
                     setCurrencyError(null);
                   }}
-                  placeholder={isAr ? 'مثال: SDG أو USD' : 'e.g. SDG or USD'}
+                  placeholder={isAr ? 'مثال: USD أو SAR' : 'e.g. USD or SAR'}
                   className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white font-mono font-bold uppercase focus:outline-none focus:border-amber-500 disabled:opacity-60"
                 />
               </div>
@@ -945,7 +990,7 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
                     setCurrNameAr(e.target.value);
                     setCurrencyError(null);
                   }}
-                  placeholder={isAr ? 'مثال: جنيه سوداني / دولار' : 'e.g. جنيه سوداني'}
+                  placeholder={isAr ? 'مثال: دولار أمريكي / ريال سعودي' : 'e.g. دولار أمريكي'}
                   className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
@@ -962,14 +1007,14 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
                     setCurrName(e.target.value);
                     setCurrencyError(null);
                   }}
-                  placeholder="e.g. Sudanese Pound / US Dollar"
+                  placeholder="e.g. US Dollar / Saudi Riyal"
                   className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
 
               <div>
                 <label className="text-xs font-semibold text-neutral-300 block mb-1">
-                  {isAr ? 'الرمز المختصر (مثل ج.س أو $)' : 'Symbol (e.g. $, ج.س)'}
+                  {isAr ? 'الرمز المختصر (مثل $ أو ر.س)' : 'Symbol (e.g. $, ر.س)'}
                 </label>
                 <input
                   type="text"
@@ -980,35 +1025,18 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
                     setCurrSymbol(e.target.value);
                     setCurrencyError(null);
                   }}
-                  placeholder="مثال: ج.س أو $"
+                  placeholder="مثال: $ أو ر.س"
                   className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white font-bold focus:outline-none focus:border-amber-500"
                 />
               </div>
             </div>
 
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-900/80 border border-neutral-800">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-neutral-200">
-                <input
-                  type="checkbox"
-                  data-testid="custom-currency-is-base-checkbox"
-                  checked={currIsBase || currencies.length === 0}
-                  onChange={(e) => setCurrIsBase(e.target.checked)}
-                  className="rounded border-neutral-700 text-amber-500 focus:ring-amber-500"
-                />
-                <span>
+            {!currIsBase && currCode.trim().toUpperCase() !== 'SDG' && (
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2">
+                <label className="text-xs font-bold text-amber-300 block">
                   {isAr
-                    ? 'تعيين كعملة أساسية للمتجر (Base Currency — سعر الصرف = 1)'
-                    : 'Set as Store Base Currency (Rate = 1)'}
-                </span>
-              </label>
-            </div>
-
-            {!currIsBase && currencies.length > 0 && (
-              <div>
-                <label className="text-xs font-semibold text-neutral-300 block mb-1">
-                  {isAr
-                    ? `سعر الصرف مقابل العملة الأساسية (${baseCurrency}) (1 ${currCode || currNameAr || 'عملة'} = كم ${baseCurrency}؟)`
-                    : `Exchange Rate to Base (${baseCurrency}) (1 ${currCode || 'Unit'} = ? ${baseCurrency})`}
+                    ? `سعر الصرف مقابل الجنيه السوداني (SDG) — (1 ${currCode || currNameAr || 'وحدة عملة'} = كم جنيه سوداني ج.س؟) *`
+                    : `Exchange Rate against Sudanese Pound (SDG) — (1 ${currCode || 'Unit'} = ? SDG) *`}
                 </label>
                 <div className="relative flex items-center">
                   <input
@@ -1021,24 +1049,64 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
                       setCurrInitialRate(normalizeNumberInput(e.target.value));
                       setCurrencyError(null);
                     }}
-                    placeholder={isAr ? 'أدخل سعر الصرف...' : 'Enter exchange rate...'}
-                    className="w-full bg-neutral-900 border border-neutral-700 rounded-xl pl-3.5 pr-16 py-2.5 text-base text-white font-mono font-bold focus:outline-none focus:border-amber-500"
+                    placeholder={
+                      isAr
+                        ? 'أدخل سعر الصرف مقابل الجنيه السوداني (مثال: 2700)'
+                        : 'Enter exchange rate against SDG (e.g. 2700)'
+                    }
+                    className="w-full bg-neutral-900 border border-amber-500/50 rounded-xl pl-3.5 pr-20 py-2.5 text-base text-white font-mono font-bold focus:outline-none focus:border-amber-400"
                   />
                   {currInitialRate && (
                     <button
                       type="button"
                       onClick={() => setCurrInitialRate('')}
-                      className="absolute right-12 px-1.5 py-0.5 text-[10px] font-bold bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded"
+                      className="absolute right-14 px-1.5 py-0.5 text-[10px] font-bold bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded"
                     >
                       {isAr ? 'مسح' : 'CLR'}
                     </button>
                   )}
                   <span className="absolute right-3.5 text-xs font-mono font-bold text-amber-400 pointer-events-none">
-                    {baseCurrency}
+                    SDG ج.س
                   </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="text-[11px] text-neutral-400">
+                    {isAr ? 'قيم سريعة مقابل الجنيه السوداني:' : 'Quick SDG rates:'}
+                  </span>
+                  {[50, 55, 600, 720, 750, 2500, 2700, 2800, 3000].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => {
+                        playTactileClick(settings.soundEnabled);
+                        setCurrInitialRate(preset.toString());
+                        setCurrencyError(null);
+                      }}
+                      className="px-2 py-0.5 rounded-lg bg-neutral-900 hover:bg-amber-500/20 border border-neutral-700 hover:border-amber-500/40 text-[11px] font-mono text-amber-300 transition-colors"
+                    >
+                      {preset.toLocaleString()} ج.س
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
+
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-900/80 border border-neutral-800">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-neutral-200">
+                <input
+                  type="checkbox"
+                  data-testid="custom-currency-is-base-checkbox"
+                  checked={currIsBase || currCode.trim().toUpperCase() === 'SDG'}
+                  onChange={(e) => setCurrIsBase(e.target.checked)}
+                  className="rounded border-neutral-700 text-amber-500 focus:ring-amber-500"
+                />
+                <span>
+                  {isAr
+                    ? 'تعيين كعملة أساسية للمتجر (الجنيه السوداني SDG — سعر الصرف = 1)'
+                    : 'Set as Store Base Currency (SDG — Rate = 1)'}
+                </span>
+              </label>
+            </div>
 
             <div className="pt-2 border-t border-neutral-800 flex items-center justify-end gap-2">
               <TactileButton

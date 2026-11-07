@@ -619,10 +619,22 @@ function loadCompanyOperationalState(companyId: string) {
   let users: POSUser[] = [];
   let activeSessions: ActiveUserSession[] = [];
 
+  let isRestoredCompany = false;
+  try {
+    isRestoredCompany =
+      localStorage.getItem(getCompanyStorageKey('pos_backup_restored', companyId)) === 'true' ||
+      localStorage.getItem('pos_backup_restored_global') === 'true';
+  } catch {}
+
   try {
     const rawProds = localStorage.getItem(getCompanyStorageKey(STORAGE_KEYS.PRODUCTS, companyId));
     if (rawProds) {
-      products = filterOutDemoProducts(JSON.parse(rawProds));
+      const parsedProds = JSON.parse(rawProds);
+      products = isRestoredCompany
+        ? Array.isArray(parsedProds)
+          ? parsedProds
+          : []
+        : filterOutDemoProducts(parsedProds);
     }
   } catch {}
 
@@ -631,7 +643,9 @@ function loadCompanyOperationalState(companyId: string) {
     if (rawTxs) {
       const parsed: Transaction[] = JSON.parse(rawTxs);
       transactions = Array.isArray(parsed)
-        ? parsed.filter((t) => t && !DEMO_SEED_TX_IDS.has(t.id))
+        ? isRestoredCompany
+          ? parsed
+          : parsed.filter((t) => t && !DEMO_SEED_TX_IDS.has(t.id))
         : [];
     }
   } catch {}
@@ -641,7 +655,9 @@ function loadCompanyOperationalState(companyId: string) {
     if (rawCusts) {
       const parsed: Customer[] = JSON.parse(rawCusts);
       customers = Array.isArray(parsed)
-        ? parsed.filter((c) => c && !DEMO_SEED_CUSTOMER_IDS.has(c.id))
+        ? isRestoredCompany
+          ? parsed
+          : parsed.filter((c) => c && !DEMO_SEED_CUSTOMER_IDS.has(c.id))
         : [];
     }
   } catch {}
@@ -651,7 +667,9 @@ function loadCompanyOperationalState(companyId: string) {
     if (rawMovs) {
       const parsed: StockMovement[] = JSON.parse(rawMovs);
       stockMovements = Array.isArray(parsed)
-        ? parsed.filter((m) => m && !DEMO_SEED_MOVEMENT_IDS.has(m.id))
+        ? isRestoredCompany
+          ? parsed
+          : parsed.filter((m) => m && !DEMO_SEED_MOVEMENT_IDS.has(m.id))
         : [];
     }
   } catch {}
@@ -663,7 +681,9 @@ function loadCompanyOperationalState(companyId: string) {
     if (rawDemand) {
       const parsed: UnmetDemandRequestRecord[] = JSON.parse(rawDemand);
       unmetDemandRequests = Array.isArray(parsed)
-        ? parsed.filter((d) => d && !DEMO_SEED_DEMAND_IDS.has(d.id))
+        ? isRestoredCompany
+          ? parsed
+          : parsed.filter((d) => d && !DEMO_SEED_DEMAND_IDS.has(d.id))
         : [];
     }
   } catch {}
@@ -2418,7 +2438,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         data.initialRateToBase && data.initialRateToBase > 0
           ? Number(data.initialRateToBase)
           : undefined;
-      const shouldBeBase = Boolean(data.isBase) || currencies.length === 0;
+      const shouldBeBase = Boolean(data.isBase) || code === 'SDG';
 
       let savedCurrency: Currency = {
         code,
@@ -2464,8 +2484,26 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ...(shouldBeBase ? prev.map((c) => ({ ...c, isBase: false })) : prev),
               savedCurrency,
             ];
-        if (!nextList.some((c) => c.isBase) && nextList.length > 0) {
-          nextList = nextList.map((c, idx) => (idx === 0 ? { ...c, isBase: true } : c));
+        if (!nextList.some((c) => c.isBase)) {
+          const hasSdg = nextList.some((c) => c.code.toUpperCase() === 'SDG');
+          if (hasSdg) {
+            nextList = nextList.map((c) =>
+              c.code.toUpperCase() === 'SDG' ? { ...c, isBase: true } : c
+            );
+          } else {
+            nextList = [
+              {
+                code: 'SDG',
+                name: 'Sudanese Pound',
+                nameAr: 'جنيه سوداني',
+                symbol: 'ج.س',
+                decimalPlaces: 2,
+                isBase: true,
+                isActive: true,
+              },
+              ...nextList,
+            ];
+          }
         }
         savePersistedCurrencies(nextList);
         return nextList;
@@ -2483,10 +2521,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           exchangeRates: { ...(prevSettings.exchangeRates || {}), [code]: 1, SDG: 1 },
         }));
       } else if (initialRate && initialRate > 0) {
-        const currentBase = currencies.find((c) => c.isBase) || currencies[0];
+        const currentBase = currencies.find((c) => c.isBase);
         const targetCode = currentBase?.code || 'SDG';
         const targetSymbol = currentBase?.symbol || 'ج.س';
-        const targetName = currentBase?.name || 'Base Currency';
+        const targetName = currentBase?.name || 'Sudanese Pound';
         const nowIso = new Date().toISOString();
         setExchangeRates((prev) => {
           const nextMap = { ...prev, [code]: initialRate, SDG: prev.SDG || 1 };
@@ -4187,7 +4225,11 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const newRecord = validation.record;
         setUnmetDemandRequests((prev) => [newRecord, ...prev]);
 
-        if (workspaceMode === 'PRODUCTION') {
+        if (
+          workspaceMode === 'PRODUCTION' &&
+          currentUser.id &&
+          currentUser.id !== 'unassigned-operator'
+        ) {
           fetch('/api/unmet-demand/requests', {
             method: 'POST',
             headers: {
@@ -4290,34 +4332,74 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       options?: { switchToNewCompany?: boolean; newOwner?: POSUser }
     ) => {
       if (!payload || !payload.companyProfile) return;
-      const targetComp = payload.companyProfile;
+      const incomingComp = payload.companyProfile;
+      const resolvedCompId =
+        options?.switchToNewCompany &&
+        incomingComp.id &&
+        incomingComp.id !== 'comp-default' &&
+        incomingComp.id !== 'comp-demo-practice'
+          ? incomingComp.id
+          : currentCompanyId &&
+            currentCompanyId !== 'comp-default' &&
+            currentCompanyId !== 'comp-demo-practice'
+          ? currentCompanyId
+          : incomingComp.id &&
+            incomingComp.id !== 'comp-default' &&
+            incomingComp.id !== 'comp-demo-practice'
+          ? incomingComp.id
+          : 'comp-clean-store';
+
+      const targetComp: CompanyProfile = {
+        ...incomingComp,
+        id: resolvedCompId,
+        isDemoPractice: false,
+        onboardingCompleted: true,
+      };
       const targetCompId = targetComp.id;
 
       setWorkspaceMode('PRODUCTION');
       setCompanies((prev) => {
-        const filtered = prev.filter((c) => c.id !== 'comp-default');
+        const filtered = prev.filter((c) => c.id !== 'comp-default' && !c.isDemoPractice);
         const exists = filtered.some((c) => c.id === targetCompId);
-        return exists
+        const nextCompanies = exists
           ? filtered.map((c) => (c.id === targetCompId ? targetComp : c))
           : [...filtered, targetComp];
+        try {
+          localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(nextCompanies));
+        } catch {}
+        return nextCompanies;
       });
       setCurrentCompanyId(targetCompId);
 
       if (Array.isArray(payload.branches) && payload.branches.length > 0) {
+        const normalizedBranches = payload.branches.map((b) => ({
+          ...b,
+          companyId: targetCompId,
+        }));
         setAllBranches((prev) => {
           const other = prev.filter((b) => b.companyId !== targetCompId);
-          return [...other, ...payload.branches];
+          const nextBranches = [...other, ...normalizedBranches];
+          try {
+            localStorage.setItem(STORAGE_KEYS.BRANCHES, JSON.stringify(nextBranches));
+          } catch {}
+          return nextBranches;
         });
-        setActiveBranchId(payload.branches[0].id);
+        setActiveBranchId(normalizedBranches[0].id);
       }
 
-      if (Array.isArray(payload.products)) setProducts(payload.products);
-      if (Array.isArray(payload.transactions)) setTransactions(payload.transactions);
-      if (Array.isArray(payload.customers)) setCustomers(payload.customers);
-      if (Array.isArray(payload.stockMovements)) setStockMovements(payload.stockMovements);
-      if (Array.isArray(payload.unmetDemandRequests)) {
-        setUnmetDemandRequests(payload.unmetDemandRequests);
-      }
+      const restoredProducts = Array.isArray(payload.products) ? payload.products : [];
+      const restoredTransactions = Array.isArray(payload.transactions) ? payload.transactions : [];
+      const restoredCustomers = Array.isArray(payload.customers) ? payload.customers : [];
+      const restoredMovements = Array.isArray(payload.stockMovements) ? payload.stockMovements : [];
+      const restoredDemand = Array.isArray(payload.unmetDemandRequests)
+        ? payload.unmetDemandRequests
+        : [];
+
+      setProducts(restoredProducts);
+      setTransactions(restoredTransactions);
+      setCustomers(restoredCustomers);
+      setStockMovements(restoredMovements);
+      setUnmetDemandRequests(restoredDemand);
 
       if (Array.isArray(payload.currencies)) {
         setCurrencies(payload.currencies);
@@ -4336,18 +4418,28 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       if (payload.storeSettings) {
-        setSettings((prev) => ({
-          ...prev,
-          ...payload.storeSettings,
-          storeName:
-            payload.storeSettings?.storeName ||
-            targetComp.displayName ||
-            targetComp.legalName,
-          storeNameAr:
-            payload.storeSettings?.storeNameAr ||
-            targetComp.displayNameAr ||
-            targetComp.displayName,
-        }));
+        setSettings((prev) => {
+          const nextSettings = {
+            ...prev,
+            ...payload.storeSettings,
+            storeName:
+              payload.storeSettings?.storeName ||
+              targetComp.displayName ||
+              targetComp.legalName,
+            storeNameAr:
+              payload.storeSettings?.storeNameAr ||
+              targetComp.displayNameAr ||
+              targetComp.displayName,
+          };
+          try {
+            localStorage.setItem(
+              getCompanyStorageKey(STORAGE_KEYS.SETTINGS, targetCompId),
+              JSON.stringify(nextSettings)
+            );
+            localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(nextSettings));
+          } catch {}
+          return nextSettings;
+        });
       }
 
       if (options?.newOwner) {
@@ -4358,8 +4450,17 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...e,
             pin: '0000',
           })) as POSUser[];
-        setUsers([ownerRecord, ...otherEmployees]);
+        const nextUsers = [ownerRecord, ...otherEmployees];
+        setUsers(nextUsers);
         setCurrentUserId(ownerRecord.id);
+        try {
+          localStorage.setItem(
+            getCompanyStorageKey(STORAGE_KEYS.USERS, targetCompId),
+            JSON.stringify(nextUsers)
+          );
+          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));
+          localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, ownerRecord.id);
+        } catch {}
       } else if (Array.isArray(payload.employees) && payload.employees.length > 0) {
         setUsers((prev) => {
           const existingMap = new Map<string, POSUser>(prev.map((u) => [u.id, u]));
@@ -4377,12 +4478,82 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ) {
             mergedUsers.unshift(currentUser);
           }
+          try {
+            localStorage.setItem(
+              getCompanyStorageKey(STORAGE_KEYS.USERS, targetCompId),
+              JSON.stringify(mergedUsers)
+            );
+            localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(mergedUsers));
+          } catch {}
           return mergedUsers;
         });
       }
 
-      // Persist auxiliary modules in company-scoped localStorage
+      // Immediately persist all restored operational & auxiliary modules in localStorage
       try {
+        localStorage.setItem(STORAGE_KEYS.WORKSPACE_MODE, 'PRODUCTION');
+        localStorage.setItem(STORAGE_KEYS.CURRENT_COMPANY_ID, targetCompId);
+        localStorage.setItem(getCompanyStorageKey('pos_backup_restored', targetCompId), 'true');
+        localStorage.setItem('pos_backup_restored_global', 'true');
+
+        localStorage.setItem(
+          getCompanyStorageKey(STORAGE_KEYS.PRODUCTS, targetCompId),
+          JSON.stringify(restoredProducts)
+        );
+        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(restoredProducts));
+
+        localStorage.setItem(
+          getCompanyStorageKey(STORAGE_KEYS.TRANSACTIONS, targetCompId),
+          JSON.stringify(restoredTransactions)
+        );
+        localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(restoredTransactions));
+
+        localStorage.setItem(
+          getCompanyStorageKey(STORAGE_KEYS.CUSTOMERS, targetCompId),
+          JSON.stringify(restoredCustomers)
+        );
+        localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(restoredCustomers));
+
+        localStorage.setItem(
+          getCompanyStorageKey(STORAGE_KEYS.MOVEMENTS, targetCompId),
+          JSON.stringify(restoredMovements)
+        );
+        localStorage.setItem(STORAGE_KEYS.MOVEMENTS, JSON.stringify(restoredMovements));
+
+        localStorage.setItem(
+          getCompanyStorageKey(STORAGE_KEYS.UNMET_DEMAND_REQUESTS, targetCompId),
+          JSON.stringify(restoredDemand)
+        );
+        localStorage.setItem(
+          STORAGE_KEYS.UNMET_DEMAND_REQUESTS,
+          JSON.stringify(restoredDemand)
+        );
+
+        if (Array.isArray(payload.currencies)) {
+          localStorage.setItem(
+            getCompanyStorageKey(STORAGE_KEYS.CURRENCIES, targetCompId),
+            JSON.stringify(payload.currencies)
+          );
+        }
+        if (payload.exchangeRates && typeof payload.exchangeRates === 'object') {
+          localStorage.setItem(
+            getCompanyStorageKey(STORAGE_KEYS.EXCHANGE_RATES, targetCompId),
+            JSON.stringify({ ...payload.exchangeRates, SDG: 1 })
+          );
+        }
+        if (Array.isArray(payload.exchangeRateItems)) {
+          localStorage.setItem(
+            getCompanyStorageKey(STORAGE_KEYS.EXCHANGE_RATE_ITEMS, targetCompId),
+            JSON.stringify(payload.exchangeRateItems)
+          );
+        }
+        if (Array.isArray(payload.exchangeRateHistory)) {
+          localStorage.setItem(
+            getCompanyStorageKey(STORAGE_KEYS.RATE_HISTORY, targetCompId),
+            JSON.stringify(payload.exchangeRateHistory)
+          );
+        }
+
         if (payload.categories) {
           localStorage.setItem(
             getCompanyStorageKey('pos_categories', targetCompId),
@@ -4427,7 +4598,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       playSuccessChime(settings.soundEnabled);
       triggerHaptic('success', settings.hapticsEnabled);
     },
-    [currentUser, settings.soundEnabled, settings.hapticsEnabled, setActiveBranchId]
+    [
+      currentCompanyId,
+      currentUser,
+      settings.soundEnabled,
+      settings.hapticsEnabled,
+      setActiveBranchId,
+    ]
   );
 
   const value: POSContextType = {

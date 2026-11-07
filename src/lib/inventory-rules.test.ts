@@ -13,6 +13,9 @@ import {
   generateBarcode,
   normalizeProductBarcodes,
   getAllProductBarcodes,
+  parseBarcodeSkuInput,
+  formatProductBarcodeSku,
+  getProductExpiryStatus,
   matchesProductBarcode,
   resolveScannedProductBarcode,
   getProductSerialNumber,
@@ -242,5 +245,42 @@ test('buildProductAuditTrail records creation date, old price history, and field
   assert.ok(updatedAudit.modificationHistory[0].changedFields.includes('sellingPrice'));
   assert.ok(updatedAudit.modificationHistory[0].changedFields.includes('stock'));
 });
+
+test('parseBarcodeSkuInput and formatProductBarcodeSku unify SKU with single and multiple barcodes', () => {
+  const single = parseBarcodeSkuInput('628100001234');
+  assert.deepEqual(single, ['628100001234']);
+  assert.equal(formatProductBarcodeSku(single), '628100001234');
+
+  const multi = parseBarcodeSkuInput('628100001234 | 628100005678, 628100009999');
+  assert.deepEqual(multi, ['628100001234', '628100005678', '628100009999']);
+  assert.equal(
+    formatProductBarcodeSku(multi),
+    '628100001234 | 628100005678 | 628100009999'
+  );
+
+  // Fallback when no barcode is present
+  assert.equal(formatProductBarcodeSku([], '', 7), 'ITEM-0007');
+});
+
+test('getProductExpiryStatus evaluates expired, expiring_soon, valid, and none states', () => {
+  const refNow = new Date('2026-11-06T12:00:00Z');
+
+  const noneRes = getProductExpiryStatus('', refNow);
+  assert.equal(noneRes.status, 'none');
+  assert.equal(noneRes.expiryDate, null);
+
+  const expiredRes = getProductExpiryStatus({ expiryDate: '2026-10-01' }, refNow);
+  assert.equal(expiredRes.status, 'expired');
+  assert.ok((expiredRes.daysRemaining ?? 0) < 0);
+
+  const soonRes = getProductExpiryStatus({ expiryDate: '2026-11-20' }, refNow);
+  assert.equal(soonRes.status, 'expiring_soon');
+  assert.equal(soonRes.daysRemaining, 14);
+
+  const validRes = getProductExpiryStatus({ expiryDate: '2027-06-15' }, refNow);
+  assert.equal(validRes.status, 'valid');
+  assert.ok((validRes.daysRemaining ?? 0) > 30);
+});
+
 
 

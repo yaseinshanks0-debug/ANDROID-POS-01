@@ -38,6 +38,10 @@ export interface CurrencyTemplate {
 }
 
 export const CURRENCY_TEMPLATES: CurrencyTemplate[] = [
+  { code: 'SDG', name: 'Sudanese Pound', nameAr: 'جنيه سوداني', symbol: 'ج.س', defaultRate: 1, keywords: ['جنيه سوداني', 'سوداني', 'ج.س', 'جس', 'sdg', 'sudan'] },
+  { code: 'USD', name: 'US Dollar', nameAr: 'دولار أمريكي', symbol: '$', defaultRate: 2700, keywords: ['دولار أمريكي', 'دولار امريكي', 'دولار', '$', 'usd', 'dollar'] },
+  { code: 'SAR', name: 'Saudi Riyal', nameAr: 'ريال سعودي', symbol: 'ر.س', defaultRate: 720, keywords: ['ريال سعودي', 'سعودي', 'ر.س', 'رس', 'sar', 'saudi'] },
+  { code: 'AED', name: 'UAE Dirham', nameAr: 'درهم إماراتي', symbol: 'د.إ', defaultRate: 735, keywords: ['درهم إماراتي', 'درهم اماراتي', 'درهم', 'إماراتي', 'اماراتي', 'د.إ', 'aed', 'dirham'] },
   { code: 'EGP', name: 'Egyptian Pound', nameAr: 'جنيه مصري', symbol: 'ج.م', defaultRate: 55, keywords: ['جنيه مصري', 'مصري', 'ج.م', 'جم', 'egp', 'egypt'] },
   { code: 'QAR', name: 'Qatari Riyal', nameAr: 'ريال قطري', symbol: 'ر.ق', defaultRate: 740, keywords: ['ريال قطري', 'قطري', 'ر.ق', 'رق', 'qar', 'qatar'] },
   { code: 'KWD', name: 'Kuwaiti Dinar', nameAr: 'دينار كويتي', symbol: 'د.ك', defaultRate: 8800, keywords: ['دينار كويتي', 'كويتي', 'د.ك', 'دك', 'kwd', 'kuwait'] },
@@ -49,9 +53,6 @@ export const CURRENCY_TEMPLATES: CurrencyTemplate[] = [
   { code: 'BHD', name: 'Bahraini Dinar', nameAr: 'دينار بحريني', symbol: 'د.ب', defaultRate: 7150, keywords: ['دينار بحريني', 'بحريني', 'د.ب', 'دب', 'bhd', 'bahrain'] },
   { code: 'CNY', name: 'Chinese Yuan', nameAr: 'يوان صيني', symbol: '¥', defaultRate: 375, keywords: ['يوان صيني', 'يوان', 'صيني', 'رممبي', 'cny', 'rmb', 'yuan'] },
   { code: 'GBP', name: 'British Pound', nameAr: 'جنيه إسترليني', symbol: '£', defaultRate: 3450, keywords: ['جنيه إسترليني', 'جنيه استرليني', 'استرليني', 'إسترليني', 'gbp', 'british'] },
-  { code: 'USD', name: 'US Dollar', nameAr: 'دولار أمريكي', symbol: '$', defaultRate: 2700, keywords: ['دولار أمريكي', 'دولار امريكي', 'دولار', '$', 'usd', 'dollar'] },
-  { code: 'SAR', name: 'Saudi Riyal', nameAr: 'ريال سعودي', symbol: 'ر.س', defaultRate: 720, keywords: ['ريال سعودي', 'سعودي', 'ر.س', 'رس', 'sar', 'saudi'] },
-  { code: 'AED', name: 'UAE Dirham', nameAr: 'درهم إماراتي', symbol: 'د.إ', defaultRate: 735, keywords: ['درهم إماراتي', 'درهم اماراتي', 'درهم', 'إماراتي', 'اماراتي', 'د.إ', 'aed', 'dirham'] },
   { code: 'EUR', name: 'Euro', nameAr: 'يورو', symbol: '€', defaultRate: 2950, keywords: ['يورو', '€', 'eur', 'euro'] },
   { code: 'CHF', name: 'Swiss Franc', nameAr: 'فرنك سويسري', symbol: 'CHF', defaultRate: 3050, keywords: ['فرنك سويسري', 'فرنك', 'سويسري', 'chf', 'franc'] },
   { code: 'INR', name: 'Indian Rupee', nameAr: 'روبية هندية', symbol: '₹', defaultRate: 32, keywords: ['روبية هندية', 'روبيه', 'روبية', 'هندي', 'inr', 'rupee'] },

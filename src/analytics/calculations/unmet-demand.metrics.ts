@@ -23,7 +23,10 @@ import {
   UnmetDemandRequestRecord,
   UnmetDemandTrendPoint,
 } from '../analytics.types';
-import { redactUnmetDemandRecordForRole } from '../unmet-demand.validation';
+import {
+  normalizeUnavailableSearchText,
+  redactUnmetDemandRecordForRole,
+} from '../unmet-demand.validation';
 import { convertCurrencyAmount } from '../../lib/pos-calculations';
 import { resolveAnalyticsDateWindow, toDateKey } from './sales.metrics';
 
@@ -241,6 +244,7 @@ export function computeUnmetDemandAnalytics(
     hasValidCostForProfit: boolean;
     firstRequestedAt: string;
     lastRequestedAt: string;
+    inquiryTimestamps: string[];
     customerLastSeenMs: Map<string, number>;
   }
 
@@ -425,7 +429,7 @@ export function computeUnmetDemandAnalytics(
     const prodKey =
       req.productId ||
       (req.barcode ? `barcode:${req.barcode}` : null) ||
-      `unreg:${(req.productNameSnapshot || 'unknown').toLowerCase().trim()}`;
+      `unreg:${normalizeUnavailableSearchText(req.productNameSnapshot || 'unknown')}`;
 
     let prodAcc = productMap.get(prodKey);
     if (!prodAcc) {
@@ -462,6 +466,7 @@ export function computeUnmetDemandAnalytics(
         hasValidCostForProfit: false,
         firstRequestedAt: req.requestedTimestamp,
         lastRequestedAt: req.requestedTimestamp,
+        inquiryTimestamps: [],
         customerLastSeenMs: new Map(),
       };
       productMap.set(prodKey, prodAcc);
@@ -495,6 +500,7 @@ export function computeUnmetDemandAnalytics(
     if (req.requestedTimestamp > prodAcc.lastRequestedAt) {
       prodAcc.lastRequestedAt = req.requestedTimestamp;
     }
+    prodAcc.inquiryTimestamps.push(req.requestedTimestamp);
 
     // Check repeat customer inquiry within 24h window for conservative lost-sales deduplication
     const custIdentity = (
@@ -779,6 +785,36 @@ export function computeUnmetDemandAnalytics(
       }
     }
 
+    const sortedInquiryTimestamps = [...acc.inquiryTimestamps].sort(
+      (a, b) => new Date(b).getTime() - new Date(a).getTime()
+    );
+
+    let decisionPriority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' = 'LOW';
+    let decisionRecommendationAr = '';
+    let decisionRecommendationEn = '';
+
+    if (acc.inquiryCount >= 3 || acc.requestedBaseUnitsTotal >= 5) {
+      decisionPriority = 'CRITICAL';
+      decisionRecommendationAr = acc.isRegisteredProduct
+        ? `أولوية قصوى: تم السؤال عنه ${acc.inquiryCount} مرات في أوقات مختلفة (${acc.requestedBaseUnitsTotal} وحدة) — يجب إعادة التوريد العاجل ورفع حد الطلب الأدنى.`
+        : `أولوية قصوى: منتج غير مسجل سُئل عنه ${acc.inquiryCount} مرات في أوقات مختلفة (${acc.requestedBaseUnitsTotal} وحدة) — يُوصى بإدراجه في الكتالوج وتوفيره فوراً.`;
+      decisionRecommendationEn = acc.isRegisteredProduct
+        ? `Critical Priority: Asked ${acc.inquiryCount} times across different timestamps (${acc.requestedBaseUnitsTotal} units) — Urgent restock & raise min stock alert.`
+        : `Critical Priority: Unregistered item asked ${acc.inquiryCount} times across different timestamps (${acc.requestedBaseUnitsTotal} units) — Add to catalog & source immediately.`;
+    } else if (acc.inquiryCount === 2 || acc.confirmedPurchaseIntentCount >= 1) {
+      decisionPriority = 'HIGH';
+      decisionRecommendationAr = acc.isRegisteredProduct
+        ? `طلب متكرر (${acc.inquiryCount} مرات) مع نية شراء مؤكدة — يُوصى بطلب كمية تعويضية (${Math.max(5, acc.requestedBaseUnitsTotal * 2)} وحدات).`
+        : `طلب متكرر (${acc.inquiryCount} مرات) — يُوصى بالتواصل مع المورد لتسعيره وإضافته للأصناف المعتمدة.`;
+      decisionRecommendationEn = acc.isRegisteredProduct
+        ? `Repeated demand (${acc.inquiryCount} inquiries) — Recommend ordering replenishment batch (${Math.max(5, acc.requestedBaseUnitsTotal * 2)} units).`
+        : `Repeated demand (${acc.inquiryCount} inquiries) — Contact supplier for pricing and catalog onboarding.`;
+    } else {
+      decisionPriority = 'MEDIUM';
+      decisionRecommendationAr = `تم تسجيل سؤال أولي (${acc.requestedBaseUnitsTotal} وحدة) — راقب تكرار الطلب في قاعدة المنتجات غير المتوفرة لاتخاذ قرار التوريد.`;
+      decisionRecommendationEn = `Initial inquiry logged (${acc.requestedBaseUnitsTotal} units) — Monitor repeat inquiries in the Unavailable Products Database.`;
+    }
+
     allProductSummaries.push({
       productKey: acc.productKey,
       productId: acc.productId,
@@ -819,6 +855,10 @@ export function computeUnmetDemandAnalytics(
       lostSalesConfidence,
       firstRequestedAt: acc.firstRequestedAt,
       lastRequestedAt: acc.lastRequestedAt,
+      inquiryTimestamps: sortedInquiryTimestamps,
+      decisionPriority,
+      decisionRecommendationAr,
+      decisionRecommendationEn,
     });
   }
 

@@ -852,6 +852,10 @@ export interface UnmetDemandProductSummaryItem {
   lostSalesConfidence: SmartInsightConfidenceLevel;
   firstRequestedAt: string;
   lastRequestedAt: string;
+  inquiryTimestamps?: string[];
+  decisionPriority?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  decisionRecommendationEn?: string;
+  decisionRecommendationAr?: string;
 }
 
 export interface UnmetDemandTrendPoint {

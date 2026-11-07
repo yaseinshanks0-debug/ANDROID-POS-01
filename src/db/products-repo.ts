@@ -42,6 +42,7 @@ export interface ProductRecord {
   priceCurrency?: string;
   stock: number;
   minStockAlert: number;
+  expiryDate?: string | null;
   image?: string;
   emoji?: string | null;
   colorHex?: string | null;
@@ -71,7 +72,13 @@ const DEMO_SEED_PRODUCT_IDS = new Set([
   'prod-10',
 ]);
 
+let productsMemoryCache: { expiresAt: number; items: ProductRecord[] } | null = null;
+const PRODUCTS_CACHE_TTL_MS = 5000;
+
 function ensureDataFile(): ProductRecord[] {
+  if (productsMemoryCache && productsMemoryCache.expiresAt > Date.now()) {
+    return productsMemoryCache.items;
+  }
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -79,6 +86,7 @@ function ensureDataFile(): ProductRecord[] {
     if (!fs.existsSync(DATA_FILE)) {
       const initial: ProductRecord[] = [];
       fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2), 'utf-8');
+      productsMemoryCache = { expiresAt: Date.now() + PRODUCTS_CACHE_TTL_MS, items: initial };
       return initial;
     }
     const content = fs.readFileSync(DATA_FILE, 'utf-8');
@@ -88,6 +96,7 @@ function ensureDataFile(): ProductRecord[] {
     if (cleaned.length !== parsed.length) {
       fs.writeFileSync(DATA_FILE, JSON.stringify(cleaned, null, 2), 'utf-8');
     }
+    productsMemoryCache = { expiresAt: Date.now() + PRODUCTS_CACHE_TTL_MS, items: cleaned };
     return cleaned;
   } catch (err) {
     console.error('Error reading fallback products file:', err);
@@ -96,6 +105,7 @@ function ensureDataFile(): ProductRecord[] {
 }
 
 function writeDataFile(items: ProductRecord[]) {
+  productsMemoryCache = { expiresAt: Date.now() + PRODUCTS_CACHE_TTL_MS, items };
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -114,6 +124,7 @@ function hydrateProductRecord(raw: any, fallbackIdx?: number): ProductRecord {
   const serialNumber = getProductSerialNumber(raw, fallbackIdx);
   const description = raw.description ?? cf.description ?? null;
   const descriptionAr = raw.descriptionAr ?? cf.descriptionAr ?? null;
+  const expiryDate = raw.expiryDate ?? cf.expiryDate ?? null;
   const previousCostPrice = raw.previousCostPrice ?? cf.previousCostPrice;
   const previousSellingPrice = raw.previousSellingPrice ?? cf.previousSellingPrice;
   const priceUpdatedAt = raw.priceUpdatedAt ?? cf.priceUpdatedAt;
@@ -131,7 +142,9 @@ function hydrateProductRecord(raw: any, fallbackIdx?: number): ProductRecord {
     nameAr: raw.nameAr ?? null,
     description,
     descriptionAr,
-    sku: raw.sku,
+    sku: barcodes.length > 0 && (!raw.sku || raw.sku.startsWith('SKU-') || raw.sku === raw.barcode)
+      ? barcodes.join(' | ')
+      : raw.sku,
     barcode: raw.barcode ?? '',
     barcodes,
     categoryId: raw.categoryId ?? null,
@@ -147,6 +160,7 @@ function hydrateProductRecord(raw: any, fallbackIdx?: number): ProductRecord {
     priceCurrency,
     stock: Number(raw.stock) || 0,
     minStockAlert: Number(raw.minStockAlert) || 0,
+    expiryDate,
     image: resolvedImage,
     imageUrl: resolvedImage || null,
     emoji: raw.emoji || '📦',
@@ -158,6 +172,7 @@ function hydrateProductRecord(raw: any, fallbackIdx?: number): ProductRecord {
       serialNumber,
       description,
       descriptionAr,
+      expiryDate,
       barcodes,
       priceCurrency,
       createdAt: createdAtStr,
@@ -185,41 +200,45 @@ export async function getAllProducts(query?: string, category?: string): Promise
         const fileItems = ensureDataFile();
         const seenSkus = new Set<string>();
         const seenBarcodes = new Set<string>();
+        const batchValues: Array<typeof products.$inferInsert> = [];
         for (const item of fileItems) {
           const skuLower = item.sku.toLowerCase();
           if (!seenSkus.has(skuLower) && (!item.barcode || !seenBarcodes.has(item.barcode))) {
             seenSkus.add(skuLower);
             if (item.barcode) seenBarcodes.add(item.barcode);
-            try {
-              await db.insert(products).values({
-                id: item.id,
-                name: item.name,
-                nameAr: item.nameAr || null,
-                sku: item.sku,
-                barcode: item.barcode || '',
-                categoryName: item.category,
-                categoryNameAr: item.categoryAr || null,
-                costPrice: item.costPrice.toFixed(2),
-                sellingPrice: item.sellingPrice.toFixed(2),
-                stock: item.stock,
-                minStockAlert: item.minStockAlert,
-                emoji: item.emoji || '📦',
-                colorHex: item.colorHex || '#d97706',
-                imageUrl: item.image || item.imageUrl || null,
-                customFields: item.customFields || {},
-                isActive: item.isActive,
-                createdAt: new Date(item.createdAt),
-                updatedAt: new Date(item.updatedAt),
-              }).onConflictDoNothing();
-            } catch {
-              // Ignore seed collision
-            }
+            batchValues.push({
+              id: item.id,
+              name: item.name,
+              nameAr: item.nameAr || null,
+              sku: item.sku,
+              barcode: item.barcode || '',
+              categoryName: item.category,
+              categoryNameAr: item.categoryAr || null,
+              costPrice: item.costPrice.toFixed(2),
+              sellingPrice: item.sellingPrice.toFixed(2),
+              stock: item.stock,
+              minStockAlert: item.minStockAlert,
+              emoji: item.emoji || '📦',
+              colorHex: item.colorHex || '#d97706',
+              imageUrl: item.image || item.imageUrl || null,
+              customFields: item.customFields || {},
+              isActive: item.isActive,
+              createdAt: new Date(item.createdAt),
+              updatedAt: new Date(item.updatedAt),
+            });
           }
         }
-        const refreshed = await db.select().from(products).orderBy(desc(products.updatedAt));
-        if (refreshed.length > 0) {
-          const mappedRefreshed: ProductRecord[] = refreshed.map((p, idx) => hydrateProductRecord(p, idx));
-          return filterProductList(mappedRefreshed, query, category);
+        if (batchValues.length > 0) {
+          try {
+            await db.insert(products).values(batchValues).onConflictDoNothing();
+          } catch {
+            // Ignore seed collision
+          }
+          const refreshed = await db.select().from(products).orderBy(desc(products.updatedAt));
+          if (refreshed.length > 0) {
+            const mappedRefreshed: ProductRecord[] = refreshed.map((p, idx) => hydrateProductRecord(p, idx));
+            return filterProductList(mappedRefreshed, query, category);
+          }
         }
       }
 
@@ -303,6 +322,11 @@ export async function createProduct(
     .toString()
     .toUpperCase();
 
+  const resolvedExpiryDate =
+    data.expiryDate !== undefined
+      ? data.expiryDate || null
+      : (data.customFields as any)?.expiryDate || null;
+
   const audit = buildProductAuditTrail({
     existingProduct: null,
     nextProduct: {
@@ -320,6 +344,7 @@ export async function createProduct(
       priceCurrency: resolvedCurrency as any,
       stock: data.stock,
       minStockAlert: data.minStockAlert,
+      expiryDate: resolvedExpiryDate,
     },
     changedBy: (data.customFields as any)?.changedBy || 'Main Terminal',
     nowIso: now,
@@ -330,6 +355,7 @@ export async function createProduct(
     serialNumber,
     description: data.description || (data.customFields as any)?.description || null,
     descriptionAr: data.descriptionAr || (data.customFields as any)?.descriptionAr || null,
+    expiryDate: resolvedExpiryDate,
     barcodes: normalizedBarcodes,
     priceCurrency: resolvedCurrency,
     createdAt: now,
@@ -348,6 +374,7 @@ export async function createProduct(
     serialNumber,
     description: mergedCustomFields.description,
     descriptionAr: mergedCustomFields.descriptionAr,
+    expiryDate: resolvedExpiryDate,
     barcode: primaryBarcode,
     barcodes: normalizedBarcodes,
     priceCurrency: resolvedCurrency,
@@ -507,6 +534,12 @@ export async function updateProduct(
     updates.descriptionAr !== undefined
       ? updates.descriptionAr
       : existing.descriptionAr ?? existing.customFields?.descriptionAr ?? null;
+  const nextExpiryDate =
+    updates.expiryDate !== undefined
+      ? updates.expiryDate || null
+      : (updates.customFields as any)?.expiryDate !== undefined
+      ? (updates.customFields as any)?.expiryDate || null
+      : existing.expiryDate ?? existing.customFields?.expiryDate ?? null;
 
   const finalPriceHistory =
     updates.priceHistory && updates.priceHistory.length > 0
@@ -531,6 +564,7 @@ export async function updateProduct(
     serialNumber: nextSerial,
     description: nextDesc,
     descriptionAr: nextDescAr,
+    expiryDate: nextExpiryDate,
     barcodes: nextBarcodes,
     priceCurrency: resolvedCurrency,
     previousCostPrice: finalPrevCost,
@@ -551,6 +585,7 @@ export async function updateProduct(
     serialNumber: nextSerial,
     description: nextDesc,
     descriptionAr: nextDescAr,
+    expiryDate: nextExpiryDate,
     barcode: nextBarcodes[0] || nextPrimaryBarcode || '',
     barcodes: nextBarcodes,
     priceCurrency: resolvedCurrency,

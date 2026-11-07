@@ -18,6 +18,9 @@ import {
   generateBarcode,
   normalizeProductBarcodes,
   getAllProductBarcodes,
+  formatProductBarcodeSku,
+  parseBarcodeSkuInput,
+  getProductExpiryStatus,
   matchesProductBarcode,
   resolveScannedProductBarcode,
   getProductSerialNumber,
@@ -73,51 +76,16 @@ import {
   FileText,
   UserCheck,
   PackageX,
+  Calendar,
 } from 'lucide-react';
 import { playTactileClick, playScannerBeep, triggerHaptic } from '../../lib/sound-fx';
+import { compressImageToOptimalDataUrl, useDebouncedValue } from '../../lib/performance-monitor';
 
 /**
- * Resizes an uploaded image File into a compact Data URL for reliable persistence.
+ * Resizes an uploaded image File into a compact WebP Data URL (with JPEG fallback) for reliable persistence (#2 WebP).
  */
 function compressImageFileToDataUrl(file: File, maxDim = 360): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Failed to read image file'));
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const img = new Image();
-      img.onerror = () => resolve(dataUrl);
-      img.onload = () => {
-        try {
-          let { width, height } = img;
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            resolve(dataUrl);
-            return;
-          }
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressed = canvas.toDataURL('image/jpeg', 0.84);
-          resolve(compressed);
-        } catch {
-          resolve(dataUrl);
-        }
-      };
-      img.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
-  });
+  return compressImageToOptimalDataUrl(file, maxDim, 0.84);
 }
 
 export const ProductsView: React.FC = () => {
@@ -139,6 +107,7 @@ export const ProductsView: React.FC = () => {
   const isAr = settings.language === 'ar';
 
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 120);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -171,6 +140,7 @@ export const ProductsView: React.FC = () => {
   const [formPackSellingPrice, setFormPackSellingPrice] = useState('12000');
   const [formStock, setFormStock] = useState('20');
   const [formMinStockAlert, setFormMinStockAlert] = useState('5');
+  const [formExpiryDate, setFormExpiryDate] = useState<string>('');
   const [formEmoji, setFormEmoji] = useState('📦');
   const [formColorHex, setFormColorHex] = useState('#d97706');
   const [formImage, setFormImage] = useState<string>('');
@@ -213,16 +183,28 @@ export const ProductsView: React.FC = () => {
 
   const filteredProducts = useMemo(() => {
     return products.filter((p, idx) => {
-      const matchesSearch = matchesProductSearchQuery(p, searchQuery, idx);
+      const matchesSearch = matchesProductSearchQuery(p, debouncedSearchQuery, idx);
       const matchesCat = categoryFilter === 'all' || p.category === categoryFilter;
       return matchesSearch && matchesCat;
     });
-  }, [products, searchQuery, categoryFilter]);
+  }, [products, debouncedSearchQuery, categoryFilter]);
 
   // Combined deduplicated barcodes in modal
   const allModalBarcodes = useMemo(() => {
     return normalizeProductBarcodes(formBarcode, formAdditionalBarcodes);
   }, [formBarcode, formAdditionalBarcodes]);
+
+  // Synchronized SKU representing the product's single barcode or multiple barcodes
+  const syncedModalSku = useMemo(() => {
+    if (allModalBarcodes.length > 0) {
+      return allModalBarcodes.join(' | ');
+    }
+    return formSku;
+  }, [allModalBarcodes, formSku]);
+
+  const modalExpiryStatus = useMemo(() => {
+    return getProductExpiryStatus(formExpiryDate);
+  }, [formExpiryDate]);
 
   // Live parsed cost & selling prices in modal
   const numericCostPrice = parseNormalizedNumber(formCostPrice, 0);
@@ -612,11 +594,15 @@ export const ProductsView: React.FC = () => {
         const [nextPrimary, ...rest] = formAdditionalBarcodes;
         setFormBarcode(nextPrimary);
         setFormAdditionalBarcodes(rest);
+        setFormSku([nextPrimary, ...rest].join(' | '));
       } else {
         setFormBarcode('');
+        setFormSku('');
       }
     } else {
-      setFormAdditionalBarcodes((prev) => prev.filter((c) => c !== codeToRemove));
+      const nextExtra = formAdditionalBarcodes.filter((c) => c !== codeToRemove);
+      setFormAdditionalBarcodes(nextExtra);
+      setFormSku(normalizeProductBarcodes(formBarcode, nextExtra).join(' | '));
     }
   };
 
@@ -668,17 +654,13 @@ export const ProductsView: React.FC = () => {
     setFormNameAr('');
     setFormDescription('');
     setFormDescriptionAr('');
-    if (isPractice) {
-      const skuRand = Math.floor(100 + Math.random() * 900);
-      setFormSku(`SKU-${skuRand}`);
-    } else {
-      setFormSku('');
-    }
+    setFormSku(initialBarcode ? initialBarcode : '');
     // IMPORTANT: Never auto-generate a random barcode on modal open!
     // Only pre-fill if a real scanned barcode string was passed from the scanner.
     setFormBarcode(initialBarcode);
     setFormAdditionalBarcodes([]);
     setNewBarcodeInput('');
+    setFormExpiryDate('');
     setFormCategory(categories[0] || (isPractice ? 'Beverages' : ''));
     const activeCurr =
       (activeCurrencies.length > 0 ? activeCurrencies[0].code : '') ||
@@ -738,11 +720,14 @@ export const ProductsView: React.FC = () => {
     setFormNameAr(p.nameAr || '');
     setFormDescription(p.description || p.customFields?.description || '');
     setFormDescriptionAr(p.descriptionAr || p.customFields?.descriptionAr || '');
-    setFormSku(p.sku);
     const allCodes = getAllProductBarcodes(p);
+    setFormSku(allCodes.length > 0 ? allCodes.join(' | ') : p.sku);
     setFormBarcode(allCodes[0] || p.barcode || '');
     setFormAdditionalBarcodes(allCodes.slice(1));
     setNewBarcodeInput('');
+    setFormExpiryDate(
+      (p.expiryDate || p.customFields?.expiryDate || '').toString().slice(0, 10)
+    );
     setFormCategory(p.category);
 
     // Load prices in the current active store currency so the user can edit or switch currencies seamlessly
@@ -776,12 +761,18 @@ export const ProductsView: React.FC = () => {
     setErrorMessage(null);
 
     // If user typed a barcode in the extra barcode box and didn't click "+", include it automatically
-    // IMPORTANT: Never auto-generate a barcode on save if the user left it blank!
+    // Also if the user typed barcode(s) into the SKU box when primary barcode was empty, parse them as barcodes
     const pendingExtra = newBarcodeInput.trim();
-    const finalBarcodes = normalizeProductBarcodes(
+    const rawCombinedBarcodes = normalizeProductBarcodes(
       formBarcode.trim(),
       pendingExtra ? [...formAdditionalBarcodes, pendingExtra] : formAdditionalBarcodes
     );
+    const parsedFromSkuBox =
+      rawCombinedBarcodes.length === 0 && formSku.trim()
+        ? parseBarcodeSkuInput(formSku)
+        : [];
+    const finalBarcodes =
+      rawCombinedBarcodes.length > 0 ? rawCombinedBarcodes : parsedFromSkuBox;
 
     // Validate barcode uniqueness across other products for any non-empty barcode
     for (const code of finalBarcodes) {
@@ -836,6 +827,8 @@ export const ProductsView: React.FC = () => {
     const cleanImage = formImage.trim() || undefined;
     const cleanDesc = formDescription.trim() || undefined;
     const cleanDescAr = formDescriptionAr.trim() || undefined;
+    const cleanExpiryDate = formExpiryDate.trim() || null;
+    const synchronizedSku = formatProductBarcodeSku(finalBarcodes, formSku, parsedSerial);
 
     const packagingMetadata = {
       enablePackaging: formEnablePackaging,
@@ -856,7 +849,7 @@ export const ProductsView: React.FC = () => {
       nameAr: formNameAr.trim() || undefined,
       description: cleanDesc,
       descriptionAr: cleanDescAr,
-      sku: formSku.trim() || `SKU-${Date.now()}`,
+      sku: synchronizedSku,
       barcode: finalBarcodes[0] || '',
       barcodes: finalBarcodes,
       category: formCategory.trim() || 'General',
@@ -866,6 +859,7 @@ export const ProductsView: React.FC = () => {
       ...packagingMetadata,
       stock: Math.max(0, Math.floor(parseNormalizedNumber(formStock, 0))),
       minStockAlert: Math.max(0, Math.floor(parseNormalizedNumber(formMinStockAlert, 0))),
+      expiryDate: cleanExpiryDate,
       image: cleanImage,
       imageUrl: cleanImage || null,
       emoji: formEmoji || '📦',
@@ -875,6 +869,7 @@ export const ProductsView: React.FC = () => {
         serialNumber: parsedSerial,
         description: cleanDesc,
         descriptionAr: cleanDescAr,
+        expiryDate: cleanExpiryDate,
         barcodes: finalBarcodes,
         priceCurrency: formPriceCurrency,
         ...packagingMetadata,
@@ -952,30 +947,30 @@ export const ProductsView: React.FC = () => {
       </div>
 
       {/* Live Currency Switcher Bar (Links all product prices with active currency & exchange rate) */}
-      <div className="p-3.5 rounded-2xl bg-neutral-900/90 border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+      <div className="p-4 rounded-2xl bg-neutral-900/95 border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
             <Coins className="w-4 h-4" />
           </div>
-          <div>
-            <div className="text-xs font-bold text-white">
+          <div className="min-w-0">
+            <div className="text-xs sm:text-sm font-bold text-white truncate">
               {isAr
                 ? 'عملة عرض وتسعير المنتجات (مرتبطة بسعر الصرف)'
                 : 'Active Product Pricing Currency (Exchange Rate Linked)'}
             </div>
-            <div className="text-[11px] font-mono text-neutral-400">
+            <div className="text-[11px] font-mono tabular-nums text-neutral-400 mt-0.5">
               {settings.currency === 'SDG'
                 ? isAr
-                  ? 'العملة الأساسية: الجنيه السوداني (SDG)'
-                  : 'Base Accounting Currency: SDG (1.00)'
+                  ? 'العملة الأساسية: الجنيه السوداني · SDG'
+                  : 'Base Accounting Currency · SDG (1.00)'
                 : isAr
-                ? `سعر الصرف الفعال: 1 ${settings.currency} = ${activeRateToSdg.toLocaleString()} ج.س (SDG)`
-                : `Active Rate: 1 ${settings.currency} = ${activeRateToSdg.toLocaleString()} SDG`}
+                  ? `سعر الصرف الفعال · 1 ${settings.currency} = ${activeRateToSdg.toLocaleString()} ج.س (SDG)`
+                  : `Active Rate · 1 ${settings.currency} = ${activeRateToSdg.toLocaleString()} SDG`}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center flex-wrap gap-1.5">
+        <div className="flex items-center flex-wrap gap-1.5 shrink-0">
           {activeCurrencies.map((curr) => {
             const isSelected = settings.currency === curr.code;
             const rateVal = curr.code === 'SDG' ? 1 : exchangeRates[curr.code] || 1;
@@ -987,7 +982,7 @@ export const ProductsView: React.FC = () => {
                   playTactileClick(settings.soundEnabled);
                   updateSettings({ currency: curr.code });
                 }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all border flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold tabular-nums transition-all border inline-flex items-center gap-1.5 whitespace-nowrap ${
                   isSelected
                     ? 'bg-amber-500 text-neutral-950 border-amber-400 shadow-sm'
                     : 'bg-neutral-950 text-neutral-300 border-neutral-800 hover:border-neutral-700 hover:text-white'
@@ -996,11 +991,11 @@ export const ProductsView: React.FC = () => {
                 <span>{curr.code}</span>
                 {curr.code !== 'SDG' && (
                   <span
-                    className={`text-[10px] px-1 rounded ${
-                      isSelected ? 'bg-neutral-950/20 text-neutral-950' : 'bg-neutral-800 text-neutral-400'
+                    className={`text-[10px] font-mono tabular-nums ${
+                      isSelected ? 'text-neutral-900' : 'text-neutral-400'
                     }`}
                   >
-                    {rateVal}
+                    · {rateVal}
                   </span>
                 )}
               </button>
@@ -1077,6 +1072,8 @@ export const ProductsView: React.FC = () => {
               : null;
           const priceUpdatedAt = p.priceUpdatedAt || p.customFields?.priceUpdatedAt;
           const modHistory = p.modificationHistory || p.customFields?.modificationHistory || [];
+          const expiryInfo = getProductExpiryStatus(p);
+          const displayBarcodeSku = allCodes.length > 0 ? allCodes.join(' | ') : p.sku;
 
           return (
             <AppCard key={p.id} className="flex flex-col justify-between">
@@ -1112,8 +1109,18 @@ export const ProductsView: React.FC = () => {
                           {settings.language === 'ar' && p.nameAr ? p.nameAr : p.name}
                         </h4>
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] text-neutral-400 mt-0.5">
-                        <span className="font-mono">{p.sku}</span>
+                      <div className="flex items-center flex-wrap gap-2 text-[11px] text-neutral-400 mt-0.5">
+                        <span
+                          data-testid={`product-sku-barcode-${p.id}`}
+                          className="font-mono text-amber-300/90 truncate max-w-[220px]"
+                          title={
+                            isAr
+                              ? `رمز الصنف (الباركود): ${displayBarcodeSku}`
+                              : `SKU (Barcode): ${displayBarcodeSku}`
+                          }
+                        >
+                          {displayBarcodeSku}
+                        </span>
                         {createdDateStr && (
                           <>
                             <span>·</span>
@@ -1153,21 +1160,55 @@ export const ProductsView: React.FC = () => {
                   </p>
                 )}
 
-                {/* Barcode, Multi-Unit Packaging & Category Badges */}
+                {/* Barcode, Expiry Date, Multi-Unit Packaging & Category Badges */}
                 <div className="flex items-center flex-wrap gap-1.5 text-xs text-neutral-400 my-2">
                   <div className="flex items-center gap-1.5 bg-neutral-950/80 px-2 py-1 rounded-lg border border-neutral-800 font-mono">
                     <Barcode className="w-3.5 h-3.5 text-amber-500" />
                     <span className="text-neutral-200">
-                      {allCodes[0] || p.barcode || (isAr ? 'بدون باركود' : 'No barcode')}
+                      {allCodes.length > 0
+                        ? allCodes.join(' | ')
+                        : p.barcode || (isAr ? 'بدون باركود' : 'No barcode')}
                     </span>
                   </div>
                   {extraBarcodeCount > 0 && (
                     <span
                       className="px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-bold"
-                      title={allCodes.slice(1).join(', ')}
+                      title={allCodes.join(' | ')}
                     >
-                      +<span className="font-mono">{extraBarcodeCount}</span>{' '}
-                      {isAr ? 'باركود' : 'barcodes'}
+                      <span className="font-mono">{allCodes.length}</span>{' '}
+                      {isAr ? 'باركودات' : 'barcodes'}
+                    </span>
+                  )}
+                  {expiryInfo.expiryDate && (
+                    <span
+                      data-testid={`product-expiry-badge-${p.id}`}
+                      className={`px-2 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 border ${
+                        expiryInfo.status === 'expired'
+                          ? 'bg-rose-950/80 border-rose-700/70 text-rose-300'
+                          : expiryInfo.status === 'expiring_soon'
+                          ? 'bg-amber-950/80 border-amber-700/70 text-amber-300'
+                          : 'bg-emerald-950/60 border-emerald-700/50 text-emerald-300'
+                      }`}
+                      title={
+                        isAr
+                          ? `تاريخ الانتهاء: ${expiryInfo.expiryDate}`
+                          : `Expiry Date: ${expiryInfo.expiryDate}`
+                      }
+                    >
+                      <Calendar className="w-3 h-3 shrink-0" />
+                      <span>
+                        {expiryInfo.status === 'expired'
+                          ? isAr
+                            ? `منتهي الصلاحية (${expiryInfo.expiryDate})`
+                            : `Expired (${expiryInfo.expiryDate})`
+                          : expiryInfo.status === 'expiring_soon'
+                          ? isAr
+                            ? `ينتهي قريباً: ${expiryInfo.expiryDate}`
+                            : `Expiring: ${expiryInfo.expiryDate}`
+                          : isAr
+                          ? `الانتهاء: ${expiryInfo.expiryDate}`
+                          : `Exp: ${expiryInfo.expiryDate}`}
+                      </span>
                     </span>
                   )}
                   {pkg.enablePackaging && pkg.unitsPerPack > 1 && (
@@ -1378,21 +1419,21 @@ export const ProductsView: React.FC = () => {
             />
           </div>
 
-          {/* 2. SKU & Multi-Barcode Management (Explicit-Only Barcode Generation) */}
+          {/* 2. SKU (Unified with Single/Multi-Barcode), Primary/Additional Barcodes & Expiry Date */}
           <div className="p-3.5 rounded-2xl bg-neutral-950/80 border border-neutral-800 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
                 <Barcode className="w-4 h-4" />
                 <span>
                   {isAr
-                    ? 'إدارة الباركود ورمز الصنف (لا يتم إنشاء باركود تلقائياً إلا عند طلبك)'
-                    : 'SKU & Multi-Barcode Manager (Barcodes generated only on explicit request)'}
+                    ? 'إدارة الباركود المتعدد، رمز الصنف (SKU = الباركود)، وتاريخ الانتهاء'
+                    : 'Multi-Barcode SKU & Expiry Date Manager'}
                 </span>
               </span>
               <span className="text-[11px] text-neutral-400">
                 {isAr ? (
                   <>
-                    عدد الباركودات:{' '}
+                    عدد الباركودات المرتبطة بالصنف:{' '}
                     <span className="font-mono font-bold text-neutral-200 tabular-nums">
                       {allModalBarcodes.length}
                     </span>
@@ -1408,33 +1449,72 @@ export const ProductsView: React.FC = () => {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <AppInput
-                label={t.sku}
-                value={formSku}
-                onChange={(e) => setFormSku(e.target.value)}
-                required
-              />
-
-              <div className="sm:col-span-2 min-w-0">
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+              {/* Unified SKU = Barcode(s) Field */}
+              <div className="sm:col-span-4 min-w-0">
                 <label className="text-xs font-semibold text-neutral-300 block mb-1.5">
                   {isAr
-                    ? 'الباركود الأساسي للمنتج (اختياري — امسح بالكاميرا أو اكتب أو اضغط توليد)'
-                    : 'Primary Product Barcode (Optional — Scan, type, or click Generate)'}
+                    ? 'رمز SKU (رمز الباركود أو الباركودات المتعددة للصنف)'
+                    : 'SKU (Product Barcode / Multi-Barcodes)'}
                 </label>
-                <div className="flex flex-wrap sm:flex-nowrap gap-2 min-w-0">
+                <div className="relative">
+                  <input
+                    type="text"
+                    dir="ltr"
+                    data-testid="product-sku-barcodes-input"
+                    value={syncedModalSku}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormSku(val);
+                      const parsedCodes = parseBarcodeSkuInput(val);
+                      if (parsedCodes.length > 0) {
+                        setFormBarcode(parsedCodes[0]);
+                        setFormAdditionalBarcodes(parsedCodes.slice(1));
+                      } else if (!val.trim()) {
+                        setFormBarcode('');
+                        setFormAdditionalBarcodes([]);
+                      }
+                    }}
+                    placeholder={
+                      isAr
+                        ? 'مرتبط تلقائياً بالباركود أو الباركودات المتعددة (مثال: 628101 | 628102)'
+                        : 'Auto-synced with barcode(s) (e.g. 628101 | 628102)'
+                    }
+                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-neutral-900 border border-neutral-800 text-xs font-mono text-amber-300 placeholder:font-sans placeholder:text-neutral-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <span className="text-[10px] text-neutral-400 block mt-1">
+                  {isAr
+                    ? 'يعرض تلقائياً باركود الصنف أو جميع باركوداته المتعددة مفصولة بـ ( | )'
+                    : 'Automatically reflects the item barcode or multiple barcodes separated by ( | )'}
+                </span>
+              </div>
+
+              {/* Primary Barcode Input & Scanner / Generator Actions */}
+              <div className="sm:col-span-5 min-w-0">
+                <label className="text-xs font-semibold text-neutral-300 block mb-1.5">
+                  {isAr
+                    ? 'الباركود الأساسي للمنتج (امسح بالكاميرا أو اكتب أو اضغط توليد)'
+                    : 'Primary Product Barcode (Scan, type, or click Generate)'}
+                </label>
+                <div className="flex flex-wrap sm:flex-nowrap gap-1.5 min-w-0">
                   <input
                     type="text"
                     dir="ltr"
                     data-testid="primary-barcode-input"
                     value={formBarcode}
-                    onChange={(e) => setFormBarcode(e.target.value)}
+                    onChange={(e) => {
+                      const nextPrimary = e.target.value;
+                      setFormBarcode(nextPrimary);
+                      const nextCodes = normalizeProductBarcodes(nextPrimary, formAdditionalBarcodes);
+                      setFormSku(nextCodes.join(' | '));
+                    }}
                     placeholder={
                       isAr
-                        ? 'بدون باركود تلقائي — امسح أو اكتب أو اضغط توليد'
-                        : 'No auto-barcode — scan, type, or click Generate'
+                        ? 'امسح أو اكتب الباركود أو اضغط توليد'
+                        : 'Scan, type, or click Generate'
                     }
-                    className="flex-1 min-w-0 min-h-[44px] px-3.5 rounded-xl bg-neutral-900 border border-neutral-800 text-sm font-mono text-neutral-100 placeholder:font-sans placeholder:text-xs focus:outline-none focus:border-amber-500"
+                    className="flex-1 min-w-0 min-h-[44px] px-3 rounded-xl bg-neutral-900 border border-neutral-800 text-sm font-mono text-neutral-100 placeholder:font-sans placeholder:text-xs focus:outline-none focus:border-amber-500"
                   />
                   <button
                     type="button"
@@ -1446,7 +1526,7 @@ export const ProductsView: React.FC = () => {
                         prev && cameraScanTarget === 'primary' ? false : true
                       );
                     }}
-                    className={`px-3 min-h-[44px] rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 border whitespace-nowrap transition-colors ${
+                    className={`px-2.5 min-h-[44px] rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 border whitespace-nowrap transition-colors ${
                       isCameraScannerOpen && cameraScanTarget === 'primary'
                         ? 'bg-emerald-500 text-neutral-950 border-emerald-400'
                         : 'bg-emerald-950/70 hover:bg-emerald-900/80 text-emerald-300 border-emerald-700/60'
@@ -1468,26 +1548,83 @@ export const ProductsView: React.FC = () => {
                       setCameraScanTarget('primary');
                       barcodePhotoInputRef.current?.click();
                     }}
-                    className="px-3 min-h-[44px] rounded-xl bg-neutral-900 hover:bg-neutral-800 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 shrink-0 border border-neutral-700 whitespace-nowrap"
+                    className="px-2.5 min-h-[44px] rounded-xl bg-neutral-900 hover:bg-neutral-800 text-emerald-300 text-xs font-semibold flex items-center gap-1 shrink-0 border border-neutral-700 whitespace-nowrap"
                     title={isAr ? 'قراءة الباركود من صورة' : 'Read barcode from image'}
                   >
                     <Upload className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>{isAr ? 'من صورة' : 'Photo'}</span>
+                    <span>{isAr ? 'صورة' : 'Photo'}</span>
                   </button>
                   <button
                     type="button"
                     data-testid="generate-barcode-explicit-btn"
                     onClick={() => {
                       playTactileClick(settings.soundEnabled);
-                      setFormBarcode(generateBarcode());
+                      const generated = generateBarcode();
+                      setFormBarcode(generated);
+                      const nextCodes = normalizeProductBarcodes(generated, formAdditionalBarcodes);
+                      setFormSku(nextCodes.join(' | '));
                     }}
-                    className="px-3 min-h-[44px] rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold flex items-center gap-1.5 shrink-0 border border-neutral-700 whitespace-nowrap"
+                    className="px-2.5 min-h-[44px] rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold flex items-center gap-1 shrink-0 border border-neutral-700 whitespace-nowrap"
                     title={isAr ? 'توليد باركود أساسي جديد عند الطلب فقط' : 'Generate new primary barcode on request'}
                   >
                     <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{isAr ? 'توليد باركود' : 'Generate'}</span>
+                    <span>{isAr ? 'توليد' : 'Generate'}</span>
                   </button>
                 </div>
+              </div>
+
+              {/* Product Expiry Date Input Field (تاريخ الانتهاء) */}
+              <div className="sm:col-span-3 min-w-0">
+                <label className="text-xs font-semibold text-neutral-300 flex items-center justify-between gap-1 mb-1.5">
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{isAr ? 'تاريخ الانتهاء' : 'Expiry Date'}</span>
+                  </span>
+                  {formExpiryDate && (
+                    <button
+                      type="button"
+                      onClick={() => setFormExpiryDate('')}
+                      className="text-[10px] text-rose-400 hover:text-rose-300 font-semibold"
+                    >
+                      {isAr ? 'مسح' : 'Clear'}
+                    </button>
+                  )}
+                </label>
+                <input
+                  type="date"
+                  dir="ltr"
+                  data-testid="product-expiry-date-input"
+                  value={formExpiryDate}
+                  onChange={(e) => setFormExpiryDate(e.target.value)}
+                  className="w-full min-h-[44px] px-3 rounded-xl bg-neutral-900 border border-neutral-800 text-xs font-mono text-neutral-100 focus:outline-none focus:border-amber-500"
+                />
+                {modalExpiryStatus.expiryDate ? (
+                  <span
+                    className={`text-[10px] font-bold block mt-1 ${
+                      modalExpiryStatus.status === 'expired'
+                        ? 'text-rose-400'
+                        : modalExpiryStatus.status === 'expiring_soon'
+                        ? 'text-amber-400'
+                        : 'text-emerald-400'
+                    }`}
+                  >
+                    {modalExpiryStatus.status === 'expired'
+                      ? isAr
+                        ? 'تنبيه: هذا المنتج منتهي الصلاحية'
+                        : 'Alert: Product is expired'
+                      : modalExpiryStatus.status === 'expiring_soon'
+                      ? isAr
+                        ? `قريب الانتهاء (متبقي ${modalExpiryStatus.daysRemaining} يوم)`
+                        : `Expiring soon (${modalExpiryStatus.daysRemaining}d left)`
+                      : isAr
+                      ? `صالح (متبقي ${modalExpiryStatus.daysRemaining} يوم)`
+                      : `Valid (${modalExpiryStatus.daysRemaining}d left)`}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-neutral-500 block mt-1">
+                    {isAr ? 'اختياري للأصناف ذات الصلاحية' : 'Optional for perishable items'}
+                  </span>
+                )}
               </div>
             </div>
 

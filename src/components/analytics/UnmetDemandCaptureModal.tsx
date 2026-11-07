@@ -5,6 +5,8 @@
  * Phase 10 (Part 4A & 4B): Fast Customer Unmet Demand Request Capture Modal
  * Enables cashiers and inventory staff to record unavailable/out-of-stock/expired/unregistered
  * customer product requests in 2–3 clicks without mutating sales, stock, or accounting ledgers.
+ * Includes the searchable Unavailable Products Knowledge Base (`قاعدة المنتجات غير المتوفرة`)
+ * supporting multi-word, partial-word, and single-character Arabic/English search.
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -12,23 +14,32 @@ import {
   AlertCircle,
   Barcode,
   Building2,
+  Check,
   CheckCircle2,
   ClipboardList,
+  Clock,
+  Database,
+  History,
   Layers,
   PackagePlus,
   PackageX,
   Plus,
   Search,
-  Sparkles,
   User,
   X,
 } from 'lucide-react';
 import { usePOS } from '../../context/POSContext';
 import { DEFAULT_ANALYTICS_BRANCHES as DEFAULT_BRANCHES } from '../../analytics/analytics.snapshot';
 import {
-  SUPPORTED_UNAVAILABILITY_REASONS,
   UnavailabilityReason,
 } from '../../analytics/analytics.types';
+import {
+  UnavailableProductKnowledgeItem,
+  buildUnavailableProductsKnowledgeBase,
+  matchesUnavailableProductQuery,
+  normalizeUnavailableSearchText,
+  searchUnavailableProductsKnowledgeBase,
+} from '../../analytics/unmet-demand.validation';
 import { getProductPackaging } from '../../lib/pos-calculations';
 
 const REASON_OPTIONS: Array<{
@@ -69,6 +80,22 @@ const REASON_OPTIONS: Array<{
   },
 ];
 
+function formatInquiryDateTime(iso: string, isAr: boolean): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 16).replace('T', ' ');
+  try {
+    return d.toLocaleString(isAr ? 'ar-SD' : 'en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return iso.slice(0, 16).replace('T', ' ');
+  }
+}
+
 export const UnmetDemandCaptureModal: React.FC = () => {
   const {
     products,
@@ -76,6 +103,7 @@ export const UnmetDemandCaptureModal: React.FC = () => {
     settings,
     currentUser,
     selectedCustomer,
+    unmetDemandRequests,
     isUnmetDemandModalOpen,
     unmetDemandModalInitialData,
     closeUnmetDemandModal,
@@ -104,6 +132,9 @@ export const UnmetDemandCaptureModal: React.FC = () => {
   const [sourceScreen, setSourceScreen] = useState<
     'checkout' | 'products' | 'analytics' | 'other'
   >('checkout');
+  const [selectedKnowledgeKey, setSelectedKnowledgeKey] = useState<string | null>(
+    null
+  );
 
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{
@@ -111,9 +142,20 @@ export const UnmetDemandCaptureModal: React.FC = () => {
     message: string;
   } | null>(null);
 
+  // Build the Unified Unavailable Products Knowledge Base (`قاعدة المنتجات غير المتوفرة`)
+  const unavailableKnowledgeBase = useMemo(
+    () =>
+      buildUnavailableProductsKnowledgeBase(
+        unmetDemandRequests || [],
+        products || []
+      ),
+    [unmetDemandRequests, products]
+  );
+
   useEffect(() => {
     if (!isUnmetDemandModalOpen) return;
     setFeedback(null);
+    setSelectedKnowledgeKey(null);
 
     const init = unmetDemandModalInitialData || {};
     const initialProdId = init.productId || '';
@@ -121,7 +163,10 @@ export const UnmetDemandCaptureModal: React.FC = () => {
       initialProdId && products.some((p) => p.id === initialProdId)
     );
 
-    if (init.isRegisteredProduct === false || (!hasInitialProduct && init.productNameSnapshot)) {
+    if (
+      init.isRegisteredProduct === false ||
+      (!hasInitialProduct && init.productNameSnapshot)
+    ) {
       setMode('unregistered');
       setSelectedProductId('');
       setUnregisteredName(init.productNameSnapshot || '');
@@ -136,7 +181,6 @@ export const UnmetDemandCaptureModal: React.FC = () => {
       if (hasInitialProduct) {
         setSelectedProductId(initialProdId!);
       } else {
-        // Default to first low-stock or zero-stock product for convenience
         const lowOrZero =
           products.find((p) => p.stock <= 0) ||
           products.find((p) => p.stock <= (p.minStockAlert || 5)) ||
@@ -185,22 +229,96 @@ export const UnmetDemandCaptureModal: React.FC = () => {
   );
 
   const filteredProducts = useMemo(() => {
-    const q = productSearch.trim().toLowerCase();
+    const q = productSearch.trim();
     const sorted = [...products].sort((a, b) => a.stock - b.stock);
     if (!q) return sorted;
-    return sorted.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.nameAr && p.nameAr.toLowerCase().includes(q)) ||
-        p.sku.toLowerCase().includes(q) ||
-        p.barcode.includes(q)
+    return sorted.filter((p) =>
+      matchesUnavailableProductQuery(
+        [
+          p.name,
+          p.nameAr,
+          p.sku,
+          p.barcode,
+          ...(Array.isArray(p.barcodes) ? p.barcodes : []),
+          p.category,
+        ],
+        q
+      )
     );
   }, [products, productSearch]);
 
+  // Search results from the Unavailable Products Knowledge Base (`قاعدة المنتجات غير المتوفرة`)
+  // Searches by any word, partial word, or single character in the product name!
+  const activeSearchQuery =
+    mode === 'unregistered' ? unregisteredName : productSearch;
+
+  const matchingKnowledgeItems = useMemo(() => {
+    return searchUnavailableProductsKnowledgeBase(
+      unavailableKnowledgeBase,
+      activeSearchQuery,
+      {
+        onlyUnregisteredOrPreviouslyAsked: true,
+        limit: 10,
+      }
+    );
+  }, [unavailableKnowledgeBase, activeSearchQuery]);
+
+  const selectedKnowledgeItem = useMemo(() => {
+    if (selectedKnowledgeKey) {
+      return (
+        unavailableKnowledgeBase.find((i) => i.key === selectedKnowledgeKey) ||
+        null
+      );
+    }
+    if (mode === 'unregistered' && unregisteredName.trim()) {
+      const normTyped = normalizeUnavailableSearchText(unregisteredName);
+      return (
+        unavailableKnowledgeBase.find(
+          (i) =>
+            i.inquiryCount > 0 &&
+            (normalizeUnavailableSearchText(i.productName) === normTyped ||
+              (i.productNameAr &&
+                normalizeUnavailableSearchText(i.productNameAr) === normTyped))
+        ) || null
+      );
+    }
+    return null;
+  }, [
+    selectedKnowledgeKey,
+    unavailableKnowledgeBase,
+    mode,
+    unregisteredName,
+  ]);
+
+  const handleSelectKnowledgeItem = (item: UnavailableProductKnowledgeItem) => {
+    setFeedback(null);
+    setSelectedKnowledgeKey(item.key);
+    if (item.isRegisteredProduct && item.productId) {
+      const existsInCatalog = products.some((p) => p.id === item.productId);
+      if (existsInCatalog) {
+        setMode('registered');
+        setSelectedProductId(item.productId);
+        setUnavailabilityReason(
+          item.unavailabilityReason === 'NOT_STOCKED'
+            ? 'OUT_OF_STOCK'
+            : item.unavailabilityReason
+        );
+        return;
+      }
+    }
+    setMode('unregistered');
+    setUnregisteredName(item.productName);
+    setUnregisteredNameAr(item.productNameAr || item.productName);
+    if (item.barcode) setBarcode(item.barcode);
+    if (item.category && item.category !== 'Unregistered') {
+      setCategorySnapshot(item.category);
+    }
+    setUnavailabilityReason(item.unavailabilityReason || 'NOT_STOCKED');
+  };
+
   if (!isUnmetDemandModalOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitDemandRecord = async (forceAllowRapidRepeat = false) => {
     setSubmitting(true);
     setFeedback(null);
 
@@ -208,25 +326,39 @@ export const UnmetDemandCaptureModal: React.FC = () => {
       const isRegistered = mode === 'registered' && Boolean(activeProduct);
       const selectedCust = customers.find((c) => c.id === customerId);
 
+      // If the user explicitly selected an item from the Unavailable Products Knowledge Base,
+      // use its canonical name so repeat inquiries aggregate under the exact same product!
+      const canonicalUnregisteredName =
+        !isRegistered && selectedKnowledgeItem
+          ? selectedKnowledgeItem.productName
+          : unregisteredName.trim();
+
       const res = await recordUnmetDemandRequest({
         branchId,
         productId: isRegistered ? activeProduct!.id : null,
         isRegisteredProduct: isRegistered,
         productNameSnapshot: isRegistered
           ? activeProduct!.name
-          : unregisteredName.trim(),
+          : canonicalUnregisteredName,
         productNameArSnapshot: isRegistered
           ? activeProduct!.nameAr || null
-          : unregisteredNameAr.trim() || null,
+          : unregisteredNameAr.trim() ||
+            selectedKnowledgeItem?.productNameAr ||
+            canonicalUnregisteredName ||
+            null,
         barcode: isRegistered
           ? activeProduct!.barcode
-          : barcode.trim() || null,
+          : barcode.trim() || selectedKnowledgeItem?.barcode || null,
         categorySnapshot: isRegistered
           ? activeProduct!.category
-          : categorySnapshot.trim() || 'General',
+          : categorySnapshot.trim() ||
+            selectedKnowledgeItem?.category ||
+            'General',
         requestedQuantity,
         saleUnitMode:
-          isRegistered && activePackaging?.enablePackaging ? saleUnitMode : 'unit',
+          isRegistered && activePackaging?.enablePackaging
+            ? saleUnitMode
+            : 'unit',
         unavailabilityReason:
           mode === 'unregistered' && unavailabilityReason === 'OUT_OF_STOCK'
             ? 'NOT_STOCKED'
@@ -237,9 +369,21 @@ export const UnmetDemandCaptureModal: React.FC = () => {
           customerReference.trim() || selectedCust?.name || null,
         notes: notes.trim() || null,
         sourceScreen,
+        allowRapidRepeat:
+          forceAllowRapidRepeat || Boolean(selectedKnowledgeItem),
       });
 
       if (!res.ok) {
+        if (res.isDuplicateRapidSubmission) {
+          setFeedback({
+            type: 'duplicate',
+            message: isAr
+              ? 'تم تسجيل نفس السؤال خلال آخر 60 ثانية. اضغط "تأكيد تسجيل سؤال جديد لنفس المنتج" لتسجيله بوقت منفصل.'
+              : 'Identical inquiry logged within the last 60 seconds. Click "Confirm Repeat Inquiry" to log it again.',
+          });
+          setSubmitting(false);
+          return;
+        }
         setFeedback({
           type: 'error',
           message: isAr
@@ -250,22 +394,16 @@ export const UnmetDemandCaptureModal: React.FC = () => {
         return;
       }
 
-      if (res.isDuplicateRapidSubmission) {
-        setFeedback({
-          type: 'duplicate',
-          message: isAr
-            ? 'تم تسجيل هذا الطلب بالفعل خلال آخر 60 ثانية (حماية من النقر المزدوج).'
-            : 'This identical request was already recorded within the last 60 seconds (double-tap protection).',
-        });
-        setSubmitting(false);
-        return;
-      }
-
+      const prevCount = selectedKnowledgeItem?.inquiryCount ?? 0;
       setFeedback({
         type: 'success',
         message: isAr
-          ? 'تم تسجيل طلب العميل غير المتوفر في سجل الذكاء التشغيلي بنجاح!'
-          : 'Customer unmet demand inquiry recorded in Store Intelligence!',
+          ? prevCount > 0
+            ? `تم تسجيل السؤال رقم (${prevCount + 1}) للمنتج "${canonicalUnregisteredName || activeProduct?.name}" بنجاح وإضافته لتقارير دعم اتخاذ القرار!`
+            : 'تم تسجيل المنتج في قاعدة المنتجات غير المتوفرة وتقارير دعم اتخاذ القرار بنجاح!'
+          : prevCount > 0
+          ? `Recorded inquiry #${prevCount + 1} for "${canonicalUnregisteredName || activeProduct?.name}" in Decision Support Reports!`
+          : 'Customer unmet demand inquiry recorded in Unavailable Products Database!',
       });
 
       setTimeout(() => {
@@ -276,8 +414,17 @@ export const UnmetDemandCaptureModal: React.FC = () => {
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitDemandRecord(false);
+  };
+
   const canChangeBranch =
     currentUser.role === 'admin' || currentUser.role === 'manager';
+
+  const previouslyAskedCount = unavailableKnowledgeBase.filter(
+    (i) => i.inquiryCount > 0
+  ).length;
 
   return (
     <div
@@ -293,15 +440,23 @@ export const UnmetDemandCaptureModal: React.FC = () => {
               <PackageX className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">
-                {isAr
-                  ? 'تسجيل سريع لطلب عميل غير متوفر'
-                  : 'Fast Customer Unmet Demand Capture'}
-              </h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-bold text-white">
+                  {isAr
+                    ? 'تسجيل منتج غير متوفر وقاعدة المنتجات المطلوبة'
+                    : 'Unavailable Product Capture & Knowledge Base'}
+                </h2>
+                <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-bold text-amber-300">
+                  <Database className="h-3 w-3" />
+                  {isAr
+                    ? `${previouslyAskedCount} منتج في قاعدة غير المتوفر`
+                    : `${previouslyAskedCount} in Unavailable DB`}
+                </span>
+              </div>
               <p className="text-xs text-neutral-400">
                 {isAr
-                  ? 'يسجل الطلب لتحليلات الطلب المفقود والتنبؤ دون التأثير على المبيعات أو المخزون الفعلي'
-                  : 'Logs customer inquiry for demand forecasting & replenishment without altering sales or stock'}
+                  ? 'ابحث بأي كلمة أو حرف في اسم المنتج لاختيار منتج سُئل عنه سابقاً بدلاً من تكرار إضافته، ليظهر بتواريخه في التقارير'
+                  : 'Search by any word or character to select a previously requested item and track repeat inquiries across timestamps'}
               </p>
             </div>
           </div>
@@ -320,7 +475,7 @@ export const UnmetDemandCaptureModal: React.FC = () => {
           onSubmit={handleSubmit}
           className="flex-1 space-y-4 overflow-y-auto p-5"
         >
-          {/* Mode Switch: Registered Catalog Product vs Unregistered Inquiry */}
+          {/* Mode Switch: Registered Catalog Product vs Unavailable / Unregistered Knowledge Base */}
           <div className="grid grid-cols-2 gap-2 rounded-xl border border-neutral-800 bg-neutral-950 p-1.5">
             <button
               type="button"
@@ -357,16 +512,18 @@ export const UnmetDemandCaptureModal: React.FC = () => {
             >
               <PackagePlus className="h-4 w-4" />
               {isAr
-                ? 'منتج جديد غير مسجل بالمتجر'
-                : 'Unregistered / Not Stocked Product'}
+                ? 'قاعدة المنتجات غير المتوفرة / منتج جديد'
+                : 'Unavailable Products DB / New Item'}
             </button>
           </div>
 
           {mode === 'registered' ? (
-            <div className="space-y-2.5 rounded-xl border border-neutral-800/80 bg-neutral-950/50 p-3.5">
+            <div className="space-y-3 rounded-xl border border-neutral-800/80 bg-neutral-950/50 p-3.5">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-neutral-300">
-                  {isAr ? 'اختر المنتج المطلوب' : 'Select Requested Product'}
+                  {isAr
+                    ? 'ابحث في الكتالوج أو قاعدة المنتجات غير المتوفرة (بأي كلمة أو حرف)'
+                    : 'Search Catalog or Unavailable Products DB (by any word or letter)'}
                 </label>
                 {activeProduct && (
                   <span
@@ -391,10 +548,11 @@ export const UnmetDemandCaptureModal: React.FC = () => {
                   type="text"
                   value={productSearch}
                   onChange={(e) => setProductSearch(e.target.value)}
+                  data-testid="unmet-product-search"
                   placeholder={
                     isAr
-                      ? 'ابحث بالاسم أو الباركود أو الكود (SKU)...'
-                      : 'Filter by product name, SKU, or barcode...'
+                      ? 'اكتب أي كلمة أو حرف (مثال: كريم باريس، كريم، باريس، أو الباركود)...'
+                      : 'Type any word, letter, or barcode...'
                   }
                   className="w-full rounded-lg border border-neutral-800 bg-neutral-900 py-2 ps-9 pe-3 text-xs text-white placeholder-neutral-500 focus:border-amber-500 focus:outline-none"
                 />
@@ -413,55 +571,289 @@ export const UnmetDemandCaptureModal: React.FC = () => {
                   </option>
                 ))}
               </select>
+
+              {/* Cross-search results from Unavailable Products Knowledge Base when searching in Registered tab */}
+              {productSearch.trim().length > 0 && matchingKnowledgeItems.length > 0 && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-2.5 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-amber-300">
+                    <span className="flex items-center gap-1.5">
+                      <Database className="h-3.5 w-3.5" />
+                      {isAr
+                        ? 'نتائج مطابقة من قاعدة المنتجات غير المتوفرة المسجلة سابقاً:'
+                        : 'Matches from Unavailable Products Knowledge Base:'}
+                    </span>
+                    <span className="text-[10px] text-neutral-400">
+                      {isAr ? 'اضغط لاختيار المنتج' : 'Click to select'}
+                    </span>
+                  </div>
+                  <div className="max-h-36 space-y-1.5 overflow-y-auto">
+                    {matchingKnowledgeItems.slice(0, 5).map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => handleSelectKnowledgeItem(item)}
+                        className="flex w-full items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900/90 px-3 py-2 text-start text-xs transition hover:border-amber-500/60 hover:bg-neutral-800"
+                      >
+                        <div>
+                          <div className="font-bold text-white">{item.productName}</div>
+                          <div className="text-[10px] text-neutral-400">
+                            {item.category}
+                            {item.lastRequestedAt
+                              ? ` • ${isAr ? 'آخر سؤال:' : 'Last asked:'} ${formatInquiryDateTime(item.lastRequestedAt, isAr)}`
+                              : ''}
+                          </div>
+                        </div>
+                        <span className="rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 font-mono text-[11px] font-bold text-amber-300">
+                          {isAr
+                            ? `سُئل عنه ${item.inquiryCount} مرة`
+                            : `Asked ${item.inquiryCount}x`}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3 rounded-xl border border-violet-500/25 bg-violet-950/10 p-3.5 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs font-semibold text-neutral-300">
-                  {isAr
-                    ? 'اسم المنتج غير المسجل (مطلوب) *'
-                    : 'Requested Unregistered Product Name *'}
-                </label>
-                <input
-                  type="text"
-                  required={mode === 'unregistered'}
-                  value={unregisteredName}
-                  onChange={(e) => setUnregisteredName(e.target.value)}
-                  data-testid="unmet-unregistered-name"
-                  placeholder={
-                    isAr
-                      ? 'مثال: شاي ماتشا ياباني 100 جم / كبسولات قهوة...'
-                      : 'e.g., Ceremonial Matcha Tin 100g / Specialty Syrup...'
-                  }
-                  className="w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-500 focus:border-amber-500 focus:outline-none"
-                />
-              </div>
+            <div className="space-y-3 rounded-xl border border-amber-500/30 bg-neutral-950/70 p-3.5">
               <div>
-                <label className="mb-1 flex items-center gap-1 text-xs font-medium text-neutral-400">
-                  <Barcode className="h-3.5 w-3.5" />
-                  {isAr ? 'الباركود الممسوح (اختياري)' : 'Scanned Barcode (Optional)'}
-                </label>
-                <input
-                  type="text"
-                  value={barcode}
-                  onChange={(e) => setBarcode(e.target.value)}
-                  data-testid="unmet-unregistered-barcode"
-                  placeholder="490101099281"
-                  className="w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-white placeholder-neutral-500 focus:border-amber-500 focus:outline-none"
-                />
+                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                    <Search className="h-3.5 w-3.5" />
+                    {isAr
+                      ? 'ابحث في قاعدة المنتجات غير المتوفرة أو اكتب اسم المنتج *'
+                      : 'Search Unavailable Products DB or Type Product Name *'}
+                  </label>
+                  <span className="text-[11px] text-neutral-400">
+                    {isAr
+                      ? 'البحث يعمل بأي كلمة أو حرف (مثال: كريم، باريس، باري، كريم باريس)'
+                      : 'Matches by any word, partial word, or character'}
+                  </span>
+                </div>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute top-2.5 start-3 h-4 w-4 text-amber-400" />
+                  <input
+                    type="text"
+                    required={mode === 'unregistered'}
+                    value={unregisteredName}
+                    onChange={(e) => {
+                      setUnregisteredName(e.target.value);
+                      if (
+                        selectedKnowledgeItem &&
+                        normalizeUnavailableSearchText(e.target.value) !==
+                          normalizeUnavailableSearchText(
+                            selectedKnowledgeItem.productName
+                          )
+                      ) {
+                        setSelectedKnowledgeKey(null);
+                      }
+                    }}
+                    data-testid="unmet-unregistered-name"
+                    placeholder={
+                      isAr
+                        ? 'اكتب أي كلمة أو حرف للبحث أو الإضافة (مثال: كريم باريس الابيض / كريم / باريس)...'
+                        : 'Type any word or letter to search or add (e.g., Paris Cream)...'
+                    }
+                    className="w-full rounded-lg border border-neutral-700 bg-neutral-900 py-2.5 ps-9 pe-3 text-sm font-medium text-white placeholder-neutral-500 focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="mb-1 flex items-center gap-1 text-xs font-medium text-neutral-400">
-                  <Layers className="h-3.5 w-3.5" />
-                  {isAr ? 'التصنيف المتوقع' : 'Expected Category'}
-                </label>
-                <input
-                  type="text"
-                  value={categorySnapshot}
-                  onChange={(e) => setCategorySnapshot(e.target.value)}
-                  placeholder="Coffee & Drinks / Bakery / Retail"
-                  className="w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-white placeholder-neutral-500 focus:border-amber-500 focus:outline-none"
-                />
+
+              {/* Banner when an existing Unavailable Product is selected from the Knowledge Base */}
+              {selectedKnowledgeItem && selectedKnowledgeItem.inquiryCount > 0 && (
+                <div
+                  data-testid="selected-kb-product-banner"
+                  className="rounded-xl border border-emerald-500/40 bg-emerald-950/30 p-3 space-y-2"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                      <span className="text-xs font-bold text-emerald-300">
+                        {isAr
+                          ? `تم اختيار المنتج من قاعدة غير المتوفر: "${selectedKnowledgeItem.productName}"`
+                          : `Selected from Unavailable Products DB: "${selectedKnowledgeItem.productName}"`}
+                      </span>
+                    </div>
+                    <span className="rounded-md border border-amber-500/40 bg-amber-500/20 px-2 py-0.5 font-mono text-[11px] font-extrabold text-amber-300">
+                      {isAr
+                        ? `سُئل عنه ${selectedKnowledgeItem.inquiryCount} مرات سابقاً → سيصبح ${selectedKnowledgeItem.inquiryCount + 1} مرات`
+                        : `Asked ${selectedKnowledgeItem.inquiryCount}x previously → Will become ${selectedKnowledgeItem.inquiryCount + 1}x`}
+                    </span>
+                  </div>
+
+                  {selectedKnowledgeItem.inquiryTimestamps.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-300">
+                      <History className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                      <span className="text-neutral-400">
+                        {isAr ? 'أوقات السؤال السابقة:' : 'Previous inquiry times:'}
+                      </span>
+                      {selectedKnowledgeItem.inquiryTimestamps
+                        .slice(0, 4)
+                        .map((ts, idx) => (
+                          <span
+                            key={`${ts}-${idx}`}
+                            className="rounded bg-neutral-900/90 border border-neutral-800 px-1.5 py-0.5 font-mono text-[10px] text-neutral-300"
+                          >
+                            {formatInquiryDateTime(ts, isAr)}
+                          </span>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Live Searchable Unavailable Products Knowledge Base List (`قاعدة المنتجات غير المتوفرة`) */}
+              <div
+                data-testid="unavailable-knowledge-base-panel"
+                className="rounded-xl border border-neutral-800 bg-neutral-900/90 p-3 space-y-2"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800 pb-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-white">
+                    <Database className="h-3.5 w-3.5 text-amber-400" />
+                    <span>
+                      {isAr
+                        ? unregisteredName.trim()
+                          ? `نتائج البحث في قاعدة المنتجات غير المتوفرة (${matchingKnowledgeItems.length})`
+                          : `قاعدة المنتجات غير المتوفرة المسجلة سابقاً (${matchingKnowledgeItems.length})`
+                        : unregisteredName.trim()
+                        ? `Matching Unavailable Products (${matchingKnowledgeItems.length})`
+                        : `Previously Requested Unavailable Products (${matchingKnowledgeItems.length})`}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-amber-300/90 font-medium">
+                    {isAr
+                      ? 'اضغط على المنتج لاختياره وتسجيل سؤال جديد بنفس الاسم'
+                      : 'Click an item to select it and log a repeat inquiry'}
+                  </span>
+                </div>
+
+                {matchingKnowledgeItems.length > 0 ? (
+                  <div className="max-h-44 space-y-1.5 overflow-y-auto pe-1">
+                    {matchingKnowledgeItems.map((item) => {
+                      const isSelected =
+                        selectedKnowledgeItem?.key === item.key;
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          data-testid={`kb-item-${item.key}`}
+                          onClick={() => handleSelectKnowledgeItem(item)}
+                          className={`flex w-full flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border p-2.5 text-start transition ${
+                            isSelected
+                              ? 'border-emerald-500 bg-emerald-950/30 shadow-sm'
+                              : 'border-neutral-800 bg-neutral-950/80 hover:border-amber-500/60 hover:bg-neutral-900'
+                          }`}
+                        >
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold text-xs sm:text-sm text-white">
+                                {item.productName}
+                              </span>
+                              <span className="rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-300">
+                                {item.category}
+                              </span>
+                              {item.barcode && (
+                                <span className="font-mono text-[10px] text-neutral-400">
+                                  #{item.barcode}
+                                </span>
+                              )}
+                            </div>
+
+                            {item.inquiryTimestamps.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1 text-[10px] text-neutral-400">
+                                <Clock className="h-3 w-3 text-amber-400/80" />
+                                <span>
+                                  {isAr ? 'آخر سؤال:' : 'Last asked:'}{' '}
+                                  <strong className="font-mono text-neutral-300">
+                                    {formatInquiryDateTime(
+                                      item.lastRequestedAt,
+                                      isAr
+                                    )}
+                                  </strong>
+                                </span>
+                                {item.inquiryTimestamps.length > 1 && (
+                                  <span className="text-neutral-500">
+                                    (
+                                    {isAr
+                                      ? `في ${item.inquiryTimestamps.length} أوقات مختلفة`
+                                      : `across ${item.inquiryTimestamps.length} timestamps`}
+                                    )
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="rounded-lg border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 font-mono text-xs font-extrabold text-amber-300">
+                              {isAr
+                                ? `سُئل عنه ${item.inquiryCount} مرة`
+                                : `Asked ${item.inquiryCount}x`}
+                            </span>
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold ${
+                                isSelected
+                                  ? 'bg-emerald-500 text-neutral-950'
+                                  : 'bg-neutral-800 text-neutral-200'
+                              }`}
+                            >
+                              {isSelected ? (
+                                <>
+                                  <Check className="h-3.5 w-3.5" />
+                                  {isAr ? 'محدد' : 'Selected'}
+                                </>
+                              ) : isAr ? (
+                                'اختيار'
+                              ) : (
+                                'Select'
+                              )}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="py-3 text-center text-xs text-neutral-400">
+                    {isAr
+                      ? 'لا يوجد منتج مطابق في قاعدة غير المتوفر — سيتم حفظ ما كتبته كمنتج جديد في قاعدة المنتجات غير المتوفرة.'
+                      : 'No matching product in Unavailable DB — will be saved as a new entry in the Unavailable Products Database.'}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 flex items-center gap-1 text-xs font-medium text-neutral-400">
+                    <Barcode className="h-3.5 w-3.5" />
+                    {isAr ? 'الباركود الممسوح (اختياري)' : 'Scanned Barcode (Optional)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={barcode}
+                    onChange={(e) => setBarcode(e.target.value)}
+                    data-testid="unmet-unregistered-barcode"
+                    placeholder="490101099281"
+                    className="w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-white placeholder-neutral-500 focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 flex items-center gap-1 text-xs font-medium text-neutral-400">
+                    <Layers className="h-3.5 w-3.5" />
+                    {isAr ? 'التصنيف المتوقع' : 'Expected Category'}
+                  </label>
+                  <input
+                    type="text"
+                    value={categorySnapshot}
+                    onChange={(e) => setCategorySnapshot(e.target.value)}
+                    placeholder={
+                      isAr
+                        ? 'مستحضرات تجميل / عناية / مشروبات...'
+                        : 'Cosmetics / Hair Care / Drinks'
+                    }
+                    className="w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-white placeholder-neutral-500 focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -625,8 +1017,8 @@ export const UnmetDemandCaptureModal: React.FC = () => {
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-400">
               {isAr
-                ? 'ملاحظات إضافية (مثل: العميل طلب توفيره غداً أو بديل مفضل)'
-                : 'Notes (e.g., Customer asked for restock by tomorrow)'}
+                ? 'ملاحظات إضافية (مثل: العميل سأل عن نوع بالكرياتين أو طلب توفيره غداً)'
+                : 'Notes (e.g., Customer asked for Keratin variant or restock by tomorrow)'}
             </label>
             <input
               type="text"
@@ -645,7 +1037,7 @@ export const UnmetDemandCaptureModal: React.FC = () => {
           {feedback && (
             <div
               data-testid="unmet-feedback-banner"
-              className={`flex items-center gap-2 rounded-xl border p-3 text-xs font-medium ${
+              className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-xs font-medium ${
                 feedback.type === 'success'
                   ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
                   : feedback.type === 'duplicate'
@@ -653,12 +1045,26 @@ export const UnmetDemandCaptureModal: React.FC = () => {
                   : 'border-rose-500/40 bg-rose-500/15 text-rose-300'
               }`}
             >
-              {feedback.type === 'success' ? (
-                <CheckCircle2 className="h-4 w-4 shrink-0" />
-              ) : (
-                <AlertCircle className="h-4 w-4 shrink-0" />
+              <div className="flex items-center gap-2">
+                {feedback.type === 'success' ? (
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                )}
+                <span>{feedback.message}</span>
+              </div>
+              {feedback.type === 'duplicate' && (
+                <button
+                  type="button"
+                  onClick={() => submitDemandRecord(true)}
+                  data-testid="confirm-repeat-inquiry-btn"
+                  className="rounded-lg bg-amber-500 px-3 py-1 text-xs font-bold text-neutral-950 hover:bg-amber-400"
+                >
+                  {isAr
+                    ? 'تأكيد تسجيل سؤال جديد لنفس المنتج'
+                    : 'Confirm Repeat Inquiry'}
+                </button>
               )}
-              <span>{feedback.message}</span>
             </div>
           )}
 
@@ -682,6 +1088,10 @@ export const UnmetDemandCaptureModal: React.FC = () => {
                 ? isAr
                   ? 'جاري التسجيل...'
                   : 'Recording...'
+                : selectedKnowledgeItem && selectedKnowledgeItem.inquiryCount > 0
+                ? isAr
+                  ? `تسجيل سؤال جديد (${selectedKnowledgeItem.inquiryCount + 1})`
+                  : `Record Repeat Inquiry (#${selectedKnowledgeItem.inquiryCount + 1})`
                 : isAr
                 ? 'تسجيل الطلب غير المتوفر'
                 : 'Record Unmet Demand'}

@@ -17,6 +17,10 @@ import { AppCard } from '../ui/AppCard';
 import { TactileButton } from '../ui/TactileButton';
 import { BusinessIntelligenceDashboard } from '../analytics/BusinessIntelligenceDashboard';
 import {
+  buildUnavailableProductsKnowledgeBase,
+  searchUnavailableProductsKnowledgeBase,
+} from '../../analytics/unmet-demand.validation';
+import {
   BarChart3,
   Download,
   TrendingUp,
@@ -36,6 +40,11 @@ import {
   Activity,
   Layers,
   Sparkles,
+  Database,
+  Clock,
+  Search,
+  PackageX,
+  Plus,
 } from 'lucide-react';
 
 export const ReportsView: React.FC = () => {
@@ -49,11 +58,14 @@ export const ReportsView: React.FC = () => {
     exchangeRates,
     exchangeRateHistory,
     updateExchangeRate,
+    unmetDemandRequests,
+    openUnmetDemandModal,
   } = usePOS();
   const t = getTranslation(settings.language);
   const isAr = settings.language === 'ar';
 
   const [reportViewMode, setReportViewMode] = useState<'bi_suite' | 'classic_reports'>('bi_suite');
+  const [unavailableReportSearch, setUnavailableReportSearch] = useState<string>('');
   const [valuationMode, setValuationMode] = useState<SalesRateValuationMode>('indexed');
   const [anchorCurrency, setAnchorCurrency] = useState<string>('USD');
   const [selectedRateChartCurrency, setSelectedRateChartCurrency] = useState<string>('USD');
@@ -61,6 +73,25 @@ export const ReportsView: React.FC = () => {
     String(exchangeRates['USD'] || 2700)
   );
   const [rateFeedback, setRateFeedback] = useState<string | null>(null);
+
+  const unavailableProductsKnowledgeBase = useMemo(
+    () =>
+      buildUnavailableProductsKnowledgeBase(
+        unmetDemandRequests || [],
+        products || []
+      ).filter((item) => item.inquiryCount > 0),
+    [unmetDemandRequests, products]
+  );
+
+  const filteredUnavailableReportItems = useMemo(
+    () =>
+      searchUnavailableProductsKnowledgeBase(
+        unavailableProductsKnowledgeBase,
+        unavailableReportSearch,
+        { onlyUnregisteredOrPreviouslyAsked: true, limit: 25 }
+      ),
+    [unavailableProductsKnowledgeBase, unavailableReportSearch]
+  );
 
   const activeCurrencyCodes = useMemo(() => {
     const list =
@@ -357,6 +388,250 @@ export const ReportsView: React.FC = () => {
           </TactileButton>
         </div>
       </div>
+
+      {/* Unavailable Products Knowledge Base & Decision Support Report (قاعدة المنتجات غير المتوفرة وتوصيات اتخاذ القرار) */}
+      <AppCard
+        data-testid="reports-unavailable-products-decision-section"
+        className="p-4 border-amber-500/35 bg-neutral-900/95 space-y-4"
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-neutral-800">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm sm:text-base font-extrabold text-white">
+                  {isAr
+                    ? 'تقرير قاعدة المنتجات غير المتوفرة ودعم اتخاذ القرار'
+                    : 'Unavailable Products Knowledge Base & Decision Support Report'}
+                </h3>
+                <span className="px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-300 font-mono text-xs font-bold">
+                  {isAr
+                    ? `${unavailableProductsKnowledgeBase.length} منتج مسجل`
+                    : `${unavailableProductsKnowledgeBase.length} items`}
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-rose-500/15 border border-rose-500/40 text-rose-300 font-mono text-xs font-bold">
+                  {isAr
+                    ? `${unavailableProductsKnowledgeBase.filter((i) => i.inquiryCount >= 2).length} منتجات متكررة الطلب`
+                    : `${unavailableProductsKnowledgeBase.filter((i) => i.inquiryCount >= 2).length} repeated demand`}
+                </span>
+              </div>
+              <p className="text-xs text-neutral-400 mt-0.5">
+                {isAr
+                  ? 'يعرض كل منتج غير متوفر سأل عنه الزبائن، عدد مرات السؤال، أوقات وتواريخ السؤال المختلفة، والتوصية لاتخاذ قرار التوفير أو الإدراج بالكتالوج'
+                  : 'Displays every requested unavailable product, inquiry count, distinct inquiry timestamps, and procurement decision recommendations'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[240px] sm:min-w-[280px]">
+              <Search className="pointer-events-none absolute top-2.5 start-3 w-3.5 h-3.5 text-amber-400" />
+              <input
+                type="text"
+                value={unavailableReportSearch}
+                onChange={(e) => setUnavailableReportSearch(e.target.value)}
+                data-testid="reports-unavailable-search-input"
+                placeholder={
+                  isAr
+                    ? 'ابحث بأي كلمة أو حرف (مثال: كريم باريس، كريم، باريس)...'
+                    : 'Search by any word or character...'
+                }
+                className="w-full rounded-xl bg-neutral-950 border border-neutral-700 ps-8 pe-3 py-1.5 text-xs text-white placeholder-neutral-500 focus:border-amber-500 focus:outline-none"
+              />
+            </div>
+
+            <button
+              type="button"
+              data-testid="reports-open-unmet-modal-btn"
+              onClick={() =>
+                openUnmetDemandModal({
+                  isRegisteredProduct: false,
+                  unavailabilityReason: 'NOT_STOCKED',
+                  sourceScreen: 'analytics',
+                })
+              }
+              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              {isAr ? 'تسجيل منتج غير متوفر' : 'Record Unavailable Product'}
+            </button>
+          </div>
+        </div>
+
+        <div
+          data-testid="reports-unavailable-products-list"
+          className="overflow-x-auto"
+        >
+          {filteredUnavailableReportItems.length > 0 ? (
+            <table className="w-full text-xs text-start border-collapse">
+              <thead>
+                <tr className="border-b border-neutral-800 text-neutral-400 text-[11px]">
+                  <th className="py-2 px-2 text-start">{isAr ? 'المنتج غير المتوفر' : 'Unavailable Product'}</th>
+                  <th className="py-2 px-2 text-start">{isAr ? 'عدد مرات السؤال' : 'Times Asked'}</th>
+                  <th className="py-2 px-2 text-start">{isAr ? 'إجمالي الكمية' : 'Total Qty'}</th>
+                  <th className="py-2 px-2 text-start">
+                    {isAr
+                      ? 'أوقات وتواريخ السؤال المختلفة (الأزمنة)'
+                      : 'Distinct Inquiry Timestamps'}
+                  </th>
+                  <th className="py-2 px-2 text-start">
+                    {isAr ? 'توصية اتخاذ القرار' : 'Decision Support Recommendation'}
+                  </th>
+                  <th className="py-2 px-2 text-end">{isAr ? 'إجراء سريع' : 'Quick Action'}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-800/70">
+                {filteredUnavailableReportItems.map((item) => {
+                  const isRepeated = item.inquiryCount >= 2;
+                  const isCritical = item.inquiryCount >= 3 || item.totalRequestedBaseUnits >= 5;
+                  const recommendationText = isAr
+                    ? isCritical
+                      ? `أولوية قصوى: سُئل عنه ${item.inquiryCount} مرات في أوقات مختلفة (${item.totalRequestedBaseUnits} وحدة) — يُوصى بتوفيره وإدراجه فوراً`
+                      : isRepeated
+                      ? `طلب متكرر (${item.inquiryCount} مرات) — يُوصى بالتواصل مع المورد لتوفيره وتلبية طلب الزبائن`
+                      : `سؤال مسجل (${item.totalRequestedBaseUnits} وحدة) — محفوظ في قاعدة غير المتوفر لمتابعة تكرار الطلب`
+                    : isCritical
+                    ? `Critical Priority: Asked ${item.inquiryCount} times across different timestamps (${item.totalRequestedBaseUnits} units) — Source & stock immediately`
+                    : isRepeated
+                    ? `Repeated Demand (${item.inquiryCount}x) — Contact supplier to stock item`
+                    : `Initial Inquiry (${item.totalRequestedBaseUnits} units) — Saved in Unavailable DB to track repeat demand`;
+
+                  return (
+                    <tr
+                      key={item.key}
+                      data-testid={`report-unavailable-row-${item.key}`}
+                      className="hover:bg-neutral-800/40 transition"
+                    >
+                      <td className="py-2.5 px-2">
+                        <div className="font-bold text-white text-xs sm:text-sm">
+                          {item.productName}
+                        </div>
+                        <div className="text-[10px] text-neutral-400 flex flex-wrap items-center gap-1.5 mt-0.5">
+                          <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-300">
+                            {item.category}
+                          </span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded font-semibold ${
+                              item.isRegisteredProduct
+                                ? 'bg-emerald-500/15 text-emerald-300'
+                                : 'bg-violet-500/20 text-violet-300'
+                            }`}
+                          >
+                            {item.isRegisteredProduct
+                              ? isAr
+                                ? 'مسجل (نافد)'
+                                : 'Registered (OOS)'
+                              : isAr
+                              ? 'غير مسجل بالمتجر'
+                              : 'Unregistered'}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="py-2.5 px-2">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-mono font-extrabold text-xs border ${
+                            isCritical
+                              ? 'bg-rose-500/20 border-rose-500/50 text-rose-300'
+                              : isRepeated
+                              ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                              : 'bg-neutral-800 border-neutral-700 text-neutral-200'
+                          }`}
+                        >
+                          {isAr
+                            ? `${item.inquiryCount} مرات`
+                            : `${item.inquiryCount} times`}
+                        </span>
+                      </td>
+
+                      <td className="py-2.5 px-2 font-mono font-bold text-amber-400">
+                        {item.totalRequestedBaseUnits}{' '}
+                        <span className="text-[10px] text-neutral-400 font-sans">
+                          {isAr ? 'وحدة' : 'units'}
+                        </span>
+                      </td>
+
+                      <td className="py-2.5 px-2">
+                        <div className="flex flex-wrap items-center gap-1 max-w-[290px]">
+                          {item.inquiryTimestamps.slice(0, 5).map((ts, idx) => (
+                            <span
+                              key={`${ts}-${idx}`}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 font-mono text-[10px] text-neutral-300"
+                            >
+                              <Clock className="w-2.5 h-2.5 text-amber-400" />
+                              {new Date(ts).toLocaleString(
+                                isAr ? 'ar-SD' : 'en-US',
+                                {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                }
+                              )}
+                            </span>
+                          ))}
+                          {item.inquiryTimestamps.length > 5 && (
+                            <span className="text-[10px] text-neutral-400 font-mono">
+                              +{item.inquiryTimestamps.length - 5}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="py-2.5 px-2 max-w-[290px]">
+                        <span
+                          className={`text-[11px] font-semibold leading-relaxed block ${
+                            isCritical
+                              ? 'text-rose-300'
+                              : isRepeated
+                              ? 'text-amber-300'
+                              : 'text-neutral-300'
+                          }`}
+                        >
+                          {recommendationText}
+                        </span>
+                      </td>
+
+                      <td className="py-2.5 px-2 text-end">
+                        <button
+                          type="button"
+                          data-testid={`report-log-repeat-${item.key}`}
+                          onClick={() =>
+                            openUnmetDemandModal({
+                              productId: item.productId,
+                              isRegisteredProduct: item.isRegisteredProduct,
+                              productNameSnapshot: item.productName,
+                              productNameArSnapshot: item.productNameAr,
+                              barcode: item.barcode,
+                              categorySnapshot: item.category,
+                              unavailabilityReason: item.unavailabilityReason,
+                              sourceScreen: 'analytics',
+                            })
+                          }
+                          className="px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-neutral-950 border border-amber-500/40 font-bold text-[11px] transition whitespace-nowrap"
+                        >
+                          {isAr ? '+ تسجيل سؤال جديد' : '+ Log Repeat Inquiry'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : (
+            <div className="py-6 text-center text-xs text-neutral-400 flex flex-col items-center gap-2">
+              <PackageX className="w-6 h-6 text-neutral-500" />
+              <span>
+                {isAr
+                  ? 'لا توجد منتجات مطابقة للبحث في قاعدة المنتجات غير المتوفرة حالياً.'
+                  : 'No matching items in the Unavailable Products Database.'}
+              </span>
+            </div>
+          )}
+        </div>
+      </AppCard>
 
       {reportViewMode === 'bi_suite' ? (
         <BusinessIntelligenceDashboard />

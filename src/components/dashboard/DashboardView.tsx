@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import * as d3 from 'd3';
+import { scalePoint, scaleLinear, max, line, area, curveMonotoneX } from 'd3';
 import { usePOS } from '../../context/POSContext';
 import { getTranslation } from '../../lib/translations';
 import {
@@ -92,39 +92,34 @@ export const DashboardView: React.FC = () => {
     const points = trendSummary.points;
     const domainKeys = points.map((p) => p.dateKey);
 
-    const xScale = d3
-      .scalePoint<string>()
+    const xScale = scalePoint<string>()
       .domain(domainKeys)
       .range([0, innerWidth])
       .padding(0.12);
 
-    const maxRev = d3.max(points, (d) => Math.max(d.revenue, d.collected)) || 0;
+    const maxRev = max(points, (d) => Math.max(d.revenue, d.collected)) || 0;
     const yMax = maxRev > 0 ? maxRev * 1.22 : 100;
 
-    const yScale = d3
-      .scaleLinear()
+    const yScale = scaleLinear()
       .domain([0, yMax])
       .nice(4)
       .range([innerHeight, 0]);
 
-    const revenueLineGen = d3
-      .line<DailyRevenueTrendPoint>()
+    const revenueLineGen = line<DailyRevenueTrendPoint>()
       .x((d) => xScale(d.dateKey) ?? 0)
       .y((d) => yScale(d.revenue))
-      .curve(d3.curveMonotoneX);
+      .curve(curveMonotoneX);
 
-    const revenueAreaGen = d3
-      .area<DailyRevenueTrendPoint>()
+    const revenueAreaGen = area<DailyRevenueTrendPoint>()
       .x((d) => xScale(d.dateKey) ?? 0)
       .y0(innerHeight)
       .y1((d) => yScale(d.revenue))
-      .curve(d3.curveMonotoneX);
+      .curve(curveMonotoneX);
 
-    const collectedLineGen = d3
-      .line<DailyRevenueTrendPoint>()
+    const collectedLineGen = line<DailyRevenueTrendPoint>()
       .x((d) => xScale(d.dateKey) ?? 0)
       .y((d) => yScale(d.collected))
-      .curve(d3.curveMonotoneX);
+      .curve(curveMonotoneX);
 
     const revenueLinePath = revenueLineGen(points) || '';
     const revenueAreaPath = revenueAreaGen(points) || '';

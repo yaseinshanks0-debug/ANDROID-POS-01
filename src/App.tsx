@@ -3,23 +3,46 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { POSProvider, usePOS } from './context/POSContext';
 import { AppHeader } from './components/layout/AppHeader';
 import { BottomNavigation } from './components/layout/BottomNavigation';
 import { CheckoutView } from './components/checkout/CheckoutView';
-import { DashboardView } from './components/dashboard/DashboardView';
-import { ProductsView } from './components/products/ProductsView';
-import { InventoryView } from './components/inventory/InventoryView';
-import { CustomersView } from './components/customers/CustomersView';
-import { SalesView } from './components/sales/SalesView';
-import { ReportsView } from './components/reports/ReportsView';
-import { SettingsView } from './components/settings/SettingsView';
-import { TrainingTourOverlay } from './components/tour/TrainingTourOverlay';
-import { UnmetDemandCaptureModal } from './components/analytics/UnmetDemandCaptureModal';
 import { PracticeModeBanner } from './components/onboarding/PracticeModeBanner';
 import { FirstRunOnboardingModal } from './components/onboarding/FirstRunOnboardingModal';
+import { ViewSkeleton } from './components/ui/ViewSkeleton';
 import { StatusBar, Style } from '@capacitor/status-bar';
+
+// Lazy-load secondary views and heavy overlays for fast initial load & code splitting
+const DashboardView = lazy(() =>
+  import('./components/dashboard/DashboardView').then((m) => ({ default: m.DashboardView }))
+);
+const ProductsView = lazy(() =>
+  import('./components/products/ProductsView').then((m) => ({ default: m.ProductsView }))
+);
+const InventoryView = lazy(() =>
+  import('./components/inventory/InventoryView').then((m) => ({ default: m.InventoryView }))
+);
+const CustomersView = lazy(() =>
+  import('./components/customers/CustomersView').then((m) => ({ default: m.CustomersView }))
+);
+const SalesView = lazy(() =>
+  import('./components/sales/SalesView').then((m) => ({ default: m.SalesView }))
+);
+const ReportsView = lazy(() =>
+  import('./components/reports/ReportsView').then((m) => ({ default: m.ReportsView }))
+);
+const SettingsView = lazy(() =>
+  import('./components/settings/SettingsView').then((m) => ({ default: m.SettingsView }))
+);
+const TrainingTourOverlay = lazy(() =>
+  import('./components/tour/TrainingTourOverlay').then((m) => ({ default: m.TrainingTourOverlay }))
+);
+const UnmetDemandCaptureModal = lazy(() =>
+  import('./components/analytics/UnmetDemandCaptureModal').then((m) => ({
+    default: m.UnmetDemandCaptureModal,
+  }))
+);
 
 function POSAppInner() {
   const {
@@ -34,6 +57,7 @@ function POSAppInner() {
     finishTrainingTour,
     closeTrainingTour,
     resetTrainingTour,
+    isUnmetDemandModalOpen,
   } = usePOS();
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
 
@@ -67,7 +91,7 @@ function POSAppInner() {
       {/* Top Header */}
       <AppHeader onOpenCart={() => setIsMobileCartOpen(true)} />
 
-      {/* Main View Router */}
+      {/* Main View Router with Skeleton Loading Suspense Boundary */}
       <main className="flex-1 flex flex-col overflow-x-hidden">
         {activeTab === 'checkout' && (
           <CheckoutView
@@ -75,33 +99,43 @@ function POSAppInner() {
             onCloseCartDrawer={() => setIsMobileCartOpen(false)}
           />
         )}
-        {activeTab === 'dashboard' && <DashboardView />}
-        {activeTab === 'products' && <ProductsView />}
-        {activeTab === 'inventory' && <InventoryView />}
-        {activeTab === 'customers' && <CustomersView />}
-        {activeTab === 'sales' && <SalesView />}
-        {activeTab === 'reports' && <ReportsView />}
-        {activeTab === 'settings' && <SettingsView />}
+        <Suspense fallback={<ViewSkeleton />}>
+          {activeTab === 'dashboard' && <DashboardView />}
+          {activeTab === 'products' && <ProductsView />}
+          {activeTab === 'inventory' && <InventoryView />}
+          {activeTab === 'customers' && <CustomersView />}
+          {activeTab === 'sales' && <SalesView />}
+          {activeTab === 'reports' && <ReportsView />}
+          {activeTab === 'settings' && <SettingsView />}
+        </Suspense>
       </main>
 
-      {/* Fast Customer Unmet Demand Request Capture Modal */}
-      <UnmetDemandCaptureModal />
+      {/* Fast Customer Unmet Demand Request Capture Modal (Lazy-loaded on demand) */}
+      {isUnmetDemandModalOpen && (
+        <Suspense fallback={null}>
+          <UnmetDemandCaptureModal />
+        </Suspense>
+      )}
 
       {/* First-Run Onboarding, Practice Mode & Company Workspace Modal */}
       <FirstRunOnboardingModal />
 
-      {/* Interactive Guided Training Tour Overlay */}
-      <TrainingTourOverlay
-        isOpen={isTrainingTourOpen}
-        currentStepIndex={trainingTourStepIndex}
-        progress={trainingTourProgress}
-        onSelectStep={selectTrainingTourStep}
-        onNext={nextTrainingTourStep}
-        onPrev={prevTrainingTourStep}
-        onFinish={finishTrainingTour}
-        onClose={closeTrainingTour}
-        onResetProgress={resetTrainingTour}
-      />
+      {/* Interactive Guided Training Tour Overlay (Lazy-loaded on demand) */}
+      {isTrainingTourOpen && (
+        <Suspense fallback={null}>
+          <TrainingTourOverlay
+            isOpen={isTrainingTourOpen}
+            currentStepIndex={trainingTourStepIndex}
+            progress={trainingTourProgress}
+            onSelectStep={selectTrainingTourStep}
+            onNext={nextTrainingTourStep}
+            onPrev={prevTrainingTourStep}
+            onFinish={finishTrainingTour}
+            onClose={closeTrainingTour}
+            onResetProgress={resetTrainingTour}
+          />
+        </Suspense>
+      )}
 
       {/* Fixed Bottom Navigation */}
       <BottomNavigation />

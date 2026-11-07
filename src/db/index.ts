@@ -25,32 +25,38 @@ export const createPool = (): Pool | null => {
   }
 
   if (!global._postgresPool) {
+    const sharedPoolOptions = {
+      max: 12,
+      min: 1,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+      maxUses: 7500,
+      keepAlive: true,
+    };
+
     if (process.env.SQL_HOST && (process.env.SQL_USER || process.env.SQL_ADMIN_USER)) {
       global._postgresPool = new Pool({
+        ...sharedPoolOptions,
         host: process.env.SQL_HOST,
         port: process.env.SQL_PORT ? Number(process.env.SQL_PORT) : (process.env.PGPORT ? Number(process.env.PGPORT) : 5432),
         user: process.env.SQL_USER || process.env.SQL_ADMIN_USER,
         password: process.env.SQL_PASSWORD || process.env.SQL_ADMIN_PASSWORD,
         database: process.env.SQL_DB_NAME || process.env.PGDATABASE,
-        max: 10,
-        connectionTimeoutMillis: 15000,
       });
     } else if (process.env.DATABASE_URL) {
       global._postgresPool = new Pool({
+        ...sharedPoolOptions,
         connectionString: process.env.DATABASE_URL,
         ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-        max: 10,
-        connectionTimeoutMillis: 15000,
       });
     } else if (process.env.PGHOST && process.env.PGUSER) {
       global._postgresPool = new Pool({
+        ...sharedPoolOptions,
         host: process.env.PGHOST,
         port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
         user: process.env.PGUSER,
         password: process.env.PGPASSWORD,
         database: process.env.PGDATABASE,
-        max: 10,
-        connectionTimeoutMillis: 15000,
       });
     }
 

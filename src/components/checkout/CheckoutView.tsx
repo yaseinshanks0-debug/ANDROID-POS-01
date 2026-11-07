@@ -45,6 +45,9 @@ import {
   PackageX,
 } from 'lucide-react';
 import { playTactileClick } from '../../lib/sound-fx';
+import { useDebouncedValue } from '../../lib/performance-monitor';
+
+const CHECKOUT_PAGE_SIZE = 48;
 
 export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDrawer?: () => void }> = ({
   isCartDrawerOpen = false,
@@ -72,7 +75,9 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
   const isAr = settings.language === 'ar';
 
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 120);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [visibleCount, setVisibleCount] = useState<number>(CHECKOUT_PAGE_SIZE);
   const [discountAmountInput, setDiscountAmountInput] = useState<string>(
     globalDiscountAmount > 0 ? String(globalDiscountAmount) : ''
   );
@@ -80,6 +85,19 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [completedTransaction, setCompletedTransaction] = useState<Transaction | null>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+
+  // O(1) Product Index Map & Cart Lookup Map to avoid O(N^2) findIndex/find inside render loop (#8 & #26)
+  const productIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    products.forEach((p, idx) => map.set(p.id, idx));
+    return map;
+  }, [products]);
+
+  const cartItemMap = useMemo(() => {
+    const map = new Map<string, (typeof cart)[number]>();
+    cart.forEach((item) => map.set(item.product.id, item));
+    return map;
+  }, [cart]);
 
   // Derive unique categories
   const categories = useMemo(() => {
@@ -91,16 +109,21 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
     return Array.from(set);
   }, [products, settings.language]);
 
-  // Filter products by category & tokenized search query (any word in name, description, serial number, any barcode, SKU)
+  // Filter products by category & debounced tokenized search query
   const filteredProducts = useMemo(() => {
     return products.filter((prod, idx) => {
-      const matchesSearch = matchesProductSearchQuery(prod, searchQuery, idx);
+      const matchesSearch = matchesProductSearchQuery(prod, debouncedSearchQuery, idx);
       const prodCat = settings.language === 'ar' && prod.categoryAr ? prod.categoryAr : prod.category;
       const matchesCat = selectedCategory === 'all' || prodCat === selectedCategory;
 
       return matchesSearch && matchesCat;
     });
-  }, [products, searchQuery, selectedCategory, settings.language]);
+  }, [products, debouncedSearchQuery, selectedCategory, settings.language]);
+
+  const visibleProducts = useMemo(
+    () => filteredProducts.slice(0, visibleCount),
+    [filteredProducts, visibleCount]
+  );
 
   const handleBarcodeScanned = (code: string) => {
     const item = products.find((p, idx) => {
@@ -458,6 +481,20 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
           })}
         </div>
 
+        {filteredProducts.length > visibleCount && (
+          <div className="flex justify-center pt-2">
+            <button
+              type="button"
+              onClick={() => setVisibleCount((prev) => prev + CHECKOUT_PAGE_SIZE)}
+              className="px-4 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-xs font-bold text-amber-400 transition-colors"
+            >
+              {isAr
+                ? `عرض المزيد (${filteredProducts.length - visibleCount} متبقية)`
+                : `Load More (${filteredProducts.length - visibleCount} remaining)`}
+            </button>
+          </div>
+        )}
+
         {filteredProducts.length === 0 && (
           <div className="flex flex-col items-center justify-center p-10 text-center bg-neutral-900/40 rounded-2xl border border-neutral-800 space-y-3">
             <ShoppingBag className="w-10 h-10 text-neutral-600" />
@@ -495,34 +532,50 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
         className={`lg:w-96 shrink-0 flex flex-col bg-neutral-900/95 border border-neutral-800 rounded-3xl p-5 shadow-xl ${
           isCartDrawerOpen
             ? 'fixed inset-x-0 bottom-0 top-16 z-50 rounded-t-3xl rounded-b-none p-5 overflow-y-auto max-w-lg mx-auto bg-neutral-900'
-            : 'hidden lg:flex'
+            : 'hidden lg:flex lg:sticky lg:top-20 lg:h-fit'
         }`}
       >
-        {/* Cart Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
-          <div className="flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-amber-500" />
-            <h3 className="font-bold text-base text-white">{t.cart}</h3>
-            <span className="text-xs font-mono text-neutral-400">
-              ({cartTotals.totalItemsCount})
-            </span>
+        {/* Cart Header (div:nth-of-type(2) > div:nth-of-type(1)) */}
+        <div className="flex items-center justify-between gap-3 pb-3.5 border-b border-neutral-800/90">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+              <ShoppingBag className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-sm sm:text-base text-white tracking-tight truncate">
+                  {t.cart}
+                </h3>
+                <span className="text-neutral-600" aria-hidden="true">
+                  ·
+                </span>
+                <span className="text-xs font-mono font-bold text-amber-400 tabular-nums">
+                  ({cartTotals.totalItemsCount})
+                </span>
+              </div>
+              <span className="text-[11px] text-neutral-400 font-mono tabular-nums block">
+                {isAr
+                  ? `عملة الفاتورة: ${settings.currency}`
+                  : `Billing Currency: ${settings.currency}`}
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {cart.length > 0 && (
               <HoldToConfirm
                 onConfirm={clearCart}
                 label={t.clearCart}
                 confirmingLabel="Clearing..."
                 variant="danger"
-                className="py-1 px-2.5 text-xs min-h-[34px]"
+                className="py-1 px-2.5 text-xs min-h-[34px] whitespace-nowrap"
                 allowUndo={false}
               />
             )}
             {isCartDrawerOpen && (
               <button
                 onClick={onCloseCartDrawer}
-                className="p-1 text-neutral-400 hover:text-white lg:hidden"
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 lg:hidden transition-colors"
                 aria-label="Close cart drawer"
               >
                 <X className="w-5 h-5" />
@@ -532,11 +585,18 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
         </div>
 
         {/* Cart Items List */}
-        <div className="flex-1 overflow-y-auto py-3 space-y-2.5 min-h-[120px] max-h-[34vh] lg:max-h-[36vh]">
+        <div className="flex-1 overflow-y-auto py-3.5 space-y-2.5 min-h-[140px] max-h-[34vh] lg:max-h-[38vh]">
           {cart.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-44 text-center text-neutral-500 px-4">
-              <ShoppingBag className="w-8 h-8 mb-2 opacity-50" />
-              <p className="text-xs">{t.cartEmpty}</p>
+            <div className="flex flex-col items-center justify-center h-44 text-center text-neutral-400 px-4 rounded-2xl bg-neutral-950/50 border border-dashed border-neutral-800/80">
+              <div className="w-10 h-10 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-500 mb-2.5">
+                <ShoppingBag className="w-5 h-5" />
+              </div>
+              <p className="text-xs font-semibold text-neutral-300">{t.cartEmpty}</p>
+              <span className="text-[11px] text-neutral-500 mt-1">
+                {isAr
+                  ? 'امسح الباركود أو اضغط على أي صنف لإضافته للفاتورة'
+                  : 'Scan a barcode or tap any catalog item to begin'}
+              </span>
             </div>
           ) : (
             cart.map((item) => {
@@ -775,43 +835,43 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
         )}
 
         {/* Summary Breakdown */}
-        <div className="pt-3 border-t border-neutral-800 space-y-1.5 text-xs text-neutral-400">
-          <div className="flex justify-between">
+        <div className="p-3.5 rounded-2xl bg-neutral-950/60 border border-neutral-800/80 space-y-2 text-xs text-neutral-400 mt-1">
+          <div className="flex justify-between items-center">
             <span>{t.subtotal}</span>
-            <span className="font-mono tabular-nums text-white">
+            <span className="font-mono tabular-nums text-neutral-200 font-semibold">
               {formatCurrency(cartTotals.subtotal, settings.currency, settings.language)}
             </span>
           </div>
 
           {cartTotals.discountAmount > 0 && (
-            <div className="flex justify-between text-rose-400">
+            <div className="flex justify-between items-center text-rose-400">
               <span>{t.discount}</span>
-              <span className="font-mono tabular-nums">
+              <span className="font-mono tabular-nums font-semibold">
                 -{formatCurrency(cartTotals.discountAmount, settings.currency, settings.language)}
               </span>
             </div>
           )}
 
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center">
             <span>
               {t.tax} ({settings.taxRatePercent}%)
               {settings.isTaxInclusive && ' (incl.)'}
             </span>
-            <span className="font-mono tabular-nums text-white">
+            <span className="font-mono tabular-nums text-neutral-200 font-semibold">
               {formatCurrency(cartTotals.taxAmount, settings.currency, settings.language)}
             </span>
           </div>
 
-          <div className="flex justify-between text-base font-extrabold text-white pt-2 border-t border-neutral-800">
+          <div className="flex justify-between items-baseline text-base font-extrabold text-white pt-2.5 border-t border-neutral-800/90">
             <span>{t.total}</span>
-            <span className="font-mono tabular-nums text-amber-400 text-xl">
+            <span className="font-mono tabular-nums text-amber-400 text-xl tracking-tight">
               {formatCurrency(cartTotals.grandTotal, settings.currency, settings.language)}
             </span>
           </div>
         </div>
 
         {/* DynamicButton Pay Trigger */}
-        <div className="pt-4">
+        <div className="pt-3.5">
           <DynamicButton
             status="ready"
             onClick={() => setIsPaymentOpen(true)}

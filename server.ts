@@ -7,6 +7,7 @@ import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
 import { fileURLToPath } from 'url';
 import { hasDatabaseCredentials } from './src/db/index.ts';
 import {
@@ -52,6 +53,52 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
 app.use(express.json({ limit: '50mb' }));
+
+// W3C Server-Timing Telemetry (#18) & Brotli / Gzip Response Compression (#9)
+app.use((req: Request, res: Response, next: express.NextFunction) => {
+  const startHr = process.hrtime.bigint();
+  const originalJson = res.json.bind(res);
+
+  res.json = function (body: any): Response {
+    const durationMs = Number(process.hrtime.bigint() - startHr) / 1_000_000;
+    if (!res.headersSent) {
+      res.setHeader('Server-Timing', `app;dur=${durationMs.toFixed(2)}`);
+    }
+
+    const acceptEncoding = String(req.headers['accept-encoding'] || '');
+    const jsonString = JSON.stringify(body);
+
+    // Compress JSON payloads larger than 1024 bytes using Brotli or Gzip
+    if (
+      !res.headersSent &&
+      Buffer.byteLength(jsonString, 'utf-8') > 1024 &&
+      (acceptEncoding.includes('br') || acceptEncoding.includes('gzip'))
+    ) {
+      try {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Vary', 'Accept-Encoding');
+        if (acceptEncoding.includes('br')) {
+          const compressed = zlib.brotliCompressSync(Buffer.from(jsonString, 'utf-8'), {
+            params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 },
+          });
+          res.setHeader('Content-Encoding', 'br');
+          res.setHeader('Content-Length', String(compressed.length));
+          return res.send(compressed);
+        }
+        const compressed = zlib.gzipSync(Buffer.from(jsonString, 'utf-8'), { level: 6 });
+        res.setHeader('Content-Encoding', 'gzip');
+        res.setHeader('Content-Length', String(compressed.length));
+        return res.send(compressed);
+      } catch {
+        // Fallback to standard uncompressed json if compression fails
+      }
+    }
+
+    return originalJson(body);
+  };
+
+  next();
+});
 
 // API: Business Intelligence, Smart Store Operations & Customer Demand Intelligence Endpoints
 app.use('/api/analytics', analyticsRouter);
@@ -102,11 +149,10 @@ app.get('/api/health', (req: Request, res: Response) => {
   });
 });
 
-// API: Currencies Endpoints
+// API: Currencies Endpoints (Parallelized #16)
 app.get('/api/currencies', async (req: Request, res: Response) => {
   try {
-    const list = await getAllCurrencies();
-    const base = await getBaseCurrency();
+    const [list, base] = await Promise.all([getAllCurrencies(), getBaseCurrency()]);
     res.json({
       baseCurrency: base.code,
       currencies: list,
@@ -363,6 +409,7 @@ app.post(
         priceCurrency,
         stock,
         minStockAlert,
+        expiryDate,
         image,
         imageUrl,
         emoji,
@@ -378,8 +425,16 @@ app.post(
         customFields,
       } = req.body;
 
-      if (!name || !sku) {
-        return res.status(400).json({ error: 'Name and SKU are required.' });
+      const resolvedSku =
+        (typeof sku === 'string' && sku.trim()) ||
+        (Array.isArray(barcodes) && barcodes.filter(Boolean).length > 0
+          ? barcodes.filter(Boolean).join(' | ')
+          : typeof barcode === 'string' && barcode.trim()
+          ? barcode.trim()
+          : `ITEM-${Date.now().toString().slice(-4)}`);
+
+      if (!name || !resolvedSku) {
+        return res.status(400).json({ error: 'Name and SKU/Barcode are required.' });
       }
 
       if (isPracticeModeRequest(req)) {
@@ -392,7 +447,7 @@ app.post(
           nameAr,
           description,
           descriptionAr,
-          sku,
+          sku: resolvedSku,
           barcode: typeof barcode === 'string' ? barcode.trim() : '',
           barcodes: Array.isArray(barcodes) ? barcodes : undefined,
           category: category || 'General',
@@ -402,10 +457,14 @@ app.post(
           priceCurrency: priceCurrency || 'SDG',
           stock: Number(stock) || 0,
           minStockAlert: Number(minStockAlert) || 5,
+          expiryDate: expiryDate || customFields?.expiryDate || null,
           image: image || imageUrl || undefined,
           emoji: emoji || '📦',
           colorHex: colorHex || '#d97706',
-          customFields: customFields || {},
+          customFields: {
+            ...(customFields || {}),
+            ...(expiryDate ? { expiryDate } : {}),
+          },
         };
         writePracticeSandboxState({
           ...practice,
@@ -421,7 +480,7 @@ app.post(
         nameAr,
         description,
         descriptionAr,
-        sku,
+        sku: resolvedSku,
         barcode: typeof barcode === 'string' ? barcode.trim() : '',
         barcodes: Array.isArray(barcodes) ? barcodes : undefined,
         category: category || 'General',
@@ -436,11 +495,15 @@ app.post(
         priceCurrency: priceCurrency || 'SDG',
         stock: Number(stock) || 0,
         minStockAlert: Number(minStockAlert) || 5,
+        expiryDate: expiryDate || customFields?.expiryDate || null,
         image: image || imageUrl || undefined,
         imageUrl: image || imageUrl || null,
         emoji: emoji || '📦',
         colorHex: colorHex || '#d97706',
-        customFields: customFields || {},
+        customFields: {
+          ...(customFields || {}),
+          ...(expiryDate ? { expiryDate } : {}),
+        },
       });
 
       res.status(201).json(created);
@@ -735,9 +798,28 @@ if (process.env.NODE_ENV !== 'production') {
   });
   app.use(vite.middlewares);
 } else {
-  // Production static file hosting
-  app.use(express.static(path.resolve(__dirname, 'dist')));
+  // Production static file hosting with immutable caching for hashed assets & no-cache for HTML/SW (#27)
+  app.use(
+    express.static(path.resolve(__dirname, 'dist'), {
+      setHeaders: (res, filePath) => {
+        if (
+          filePath.endsWith('index.html') ||
+          filePath.endsWith('sw.js') ||
+          filePath.endsWith('manifest.json')
+        ) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+        } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      },
+    })
+  );
   app.get('*', (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
   });
 }
