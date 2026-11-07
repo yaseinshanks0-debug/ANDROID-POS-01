@@ -64,8 +64,10 @@ function POSAppInner() {
   // Initialize Capacitor Android status bar and hardware back button listener
   useEffect(() => {
     try {
+      StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
       StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
       StatusBar.setBackgroundColor({ color: '#090a0f' }).catch(() => {});
+      StatusBar.show().catch(() => {});
     } catch {}
 
     // Android hardware back button handler

@@ -11,6 +11,8 @@ import {
   ArrowUpRight,
   Award,
   BarChart3,
+  Bell,
+  BellRing,
   BookOpen,
   Building2,
   Calendar,
@@ -19,6 +21,7 @@ import {
   Clock,
   DollarSign,
   Download,
+  Eye,
   Filter,
   Flame,
   Info,
@@ -35,6 +38,7 @@ import {
   Truck,
   Users,
   Wallet,
+  Wrench,
 } from 'lucide-react';
 import { usePOS } from '../../context/POSContext';
 import { formatCurrency } from '../../lib/pos-calculations';
@@ -61,6 +65,14 @@ import {
 } from './AnalyticsCharts';
 import { IntelligenceCenterView } from '../intelligence/IntelligenceCenterView';
 import { IntelligenceLifecycleSummaryCounts } from '../../analytics/analytics.types';
+import { NotificationsBellModal } from '../layout/NotificationsBellModal';
+import {
+  buildStoreNotificationsList,
+  computeNotificationSummaryCounts,
+  loadNotificationLifecycleMap,
+  saveNotificationLifecycleStatus,
+  StoreNotificationItem,
+} from '../../lib/notifications-center';
 
 type BiSubTab =
   | 'overview'
@@ -89,10 +101,25 @@ export function BusinessIntelligenceDashboard() {
     exchangeRateHistory,
     unmetDemandRequests,
     openUnmetDemandModal,
+    setActiveTab: setPosActiveTab,
   } = usePOS();
 
   const isAr = settings.language === 'ar';
   const isDark = settings.theme === 'dark';
+
+  const [isBiNotificationsBellOpen, setIsBiNotificationsBellOpen] = useState(false);
+  const [selectedBiNotificationId, setSelectedBiNotificationId] = useState<string | null>(null);
+  const [localNotificationLifecycleMap, setLocalNotificationLifecycleMap] = useState(() =>
+    loadNotificationLifecycleMap()
+  );
+
+  useEffect(() => {
+    const handleSync = () => {
+      setLocalNotificationLifecycleMap(loadNotificationLifecycleMap());
+    };
+    window.addEventListener('pos-notifications-lifecycle-updated', handleSync);
+    return () => window.removeEventListener('pos-notifications-lifecycle-updated', handleSync);
+  }, []);
 
   const [activeTab, setActiveTab] = useState<BiSubTab>('overview');
   const [datePreset, setDatePreset] = useState<AnalyticsDatePreset>('30d');
@@ -171,8 +198,16 @@ export function BusinessIntelligenceDashboard() {
   const handlePersistAlertStatusChange = async (
     alertId: string,
     dedupeKey: string,
-    nextStatus: SmartAlertLifecycleStatus
+    nextStatus: SmartAlertLifecycleStatus,
+    note?: string
   ) => {
+    const updatedLocal = saveNotificationLifecycleStatus(
+      [alertId, dedupeKey || `smart_alert:${alertId}`],
+      nextStatus,
+      note
+    );
+    setLocalNotificationLifecycleMap(updatedLocal);
+
     setAlertLifecycleOverrides((prev) => ({
       ...prev,
       [alertId]: nextStatus,
@@ -196,7 +231,7 @@ export function BusinessIntelligenceDashboard() {
             'x-user-id': activeUserId,
           },
           body: JSON.stringify({
-            note: `Updated to ${nextStatus} from BI Suite`,
+            note: note || `Updated to ${nextStatus} from BI Suite`,
           }),
         }
       );
@@ -351,6 +386,77 @@ export function BusinessIntelligenceDashboard() {
   } = overview;
 
   const unmetDemand = intelligence.unmetDemand;
+
+  const storeNotifications = useMemo(() => {
+    const mergedLifecycle = { ...localNotificationLifecycleMap };
+    for (const [key, st] of Object.entries(alertLifecycleOverrides)) {
+      if (!mergedLifecycle[key]) {
+        mergedLifecycle[key] = {
+          status: st,
+          updatedAt: new Date().toISOString(),
+        };
+      } else {
+        mergedLifecycle[key] = {
+          ...mergedLifecycle[key],
+          status: st,
+        };
+      }
+    }
+    return buildStoreNotificationsList({
+      products,
+      transactions,
+      customers,
+      unmetDemandRequests,
+      smartAlerts: intelligence.smartAlerts,
+      lifecycleMap: mergedLifecycle,
+    });
+  }, [
+    products,
+    transactions,
+    customers,
+    unmetDemandRequests,
+    intelligence.smartAlerts,
+    localNotificationLifecycleMap,
+    alertLifecycleOverrides,
+  ]);
+
+  const notificationCounts = useMemo(
+    () => computeNotificationSummaryCounts(storeNotifications),
+    [storeNotifications]
+  );
+
+  const handleOpenAlertDetailsModal = (alertId: string) => {
+    setSelectedBiNotificationId(alertId);
+    setIsBiNotificationsBellOpen(true);
+  };
+
+  const handleUpdateModalNotificationStatus = (
+    item: StoreNotificationItem,
+    nextStatus: SmartAlertLifecycleStatus,
+    note?: string
+  ) => {
+    handlePersistAlertStatusChange(item.id, item.dedupeKey, nextStatus, note);
+  };
+
+  const handleMarkAllBiNotificationsRead = () => {
+    for (const item of storeNotifications) {
+      if (item.status === 'active') {
+        handlePersistAlertStatusChange(item.id, item.dedupeKey, 'acknowledged');
+      }
+    }
+  };
+
+  const handleExecuteBiNotificationPrimaryAction = (item: StoreNotificationItem) => {
+    if (item.status === 'active') {
+      handlePersistAlertStatusChange(item.id, item.dedupeKey, 'acknowledged');
+    }
+    setIsBiNotificationsBellOpen(false);
+    if (item.primaryActionTarget === 'unmet_demand_modal') {
+      openUnmetDemandModal();
+      return;
+    }
+    setPosActiveTab(item.primaryActionTarget);
+  };
 
   const formatNullableCurrency = (val: number | null | undefined) => {
     if (val === null || val === undefined) {
@@ -1275,24 +1381,100 @@ export function BusinessIntelligenceDashboard() {
             {/* SECTION 1: Smart Operational Alerts across all 10 categories */}
             {(overviewRecommendationFilter === 'all' ||
               overviewRecommendationFilter === 'smart_alerts') && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h5 className="text-sm font-bold text-amber-400">
-                    {isAr
-                      ? `1. التنبيهات والتوصيات التشغيلية الذكية (${
-                          intelligence.smartAlerts.filter(
-                            (a) =>
-                              alertCategoryFilter === 'ALL' || a.category === alertCategoryFilter
-                          ).length
-                        })`
-                      : `1. Smart Store Operations & Risk Recommendations (${
-                          intelligence.smartAlerts.filter(
-                            (a) =>
-                              alertCategoryFilter === 'ALL' || a.category === alertCategoryFilter
-                          ).length
-                        })`}
-                  </h5>
+              <div className="space-y-3" data-testid="bi-overview-smart-alerts-section">
+                {/* Interactive Notification Bell Trigger Bar */}
+                <div
+                  data-testid="bi-alerts-bell-trigger-bar"
+                  className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-neutral-900/95 to-rose-500/10 border border-amber-500/35 flex flex-wrap items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      data-testid="bi-section-notifications-bell-btn"
+                      onClick={() => {
+                        setSelectedBiNotificationId(null);
+                        setIsBiNotificationsBellOpen(true);
+                      }}
+                      title={
+                        isAr
+                          ? 'اضغط لفتح مركز جرس التنبيهات والتعامل معها'
+                          : 'Click to open Notifications Bell Center'
+                      }
+                      className="relative w-11 h-11 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 flex items-center justify-center text-amber-400 transition-all cursor-pointer shrink-0 shadow-lg shadow-amber-500/10"
+                    >
+                      {notificationCounts.active > 0 ? (
+                        <BellRing className="w-5 h-5 animate-pulse" />
+                      ) : (
+                        <Bell className="w-5 h-5" />
+                      )}
+                      {notificationCounts.active > 0 && (
+                        <span
+                          data-testid="bi-section-notifications-bell-badge"
+                          className={`absolute -top-1.5 -end-1.5 min-w-[20px] h-5 px-1 rounded-full text-[10px] font-mono font-extrabold flex items-center justify-center border-2 border-neutral-950 ${
+                            notificationCounts.criticalActive > 0
+                              ? 'bg-rose-500 text-white'
+                              : 'bg-amber-500 text-neutral-950'
+                          }`}
+                        >
+                          {notificationCounts.active}
+                        </span>
+                      )}
+                    </button>
+                    <div>
+                      <h5 className="text-sm sm:text-base font-extrabold text-white flex flex-wrap items-center gap-2">
+                        <span>
+                          {isAr
+                            ? `1. جرس التنبيهات والتوصيات التشغيلية الذكية (${
+                                intelligence.smartAlerts.filter(
+                                  (a) =>
+                                    alertCategoryFilter === 'ALL' ||
+                                    a.category === alertCategoryFilter
+                                ).length
+                              })`
+                            : `1. Smart Notifications Bell & Operational Alerts (${
+                                intelligence.smartAlerts.filter(
+                                  (a) =>
+                                    alertCategoryFilter === 'ALL' ||
+                                    a.category === alertCategoryFilter
+                                ).length
+                              })`}
+                        </span>
+                        {notificationCounts.criticalActive > 0 && (
+                          <span className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[11px] font-bold">
+                            {isAr
+                              ? `${notificationCounts.criticalActive} حرج`
+                              : `${notificationCounts.criticalActive} Critical`}
+                          </span>
+                        )}
+                      </h5>
+                      <p className="text-xs text-neutral-300 mt-0.5">
+                        {isAr
+                          ? 'اضغط على أي تنبيه أو على علامة الجرس لعرض التفاصيل الكاملة والأدلة الرقمية والتعامل المباشر مع التنبيه.'
+                          : 'Click any alert or the bell icon to inspect full details, metrics, and take immediate action.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      data-testid="bi-open-notifications-center-modal-btn"
+                      onClick={() => {
+                        setSelectedBiNotificationId(null);
+                        setIsBiNotificationsBellOpen(true);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer shadow-md"
+                    >
+                      <BellRing className="w-4 h-4" />
+                      <span>
+                        {isAr
+                          ? `فتح جرس التنبيهات (${notificationCounts.active} نشط)`
+                          : `Open Alerts Bell (${notificationCounts.active} Active)`}
+                      </span>
+                    </button>
+                  </div>
                 </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
                   {intelligence.smartAlerts
                     .filter(
@@ -1300,18 +1482,37 @@ export function BusinessIntelligenceDashboard() {
                         alertCategoryFilter === 'ALL' || a.category === alertCategoryFilter
                     )
                     .map((alert) => {
+                      const dedupeKey = alert.dedupeKey || `smart_alert:${alert.id}`;
                       const status =
-                        alertLifecycleOverrides[alert.id] || alert.lifecycleStatus;
+                        localNotificationLifecycleMap[alert.id]?.status ||
+                        localNotificationLifecycleMap[dedupeKey]?.status ||
+                        alertLifecycleOverrides[alert.id] ||
+                        alert.lifecycleStatus;
+                      const resolutionNote =
+                        localNotificationLifecycleMap[alert.id]?.note ||
+                        localNotificationLifecycleMap[dedupeKey]?.note;
                       const topEvidence = alert.evidenceMetrics[0];
                       return (
                         <div
                           key={alert.id}
-                          className={`p-4 rounded-2xl border space-y-2.5 transition-colors ${
-                            alert.severity === 'CRITICAL'
-                              ? 'bg-neutral-950/90 border-rose-500/40'
+                          data-testid={`bi-alert-card-${alert.id}`}
+                          onClick={() => handleOpenAlertDetailsModal(alert.id)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              handleOpenAlertDetailsModal(alert.id);
+                            }
+                          }}
+                          className={`p-4 rounded-2xl border space-y-2.5 transition-all cursor-pointer group ${
+                            status === 'resolved' || status === 'dismissed'
+                              ? 'bg-neutral-950/60 border-neutral-800/80 opacity-80 hover:opacity-100'
+                              : alert.severity === 'CRITICAL'
+                              ? 'bg-neutral-950/95 border-rose-500/45 hover:border-rose-400'
                               : alert.severity === 'HIGH'
-                              ? 'bg-neutral-950/90 border-amber-500/40'
-                              : 'bg-neutral-950/90 border-neutral-800'
+                              ? 'bg-neutral-950/95 border-amber-500/45 hover:border-amber-400'
+                              : 'bg-neutral-950/95 border-neutral-800 hover:border-amber-500/50'
                           }`}
                         >
                           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1332,39 +1533,61 @@ export function BusinessIntelligenceDashboard() {
                                 <span className="text-neutral-300 font-medium">
                                   {getCategoryLabel(alert.category)}
                                 </span>
+                                <span
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                    status === 'resolved'
+                                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                      : status === 'acknowledged'
+                                      ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                      : status === 'dismissed'
+                                      ? 'bg-neutral-800 text-neutral-400 border-neutral-700'
+                                      : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                  }`}
+                                >
+                                  {getLifecycleLabel(status)}
+                                </span>
                               </div>
-                              <h6 className="text-sm sm:text-base font-bold text-white">
+                              <h6 className="text-sm sm:text-base font-bold text-white group-hover:text-amber-300 transition-colors">
                                 {isAr ? alert.titleAr : alert.titleEn}
                               </h6>
                             </div>
                             {topEvidence && (
-                              <span className="font-mono text-xs font-bold text-amber-400">
+                              <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 font-mono text-xs font-bold text-amber-300">
                                 {topEvidence.name}: {topEvidence.valueFormatted}
                               </span>
                             )}
                           </div>
 
-                          <p className="text-xs sm:text-sm text-neutral-200 leading-relaxed">
+                          <p className="text-xs sm:text-sm text-neutral-200 leading-relaxed line-clamp-2">
                             <strong className="text-white">
                               {isAr ? 'التشخيص: ' : 'Finding: '}
                             </strong>
                             {isAr ? alert.descriptionAr : alert.descriptionEn}
                           </p>
 
-                          <p className="text-xs text-neutral-400 leading-relaxed">
-                            <strong className="text-neutral-300">
-                              {isAr ? 'السبب والدليل الرقمي: ' : 'Evidence & Reason: '}
-                            </strong>
-                            {isAr ? alert.explanationAr : alert.explanationEn}
-                          </p>
+                          {resolutionNote && (
+                            <p className="text-[11px] text-sky-300 bg-sky-500/10 border border-sky-500/20 rounded-lg px-2.5 py-1">
+                              {isAr ? 'ملاحظة المعالجة: ' : 'Resolution Note: '}
+                              {resolutionNote}
+                            </p>
+                          )}
 
-                          <div className="pt-2 border-t border-neutral-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div className="text-xs sm:text-sm font-bold text-emerald-400">
-                              {isAr ? 'التوصية المقترحة: ' : 'Recommended Action: '}
-                              <span className="font-semibold text-emerald-300">
-                                {isAr ? alert.recommendedActionAr : alert.recommendedActionEn}
+                          <div
+                            className="pt-2.5 border-t border-neutral-800/80 flex flex-wrap items-center justify-between gap-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              data-testid={`bi-alert-open-details-btn-${alert.id}`}
+                              onClick={() => handleOpenAlertDetailsModal(alert.id)}
+                              className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>
+                                {isAr ? 'عرض التفاصيل والتعامل' : 'View Details & Handle'}
                               </span>
-                            </div>
+                            </button>
+
                             <div className="flex items-center gap-1 shrink-0">
                               {(
                                 ['active', 'acknowledged', 'resolved', 'dismissed'] as const
@@ -1373,12 +1596,13 @@ export function BusinessIntelligenceDashboard() {
                                   key={st}
                                   type="button"
                                   onClick={() =>
-                                    setAlertLifecycleOverrides((prev) => ({
-                                      ...prev,
-                                      [alert.id]: st,
-                                    }))
+                                    handlePersistAlertStatusChange(
+                                      alert.id,
+                                      dedupeKey,
+                                      st
+                                    )
                                   }
-                                  className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
+                                  className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
                                     status === st
                                       ? 'bg-amber-500 text-neutral-950 font-bold'
                                       : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800'
@@ -3075,8 +3299,15 @@ export function BusinessIntelligenceDashboard() {
                           ))}
                       </div>
                     </td>
-                    <td className="py-2.5 px-2 font-sans max-w-[260px]">
-                      <div className="text-[11px] leading-relaxed text-amber-200 font-medium">
+                    <td className="py-2.5 px-2 font-sans max-w-[220px]">
+                      <div
+                        className="text-[11px] leading-snug line-clamp-2 text-amber-200 font-medium"
+                        title={
+                          isAr
+                            ? item.decisionRecommendationAr || 'يُوصى بمتابعة الطلب وتوفيره'
+                            : item.decisionRecommendationEn || 'Monitor demand and restock'
+                        }
+                      >
                         {isAr
                           ? item.decisionRecommendationAr || 'يُوصى بمتابعة الطلب وتوفيره'
                           : item.decisionRecommendationEn || 'Monitor demand and restock'}
@@ -3860,6 +4091,21 @@ export function BusinessIntelligenceDashboard() {
           </AppCard>
         </div>
       )}
+
+      <NotificationsBellModal
+        isOpen={isBiNotificationsBellOpen}
+        onClose={() => {
+          setIsBiNotificationsBellOpen(false);
+          setSelectedBiNotificationId(null);
+        }}
+        notifications={storeNotifications}
+        counts={notificationCounts}
+        isAr={isAr}
+        initialSelectedId={selectedBiNotificationId}
+        onUpdateStatus={handleUpdateModalNotificationStatus}
+        onMarkAllRead={handleMarkAllBiNotificationsRead}
+        onExecutePrimaryAction={handleExecuteBiNotificationPrimaryAction}
+      />
     </div>
   );
 }

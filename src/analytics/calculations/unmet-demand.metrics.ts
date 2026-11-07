@@ -796,23 +796,23 @@ export function computeUnmetDemandAnalytics(
     if (acc.inquiryCount >= 3 || acc.requestedBaseUnitsTotal >= 5) {
       decisionPriority = 'CRITICAL';
       decisionRecommendationAr = acc.isRegisteredProduct
-        ? `أولوية قصوى: تم السؤال عنه ${acc.inquiryCount} مرات في أوقات مختلفة (${acc.requestedBaseUnitsTotal} وحدة) — يجب إعادة التوريد العاجل ورفع حد الطلب الأدنى.`
-        : `أولوية قصوى: منتج غير مسجل سُئل عنه ${acc.inquiryCount} مرات في أوقات مختلفة (${acc.requestedBaseUnitsTotal} وحدة) — يُوصى بإدراجه في الكتالوج وتوفيره فوراً.`;
+        ? `أولوية قصوى (${acc.inquiryCount} مرات): توريد عاجل (${acc.requestedBaseUnitsTotal} وحدة)`
+        : `أولوية قصوى (${acc.inquiryCount} مرات): إدراج وتوفير فوري (${acc.requestedBaseUnitsTotal} وحدة)`;
       decisionRecommendationEn = acc.isRegisteredProduct
-        ? `Critical Priority: Asked ${acc.inquiryCount} times across different timestamps (${acc.requestedBaseUnitsTotal} units) — Urgent restock & raise min stock alert.`
-        : `Critical Priority: Unregistered item asked ${acc.inquiryCount} times across different timestamps (${acc.requestedBaseUnitsTotal} units) — Add to catalog & source immediately.`;
+        ? `Critical (${acc.inquiryCount}x): Urgent restock (${acc.requestedBaseUnitsTotal} units)`
+        : `Critical (${acc.inquiryCount}x): Add & source now (${acc.requestedBaseUnitsTotal} units)`;
     } else if (acc.inquiryCount === 2 || acc.confirmedPurchaseIntentCount >= 1) {
       decisionPriority = 'HIGH';
       decisionRecommendationAr = acc.isRegisteredProduct
-        ? `طلب متكرر (${acc.inquiryCount} مرات) مع نية شراء مؤكدة — يُوصى بطلب كمية تعويضية (${Math.max(5, acc.requestedBaseUnitsTotal * 2)} وحدات).`
-        : `طلب متكرر (${acc.inquiryCount} مرات) — يُوصى بالتواصل مع المورد لتسعيره وإضافته للأصناف المعتمدة.`;
+        ? `طلب متكرر (${acc.inquiryCount} مرات): اطلب ${Math.max(5, acc.requestedBaseUnitsTotal * 2)} وحدات`
+        : `طلب متكرر (${acc.inquiryCount} مرات): تواصل مع المورد لتوفيره`;
       decisionRecommendationEn = acc.isRegisteredProduct
-        ? `Repeated demand (${acc.inquiryCount} inquiries) — Recommend ordering replenishment batch (${Math.max(5, acc.requestedBaseUnitsTotal * 2)} units).`
-        : `Repeated demand (${acc.inquiryCount} inquiries) — Contact supplier for pricing and catalog onboarding.`;
+        ? `Repeated (${acc.inquiryCount}x): Order ${Math.max(5, acc.requestedBaseUnitsTotal * 2)} units`
+        : `Repeated (${acc.inquiryCount}x): Source from supplier`;
     } else {
       decisionPriority = 'MEDIUM';
-      decisionRecommendationAr = `تم تسجيل سؤال أولي (${acc.requestedBaseUnitsTotal} وحدة) — راقب تكرار الطلب في قاعدة المنتجات غير المتوفرة لاتخاذ قرار التوريد.`;
-      decisionRecommendationEn = `Initial inquiry logged (${acc.requestedBaseUnitsTotal} units) — Monitor repeat inquiries in the Unavailable Products Database.`;
+      decisionRecommendationAr = `سؤال أولي (${acc.requestedBaseUnitsTotal} وحدة): متابعة تكرار الطلب`;
+      decisionRecommendationEn = `Initial inquiry (${acc.requestedBaseUnitsTotal} units): Monitor repeat demand`;
     }
 
     allProductSummaries.push({

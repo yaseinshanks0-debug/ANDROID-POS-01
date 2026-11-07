@@ -392,42 +392,45 @@ export const ReportsView: React.FC = () => {
       {/* Unavailable Products Knowledge Base & Decision Support Report (قاعدة المنتجات غير المتوفرة وتوصيات اتخاذ القرار) */}
       <AppCard
         data-testid="reports-unavailable-products-decision-section"
-        className="p-4 border-amber-500/35 bg-neutral-900/95 space-y-4"
+        className="p-4 sm:p-5 border-amber-500/35 bg-neutral-900/95 space-y-4 shadow-lg"
       >
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-neutral-800">
-          <div className="flex items-start gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0">
+        {/* Header & Search/Action Controls */}
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-4 border-b border-neutral-800/90">
+          <div className="flex items-start gap-3.5 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-500/35 text-amber-400 flex items-center justify-center shrink-0 shadow-inner">
               <Database className="w-5 h-5" />
             </div>
-            <div>
+            <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-sm sm:text-base font-extrabold text-white">
+                <h3 className="text-base sm:text-lg font-extrabold text-white tracking-tight">
                   {isAr
                     ? 'تقرير قاعدة المنتجات غير المتوفرة ودعم اتخاذ القرار'
-                    : 'Unavailable Products Knowledge Base & Decision Support Report'}
+                    : 'Unavailable Products Knowledge Base & Decision Support'}
                 </h3>
-                <span className="px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-300 font-mono text-xs font-bold">
+                <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-300 font-mono text-xs font-extrabold">
                   {isAr
-                    ? `${unavailableProductsKnowledgeBase.length} منتج مسجل`
+                    ? `${unavailableProductsKnowledgeBase.length} صنف`
                     : `${unavailableProductsKnowledgeBase.length} items`}
                 </span>
-                <span className="px-2 py-0.5 rounded-md bg-rose-500/15 border border-rose-500/40 text-rose-300 font-mono text-xs font-bold">
-                  {isAr
-                    ? `${unavailableProductsKnowledgeBase.filter((i) => i.inquiryCount >= 2).length} منتجات متكررة الطلب`
-                    : `${unavailableProductsKnowledgeBase.filter((i) => i.inquiryCount >= 2).length} repeated demand`}
-                </span>
+                {unavailableProductsKnowledgeBase.some((i) => i.inquiryCount >= 2) && (
+                  <span className="px-2.5 py-0.5 rounded-lg bg-rose-500/15 border border-rose-500/40 text-rose-300 font-mono text-xs font-extrabold">
+                    {isAr
+                      ? `${unavailableProductsKnowledgeBase.filter((i) => i.inquiryCount >= 2).length} متكرر الطلب`
+                      : `${unavailableProductsKnowledgeBase.filter((i) => i.inquiryCount >= 2).length} repeated`}
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-neutral-400 mt-0.5">
+              <p className="text-xs text-neutral-400 leading-relaxed">
                 {isAr
-                  ? 'يعرض كل منتج غير متوفر سأل عنه الزبائن، عدد مرات السؤال، أوقات وتواريخ السؤال المختلفة، والتوصية لاتخاذ قرار التوفير أو الإدراج بالكتالوج'
-                  : 'Displays every requested unavailable product, inquiry count, distinct inquiry timestamps, and procurement decision recommendations'}
+                  ? 'يتتبع المنتجات التي سأل عنها الزبائن ولم تكن متوفرة، مع عدد مرات السؤال وأوقات الطلب المختلفة لمساعدتك في قرار التوريد.'
+                  : 'Tracks customer inquiries for unavailable items across distinct timestamps to guide purchasing decisions.'}
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[240px] sm:min-w-[280px]">
-              <Search className="pointer-events-none absolute top-2.5 start-3 w-3.5 h-3.5 text-amber-400" />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+            <div className="relative flex-1 sm:w-72">
+              <Search className="pointer-events-none absolute top-1/2 -translate-y-1/2 start-3.5 w-4 h-4 text-amber-400" />
               <input
                 type="text"
                 value={unavailableReportSearch}
@@ -435,10 +438,10 @@ export const ReportsView: React.FC = () => {
                 data-testid="reports-unavailable-search-input"
                 placeholder={
                   isAr
-                    ? 'ابحث بأي كلمة أو حرف (مثال: كريم باريس، كريم، باريس)...'
+                    ? 'ابحث بأي كلمة أو حرف (مثال: كريم باريس)...'
                     : 'Search by any word or character...'
                 }
-                className="w-full rounded-xl bg-neutral-950 border border-neutral-700 ps-8 pe-3 py-1.5 text-xs text-white placeholder-neutral-500 focus:border-amber-500 focus:outline-none"
+                className="w-full h-10 rounded-xl bg-neutral-950 border border-neutral-700/90 ps-10 pe-3 text-xs text-white placeholder-neutral-500 focus:border-amber-500 focus:outline-none transition-colors"
               />
             </div>
 
@@ -452,137 +455,156 @@ export const ReportsView: React.FC = () => {
                   sourceScreen: 'analytics',
                 })
               }
-              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
+              className="h-10 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-md transition cursor-pointer whitespace-nowrap"
             >
-              <Plus className="w-3.5 h-3.5" />
-              {isAr ? 'تسجيل منتج غير متوفر' : 'Record Unavailable Product'}
+              <Plus className="w-4 h-4 shrink-0" />
+              <span>{isAr ? 'تسجيل منتج غير متوفر' : 'Record Unavailable Product'}</span>
             </button>
+          </div>
+        </div>
+
+        {/* Summary KPI Strip for Quick Visual Alignment */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-3 rounded-2xl bg-neutral-950/90 border border-neutral-800/90 flex items-center justify-between gap-3">
+            <div>
+              <span className="text-[11px] font-semibold text-neutral-400 block">
+                {isAr ? 'إجمالي الأصناف المسجلة بالقاعدة' : 'Total Logged Unavailable Items'}
+              </span>
+              <span className="text-lg sm:text-xl font-mono font-extrabold text-white tabular-nums mt-0.5 block">
+                {unavailableProductsKnowledgeBase.length}
+              </span>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+              <Database className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-neutral-950/90 border border-neutral-800/90 flex items-center justify-between gap-3">
+            <div>
+              <span className="text-[11px] font-semibold text-neutral-400 block">
+                {isAr ? 'منتجات متكررة الطلب (أولوية توفير)' : 'Repeated Demand (High Priority)'}
+              </span>
+              <span className="text-lg sm:text-xl font-mono font-extrabold text-rose-400 tabular-nums mt-0.5 block">
+                {unavailableProductsKnowledgeBase.filter((i) => i.inquiryCount >= 2).length}
+              </span>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-neutral-950/90 border border-neutral-800/90 flex items-center justify-between gap-3">
+            <div>
+              <span className="text-[11px] font-semibold text-neutral-400 block">
+                {isAr ? 'إجمالي الوحدات المطلوبة من العملاء' : 'Total Requested Customer Units'}
+              </span>
+              <span className="text-lg sm:text-xl font-mono font-extrabold text-emerald-400 tabular-nums mt-0.5 block">
+                {unavailableProductsKnowledgeBase.reduce(
+                  (acc, item) => acc + item.totalRequestedBaseUnits,
+                  0
+                )}
+              </span>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+              <ShoppingBag className="w-4 h-4" />
+            </div>
           </div>
         </div>
 
         <div
           data-testid="reports-unavailable-products-list"
-          className="overflow-x-auto"
+          className="space-y-3"
         >
           {filteredUnavailableReportItems.length > 0 ? (
-            <table className="w-full text-xs text-start border-collapse">
-              <thead>
-                <tr className="border-b border-neutral-800 text-neutral-400 text-[11px]">
-                  <th className="py-2 px-2 text-start">{isAr ? 'المنتج غير المتوفر' : 'Unavailable Product'}</th>
-                  <th className="py-2 px-2 text-start">{isAr ? 'عدد مرات السؤال' : 'Times Asked'}</th>
-                  <th className="py-2 px-2 text-start">{isAr ? 'إجمالي الكمية' : 'Total Qty'}</th>
-                  <th className="py-2 px-2 text-start">
-                    {isAr
-                      ? 'أوقات وتواريخ السؤال المختلفة (الأزمنة)'
-                      : 'Distinct Inquiry Timestamps'}
-                  </th>
-                  <th className="py-2 px-2 text-start">
-                    {isAr ? 'توصية اتخاذ القرار' : 'Decision Support Recommendation'}
-                  </th>
-                  <th className="py-2 px-2 text-end">{isAr ? 'إجراء سريع' : 'Quick Action'}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-800/70">
+            <>
+              {/* Mobile & Tablet Cards View (< md) for clean alignment without horizontal squishing */}
+              <div className="grid grid-cols-1 gap-3 md:hidden">
                 {filteredUnavailableReportItems.map((item) => {
                   const isRepeated = item.inquiryCount >= 2;
                   const isCritical = item.inquiryCount >= 3 || item.totalRequestedBaseUnits >= 5;
                   const recommendationText = isAr
                     ? isCritical
-                      ? `أولوية قصوى: سُئل عنه ${item.inquiryCount} مرات في أوقات مختلفة (${item.totalRequestedBaseUnits} وحدة) — يُوصى بتوفيره وإدراجه فوراً`
+                      ? `أولوية قصوى (${item.inquiryCount} مرات): توفير وإدراج فوري (${item.totalRequestedBaseUnits} وحدة)`
                       : isRepeated
-                      ? `طلب متكرر (${item.inquiryCount} مرات) — يُوصى بالتواصل مع المورد لتوفيره وتلبية طلب الزبائن`
-                      : `سؤال مسجل (${item.totalRequestedBaseUnits} وحدة) — محفوظ في قاعدة غير المتوفر لمتابعة تكرار الطلب`
+                      ? `طلب متكرر (${item.inquiryCount} مرات): تواصل مع المورد لتوفيره`
+                      : `سؤال أولي (${item.totalRequestedBaseUnits} وحدة): متابعة تكرار الطلب`
                     : isCritical
-                    ? `Critical Priority: Asked ${item.inquiryCount} times across different timestamps (${item.totalRequestedBaseUnits} units) — Source & stock immediately`
+                    ? `Critical (${item.inquiryCount}x): Source & stock now (${item.totalRequestedBaseUnits} units)`
                     : isRepeated
-                    ? `Repeated Demand (${item.inquiryCount}x) — Contact supplier to stock item`
-                    : `Initial Inquiry (${item.totalRequestedBaseUnits} units) — Saved in Unavailable DB to track repeat demand`;
+                    ? `Repeated (${item.inquiryCount}x): Contact supplier to stock`
+                    : `Initial (${item.totalRequestedBaseUnits} units): Monitor repeat demand`;
 
                   return (
-                    <tr
+                    <div
                       key={item.key}
-                      data-testid={`report-unavailable-row-${item.key}`}
-                      className="hover:bg-neutral-800/40 transition"
+                      className="p-3.5 rounded-2xl bg-neutral-950/90 border border-neutral-800 space-y-2.5"
                     >
-                      <td className="py-2.5 px-2">
-                        <div className="font-bold text-white text-xs sm:text-sm">
-                          {item.productName}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-bold text-white text-sm">{item.productName}</div>
+                          <div className="text-[11px] text-neutral-400 flex flex-wrap items-center gap-1.5 mt-1">
+                            <span className="px-2 py-0.5 rounded-md bg-neutral-800 text-neutral-300">
+                              {item.category}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded-md font-semibold ${
+                                item.isRegisteredProduct
+                                  ? 'bg-emerald-500/15 text-emerald-300'
+                                  : 'bg-violet-500/20 text-violet-300'
+                              }`}
+                            >
+                              {item.isRegisteredProduct
+                                ? isAr
+                                  ? 'مسجل (نافد)'
+                                  : 'Registered (OOS)'
+                                : isAr
+                                ? 'غير مسجل بالمتجر'
+                                : 'Unregistered'}
+                            </span>
+                          </div>
                         </div>
-                        <div className="text-[10px] text-neutral-400 flex flex-wrap items-center gap-1.5 mt-0.5">
-                          <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-300">
-                            {item.category}
-                          </span>
+
+                        <div className="text-end shrink-0">
                           <span
-                            className={`px-1.5 py-0.5 rounded font-semibold ${
-                              item.isRegisteredProduct
-                                ? 'bg-emerald-500/15 text-emerald-300'
-                                : 'bg-violet-500/20 text-violet-300'
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-mono font-extrabold text-xs border ${
+                              isCritical
+                                ? 'bg-rose-500/20 border-rose-500/50 text-rose-300'
+                                : isRepeated
+                                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                                : 'bg-neutral-800 border-neutral-700 text-neutral-200'
                             }`}
                           >
-                            {item.isRegisteredProduct
-                              ? isAr
-                                ? 'مسجل (نافد)'
-                                : 'Registered (OOS)'
-                              : isAr
-                              ? 'غير مسجل بالمتجر'
-                              : 'Unregistered'}
+                            {isAr ? `${item.inquiryCount} مرات` : `${item.inquiryCount}x`}
                           </span>
+                          <div className="text-xs font-mono font-bold text-amber-400 mt-1">
+                            {item.totalRequestedBaseUnits} {isAr ? 'وحدة' : 'units'}
+                          </div>
                         </div>
-                      </td>
+                      </div>
 
-                      <td className="py-2.5 px-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {item.inquiryTimestamps.slice(0, 4).map((ts, idx) => (
+                          <span
+                            key={`${ts}-${idx}`}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-900 border border-neutral-800 font-mono text-[10px] text-neutral-300"
+                          >
+                            <Clock className="w-2.5 h-2.5 text-amber-400" />
+                            {new Date(ts).toLocaleString(isAr ? 'ar-SD' : 'en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div
+                        className="p-2.5 rounded-xl bg-neutral-900/90 border border-neutral-800/80 text-xs leading-snug"
+                        title={recommendationText}
+                      >
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-mono font-extrabold text-xs border ${
-                            isCritical
-                              ? 'bg-rose-500/20 border-rose-500/50 text-rose-300'
-                              : isRepeated
-                              ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                              : 'bg-neutral-800 border-neutral-700 text-neutral-200'
-                          }`}
-                        >
-                          {isAr
-                            ? `${item.inquiryCount} مرات`
-                            : `${item.inquiryCount} times`}
-                        </span>
-                      </td>
-
-                      <td className="py-2.5 px-2 font-mono font-bold text-amber-400">
-                        {item.totalRequestedBaseUnits}{' '}
-                        <span className="text-[10px] text-neutral-400 font-sans">
-                          {isAr ? 'وحدة' : 'units'}
-                        </span>
-                      </td>
-
-                      <td className="py-2.5 px-2">
-                        <div className="flex flex-wrap items-center gap-1 max-w-[290px]">
-                          {item.inquiryTimestamps.slice(0, 5).map((ts, idx) => (
-                            <span
-                              key={`${ts}-${idx}`}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 font-mono text-[10px] text-neutral-300"
-                            >
-                              <Clock className="w-2.5 h-2.5 text-amber-400" />
-                              {new Date(ts).toLocaleString(
-                                isAr ? 'ar-SD' : 'en-US',
-                                {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                }
-                              )}
-                            </span>
-                          ))}
-                          {item.inquiryTimestamps.length > 5 && (
-                            <span className="text-[10px] text-neutral-400 font-mono">
-                              +{item.inquiryTimestamps.length - 5}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="py-2.5 px-2 max-w-[290px]">
-                        <span
-                          className={`text-[11px] font-semibold leading-relaxed block ${
+                          className={`font-semibold line-clamp-2 block ${
                             isCritical
                               ? 'text-rose-300'
                               : isRepeated
@@ -592,42 +614,216 @@ export const ReportsView: React.FC = () => {
                         >
                           {recommendationText}
                         </span>
-                      </td>
+                      </div>
 
-                      <td className="py-2.5 px-2 text-end">
-                        <button
-                          type="button"
-                          data-testid={`report-log-repeat-${item.key}`}
-                          onClick={() =>
-                            openUnmetDemandModal({
-                              productId: item.productId,
-                              isRegisteredProduct: item.isRegisteredProduct,
-                              productNameSnapshot: item.productName,
-                              productNameArSnapshot: item.productNameAr,
-                              barcode: item.barcode,
-                              categorySnapshot: item.category,
-                              unavailabilityReason: item.unavailabilityReason,
-                              sourceScreen: 'analytics',
-                            })
-                          }
-                          className="px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-neutral-950 border border-amber-500/40 font-bold text-[11px] transition whitespace-nowrap"
-                        >
-                          {isAr ? '+ تسجيل سؤال جديد' : '+ Log Repeat Inquiry'}
-                        </button>
-                      </td>
-                    </tr>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openUnmetDemandModal({
+                            productId: item.productId,
+                            isRegisteredProduct: item.isRegisteredProduct,
+                            productNameSnapshot: item.productName,
+                            productNameArSnapshot: item.productNameAr,
+                            barcode: item.barcode,
+                            categorySnapshot: item.category,
+                            unavailabilityReason: item.unavailabilityReason,
+                            sourceScreen: 'analytics',
+                          })
+                        }
+                        className="w-full py-2 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-neutral-950 border border-amber-500/40 font-bold text-xs transition text-center"
+                      >
+                        {isAr ? '+ تسجيل سؤال جديد لنفس المنتج' : '+ Log Repeat Inquiry'}
+                      </button>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+
+              {/* Desktop Table View (md+) */}
+              <div className="hidden md:block overflow-x-auto rounded-2xl border border-neutral-800/90 bg-neutral-950/60">
+                <table className="w-full text-xs text-start border-collapse">
+                  <thead>
+                    <tr className="border-b border-neutral-800 bg-neutral-950 text-neutral-400 text-[11px]">
+                      <th className="py-3 px-3.5 text-start font-bold">
+                        {isAr ? 'المنتج غير المتوفر' : 'Unavailable Product'}
+                      </th>
+                      <th className="py-3 px-3 text-start font-bold whitespace-nowrap">
+                        {isAr ? 'عدد مرات السؤال' : 'Times Asked'}
+                      </th>
+                      <th className="py-3 px-3 text-start font-bold whitespace-nowrap">
+                        {isAr ? 'إجمالي الكمية' : 'Total Qty'}
+                      </th>
+                      <th className="py-3 px-3 text-start font-bold">
+                        {isAr
+                          ? 'أوقات وتواريخ السؤال المختلفة (الأزمنة)'
+                          : 'Distinct Inquiry Timestamps'}
+                      </th>
+                      <th className="py-3 px-3 text-start font-bold">
+                        {isAr ? 'توصية اتخاذ القرار' : 'Decision Support Recommendation'}
+                      </th>
+                      <th className="py-3 px-3.5 text-end font-bold whitespace-nowrap">
+                        {isAr ? 'إجراء سريع' : 'Quick Action'}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-800/70">
+                    {filteredUnavailableReportItems.map((item) => {
+                      const isRepeated = item.inquiryCount >= 2;
+                      const isCritical = item.inquiryCount >= 3 || item.totalRequestedBaseUnits >= 5;
+                      const recommendationText = isAr
+                        ? isCritical
+                          ? `أولوية قصوى (${item.inquiryCount} مرات): توفير وإدراج فوري (${item.totalRequestedBaseUnits} وحدة)`
+                          : isRepeated
+                          ? `طلب متكرر (${item.inquiryCount} مرات): تواصل مع المورد لتوفيره`
+                          : `سؤال أولي (${item.totalRequestedBaseUnits} وحدة): متابعة تكرار الطلب`
+                        : isCritical
+                        ? `Critical (${item.inquiryCount}x): Source & stock now (${item.totalRequestedBaseUnits} units)`
+                        : isRepeated
+                        ? `Repeated (${item.inquiryCount}x): Contact supplier to stock`
+                        : `Initial (${item.totalRequestedBaseUnits} units): Monitor repeat demand`;
+
+                      return (
+                        <tr
+                          key={item.key}
+                          data-testid={`report-unavailable-row-${item.key}`}
+                          className="hover:bg-neutral-800/40 transition align-middle"
+                        >
+                          <td className="py-3 px-3.5 align-middle">
+                            <div className="font-bold text-white text-xs sm:text-sm">
+                              {item.productName}
+                            </div>
+                            <div className="text-[10px] text-neutral-400 flex flex-wrap items-center gap-1.5 mt-1">
+                              <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-300">
+                                {item.category}
+                              </span>
+                              <span
+                                className={`px-1.5 py-0.5 rounded font-semibold ${
+                                  item.isRegisteredProduct
+                                    ? 'bg-emerald-500/15 text-emerald-300'
+                                    : 'bg-violet-500/20 text-violet-300'
+                                }`}
+                              >
+                                {item.isRegisteredProduct
+                                  ? isAr
+                                    ? 'مسجل (نافد)'
+                                    : 'Registered (OOS)'
+                                  : isAr
+                                  ? 'غير مسجل بالمتجر'
+                                  : 'Unregistered'}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-3 align-middle whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-mono font-extrabold text-xs border ${
+                                isCritical
+                                  ? 'bg-rose-500/20 border-rose-500/50 text-rose-300'
+                                  : isRepeated
+                                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                                  : 'bg-neutral-800 border-neutral-700 text-neutral-200'
+                              }`}
+                            >
+                              {isAr
+                                ? `${item.inquiryCount} مرات`
+                                : `${item.inquiryCount} times`}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-3 align-middle font-mono font-bold text-amber-400 whitespace-nowrap">
+                            {item.totalRequestedBaseUnits}{' '}
+                            <span className="text-[10px] text-neutral-400 font-sans">
+                              {isAr ? 'وحدة' : 'units'}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-3 align-middle">
+                            <div className="flex flex-wrap items-center gap-1 max-w-[290px]">
+                              {item.inquiryTimestamps.slice(0, 5).map((ts, idx) => (
+                                <span
+                                  key={`${ts}-${idx}`}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 font-mono text-[10px] text-neutral-300"
+                                >
+                                  <Clock className="w-2.5 h-2.5 text-amber-400" />
+                                  {new Date(ts).toLocaleString(
+                                    isAr ? 'ar-SD' : 'en-US',
+                                    {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    }
+                                  )}
+                                </span>
+                              ))}
+                              {item.inquiryTimestamps.length > 5 && (
+                                <span className="text-[10px] text-neutral-400 font-mono">
+                                  +{item.inquiryTimestamps.length - 5}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-3 align-middle max-w-[220px]">
+                            <div
+                              className={`text-[11px] font-semibold leading-snug line-clamp-2 ${
+                                isCritical
+                                  ? 'text-rose-300'
+                                  : isRepeated
+                                  ? 'text-amber-300'
+                                  : 'text-neutral-300'
+                              }`}
+                              title={recommendationText}
+                            >
+                              {recommendationText}
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-3.5 align-middle text-end whitespace-nowrap">
+                            <button
+                              type="button"
+                              data-testid={`report-log-repeat-${item.key}`}
+                              onClick={() =>
+                                openUnmetDemandModal({
+                                  productId: item.productId,
+                                  isRegisteredProduct: item.isRegisteredProduct,
+                                  productNameSnapshot: item.productName,
+                                  productNameArSnapshot: item.productNameAr,
+                                  barcode: item.barcode,
+                                  categorySnapshot: item.category,
+                                  unavailabilityReason: item.unavailabilityReason,
+                                  sourceScreen: 'analytics',
+                                })
+                              }
+                              className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-neutral-950 border border-amber-500/40 font-bold text-[11px] transition whitespace-nowrap cursor-pointer"
+                            >
+                              {isAr ? '+ تسجيل سؤال جديد' : '+ Log Repeat Inquiry'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           ) : (
-            <div className="py-6 text-center text-xs text-neutral-400 flex flex-col items-center gap-2">
-              <PackageX className="w-6 h-6 text-neutral-500" />
-              <span>
-                {isAr
-                  ? 'لا توجد منتجات مطابقة للبحث في قاعدة المنتجات غير المتوفرة حالياً.'
-                  : 'No matching items in the Unavailable Products Database.'}
-              </span>
+            <div className="p-6 rounded-2xl bg-neutral-950/70 border border-dashed border-neutral-800 text-center flex flex-col items-center justify-center gap-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center justify-center text-amber-400">
+                <PackageX className="w-5 h-5" />
+              </div>
+              <div className="space-y-1 max-w-md">
+                <p className="text-xs sm:text-sm font-bold text-neutral-200">
+                  {isAr
+                    ? 'لا توجد منتجات مسجلة في قاعدة المنتجات غير المتوفرة حالياً'
+                    : 'No items recorded in the Unavailable Products Knowledge Base yet'}
+                </p>
+                <p className="text-[11px] text-neutral-400">
+                  {isAr
+                    ? 'عندما يسأل زبون عن منتج غير متوفر، اضغط على زر التسجيل لحفظه ومتابعة عدد مرات السؤال عنه وأوقاته.'
+                    : 'When a customer asks for an unavailable product, record it here to track repeat inquiries and timestamps.'}
+                </p>
+              </div>
             </div>
           )}
         </div>

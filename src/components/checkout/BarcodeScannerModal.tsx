@@ -16,6 +16,7 @@ import {
   decodeBarcodeFromImageFileWithDiagnostics,
   decodeBarcodeFromVideoElementWithDiagnostics,
   isNativeCapacitorEnvironment,
+  ensureNativeCameraPermission,
   scanWithNativeMLKit,
   stopInteractiveNativeMLKitScan,
   applyWebCameraTrackEnhancements,
@@ -42,6 +43,7 @@ import {
   Flashlight,
   ZoomIn,
   PlusCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { playScannerBeep } from '../../lib/sound-fx';
 
@@ -67,6 +69,8 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
     unmatchedBarcode?: string;
   } | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
+  const [isNativeCutoutActive, setIsNativeCutoutActive] = useState(false);
+  const [androidCameraMode, setAndroidCameraMode] = useState<'native' | 'webrtc'>('native');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isDecodingFrame, setIsDecodingFrame] = useState(false);
   const [autoOpenNewProductOnMiss, setAutoOpenNewProductOnMiss] = useState(true);
@@ -75,6 +79,14 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     return subscribeScannerDiagnostics((next) => setDiagState(next));
@@ -88,59 +100,28 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    if (typeof document !== 'undefined') {
+      document.body.classList.remove('barcode-scanner-active');
+    }
     if (isNativeCapacitorEnvironment()) {
       stopInteractiveNativeMLKitScan().catch(() => {});
     }
+    setIsNativeCutoutActive(false);
     setCameraActive(false);
     updateScannerDiagnostics({ cameraStatus: 'Stopped', torchEnabled: false });
   };
 
-  useEffect(() => {
-    if (!isOpen) {
-      stopCamera();
-      setBarcodeInput('');
-      setFeedback(null);
-      setCameraError(null);
-      setIsDecodingFrame(false);
-    }
-    return () => stopCamera();
-  }, [isOpen]);
-
-  // Attach MediaStream to <video> element reliably after cameraActive renders the <video> tag
-  useEffect(() => {
-    if (!cameraActive || !streamRef.current || !videoRef.current) return;
-    const videoEl = videoRef.current;
-    if (videoEl.srcObject !== streamRef.current) {
-      videoEl.srcObject = streamRef.current;
-    }
-    videoEl
-      .play()
-      .then(() => {
-        updateScannerDiagnostics({ cameraStatus: 'Streaming' });
-        recordScannerStage(
-          'Video Stream Started',
-          `Live video active (${videoEl.videoWidth || 1280}x${videoEl.videoHeight || 720})`
-        );
-      })
-      .catch((err) => {
-        recordScannerStage('Scanner Error', `Video playback start error: ${err?.message || err}`);
-      });
-  }, [cameraActive]);
-
-  const startCamera = async () => {
+  const startWebRTCCamera = async () => {
     setCameraError(null);
-    setFeedback(null);
-
-    // Phase 2B: Native Android Capacitor 8 ML Kit Scanner
+    setIsNativeCutoutActive(false);
+    if (typeof document !== 'undefined') {
+      document.body.classList.remove('barcode-scanner-active');
+    }
     if (isNativeCapacitorEnvironment()) {
-      const outcome = await scanWithNativeMLKit();
-      if (outcome && outcome.rawValue) {
-        handleLookupAndAdd(outcome.rawValue, outcome.format);
-      }
-      return;
+      await stopInteractiveNativeMLKitScan().catch(() => {});
+      await ensureNativeCameraPermission();
     }
 
-    // Phase 2A: Browser / Google AI Studio Preview WebRTC Rear Camera
     recordScannerStage('Camera Initialized', 'Requesting rear environment camera (1280x720)');
     updateScannerDiagnostics({ cameraStatus: 'Initializing', lastError: null });
 
@@ -150,6 +131,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
           ? 'متصفحك لا يدعم تشغيل الكاميرا المباشرة. يمكنك التقاط صورة للباركود أو إدخاله يدوياً.'
           : 'Camera API is not supported in this browser. You can upload a barcode photo or enter it manually.';
         setCameraError(msg);
+        setCameraActive(false);
         updateScannerDiagnostics({ cameraStatus: 'Error', lastError: msg });
         recordScannerStage('Scanner Error', msg);
         return;
@@ -176,14 +158,20 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
         });
       }
 
+      if (!isMountedRef.current || !isOpen) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
       streamRef.current = stream;
       setCameraActive(true);
       await applyWebCameraTrackEnhancements(stream);
     } catch (err: any) {
       const msg = isAr
-        ? 'تعذر الوصول إلى الكاميرا. يمكنك رفع صورة الباركود أو استخدام الإدخال اليدوي.'
-        : 'Camera permission denied or unavailable. You can upload a barcode photo or use manual entry.';
+        ? 'تعذر الوصول إلى الكاميرا. تأكد من منح صلاحية الكاميرا للتطبيق أو ارفع صورة الباركود.'
+        : 'Camera permission denied or unavailable. Grant camera permission or upload a barcode photo.';
       setCameraError(msg);
+      setCameraActive(false);
       updateScannerDiagnostics({
         cameraStatus: 'Error',
         lastError: `${msg} (${err?.message || String(err)})`,
@@ -192,9 +180,96 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
     }
   };
 
-  // Continuous throttled frame decoding loop (Phase 2A & Phase 4)
+  const startCamera = async (preferredMode?: 'native' | 'webrtc') => {
+    setCameraError(null);
+    setFeedback(null);
+
+    const modeToUse = preferredMode || androidCameraMode;
+
+    // Phase 2B: Native Android Capacitor 8 CameraX + ML Kit Viewfinder
+    if (isNativeCapacitorEnvironment() && modeToUse === 'native') {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+      // Immediately activate the transparent viewfinder window so the native CameraX PreviewView is visible!
+      setIsNativeCutoutActive(true);
+      setCameraActive(true);
+      if (typeof document !== 'undefined') {
+        document.body.classList.add('barcode-scanner-active');
+      }
+
+      const outcome = await scanWithNativeMLKit();
+      if (!isMountedRef.current) return;
+
+      if (outcome && outcome.rawValue) {
+        setIsNativeCutoutActive(false);
+        setCameraActive(false);
+        handleLookupAndAdd(outcome.rawValue, outcome.format);
+        return;
+      }
+
+      // If native startScan failed with an error (not manual stop), automatically fallback to WebRTC <video> stream
+      const latestDiag = getScannerDiagnostics();
+      if (latestDiag.cameraStatus === 'Error') {
+        setAndroidCameraMode('webrtc');
+        await startWebRTCCamera();
+      } else {
+        setIsNativeCutoutActive(false);
+        setCameraActive(false);
+      }
+      return;
+    }
+
+    // Phase 2A: Browser / WebRTC <video> Rear Camera
+    await startWebRTCCamera();
+  };
+
+  const handleToggleAndroidCameraMode = async () => {
+    const nextMode = androidCameraMode === 'native' ? 'webrtc' : 'native';
+    setAndroidCameraMode(nextMode);
+    stopCamera();
+    await startCamera(nextMode);
+  };
+
   useEffect(() => {
-    if (!cameraActive || !isOpen || isNativeCapacitorEnvironment()) return;
+    if (isOpen) {
+      // Automatically start the camera when the barcode scanner modal opens
+      void startCamera();
+    } else {
+      stopCamera();
+      setBarcodeInput('');
+      setFeedback(null);
+      setCameraError(null);
+      setIsDecodingFrame(false);
+    }
+    return () => stopCamera();
+  }, [isOpen]);
+
+  // Attach MediaStream to <video> element reliably after cameraActive renders the <video> tag
+  useEffect(() => {
+    if (!cameraActive || isNativeCutoutActive || !streamRef.current || !videoRef.current) return;
+    const videoEl = videoRef.current;
+    if (videoEl.srcObject !== streamRef.current) {
+      videoEl.srcObject = streamRef.current;
+    }
+    videoEl
+      .play()
+      .then(() => {
+        updateScannerDiagnostics({ cameraStatus: 'Streaming' });
+        recordScannerStage(
+          'Video Stream Started',
+          `Live video active (${videoEl.videoWidth || 1280}x${videoEl.videoHeight || 720})`
+        );
+      })
+      .catch((err) => {
+        recordScannerStage('Scanner Error', `Video playback start error: ${err?.message || err}`);
+      });
+  }, [cameraActive, isNativeCutoutActive]);
+
+  // Continuous throttled frame decoding loop when WebRTC <video> is active (both Web & Android WebRTC mode)
+  useEffect(() => {
+    if (!cameraActive || isNativeCutoutActive || !isOpen) return;
 
     let cancelled = false;
     let timerId: number | undefined;
@@ -213,16 +288,16 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
         recordScannerStage('Scanner Error', `Frame loop error: ${err?.message || err}`);
       }
       if (!cancelled) {
-        timerId = window.setTimeout(scanLoop, 260);
+        timerId = window.setTimeout(scanLoop, 220);
       }
     };
 
-    timerId = window.setTimeout(scanLoop, 350);
+    timerId = window.setTimeout(scanLoop, 300);
     return () => {
       cancelled = true;
       if (timerId) window.clearTimeout(timerId);
     };
-  }, [cameraActive, isOpen, products]);
+  }, [cameraActive, isNativeCutoutActive, isOpen, products]);
 
   const handleCaptureCurrentVideoFrame = async () => {
     if (!videoRef.current) return;
@@ -356,16 +431,27 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
     <AppModal isOpen={isOpen} onClose={onClose} title={t.scanBarcode}>
       <div className="space-y-4">
         {/* Camera Feed Box */}
-        <div className="relative rounded-2xl overflow-hidden bg-neutral-950 border border-neutral-800 aspect-video flex flex-col items-center justify-center">
+        <div
+          data-testid="scanner-viewfinder-box"
+          className={`relative rounded-2xl overflow-hidden border aspect-video flex flex-col items-center justify-center ${
+            cameraActive && isNativeCutoutActive
+              ? 'scanner-viewfinder-active bg-transparent border-amber-500/80'
+              : 'bg-neutral-950 border-neutral-800'
+          }`}
+        >
           {cameraActive ? (
             <>
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-              />
+              {isNativeCutoutActive ? (
+                <div className="w-full h-full bg-transparent" />
+              ) : (
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                />
+              )}
               {/* Scanning Reticle Overlay */}
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
                 <div className="w-full max-w-xs h-32 border-2 border-amber-500/80 rounded-2xl relative shadow-[0_0_30px_rgba(245,158,11,0.3)]">
@@ -373,27 +459,46 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                 </div>
               </div>
 
-              {/* Top Hardware Controls: Torch & Zoom (Phase 4) */}
-              <div className="absolute top-3 inset-x-3 flex items-center justify-between gap-2">
-                {diagState.torchAvailable ? (
-                  <button
-                    type="button"
-                    onClick={() => setScannerTorch(!diagState.torchEnabled, streamRef.current)}
-                    className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border backdrop-blur-md ${
-                      diagState.torchEnabled
-                        ? 'bg-amber-500 text-neutral-950 border-amber-400'
-                        : 'bg-neutral-900/80 text-white border-neutral-700'
-                    }`}
-                  >
-                    <Flashlight className="w-3.5 h-3.5" />
-                    <span>{isAr ? 'الفلاش' : 'Flash'}</span>
-                  </button>
-                ) : (
-                  <span />
-                )}
+              {/* Top Hardware Controls: Torch, Mode Switcher & Zoom (Phase 4) */}
+              <div className="absolute top-3 inset-x-3 flex items-center justify-between gap-2 z-20">
+                <div className="flex items-center gap-1.5">
+                  {diagState.torchAvailable && (
+                    <button
+                      type="button"
+                      onClick={() => setScannerTorch(!diagState.torchEnabled, streamRef.current)}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border ${
+                        diagState.torchEnabled
+                          ? 'bg-amber-500 text-neutral-950 border-amber-400'
+                          : 'bg-neutral-900/90 text-white border-neutral-700'
+                      }`}
+                    >
+                      <Flashlight className="w-3.5 h-3.5" />
+                      <span>{isAr ? 'الفلاش' : 'Flash'}</span>
+                    </button>
+                  )}
+
+                  {isNativeCapacitorEnvironment() && (
+                    <button
+                      type="button"
+                      onClick={handleToggleAndroidCameraMode}
+                      className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 border bg-neutral-900/90 text-amber-300 border-amber-500/40"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>
+                        {androidCameraMode === 'native'
+                          ? isAr
+                            ? 'كاميرا الويب'
+                            : 'Web Video'
+                          : isAr
+                          ? 'كاميرا ML Kit'
+                          : 'ML Kit'}
+                      </span>
+                    </button>
+                  )}
+                </div>
 
                 {diagState.zoomAvailable && diagState.maxZoom > diagState.minZoom && (
-                  <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-neutral-900/85 border border-neutral-700 backdrop-blur-md">
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-neutral-900/90 border border-neutral-700">
                     <ZoomIn className="w-3.5 h-3.5 text-amber-400" />
                     <input
                       type="range"
@@ -413,23 +518,29 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                 )}
               </div>
 
-              <div className="absolute bottom-3 inset-x-3 flex items-center justify-between gap-2">
-                <TactileButton
-                  type="button"
-                  variant="amber"
-                  size="sm"
-                  disabled={isDecodingFrame}
-                  onClick={handleCaptureCurrentVideoFrame}
-                  leftIcon={<ScanLine className="w-4 h-4" />}
-                >
-                  {isDecodingFrame
-                    ? isAr
-                      ? 'جاري قراءة الباركود...'
-                      : 'Decoding...'
-                    : isAr
-                    ? 'التقاط وقراءة الباركود الآن'
-                    : 'Capture & Read Barcode'}
-                </TactileButton>
+              <div className="absolute bottom-3 inset-x-3 flex items-center justify-between gap-2 z-20">
+                {!isNativeCutoutActive ? (
+                  <TactileButton
+                    type="button"
+                    variant="amber"
+                    size="sm"
+                    disabled={isDecodingFrame}
+                    onClick={handleCaptureCurrentVideoFrame}
+                    leftIcon={<ScanLine className="w-4 h-4" />}
+                  >
+                    {isDecodingFrame
+                      ? isAr
+                        ? 'جاري قراءة الباركود...'
+                        : 'Decoding...'
+                      : isAr
+                      ? 'التقاط وقراءة الباركود الآن'
+                      : 'Capture & Read Barcode'}
+                  </TactileButton>
+                ) : (
+                  <span className="px-2.5 py-1 rounded-xl bg-neutral-900/90 border border-emerald-500/40 text-[11px] font-bold text-emerald-300">
+                    {isAr ? 'وجّه الباركود داخل الإطار للقراءة التلقائية' : 'Align barcode inside frame'}
+                  </span>
+                )}
                 <TactileButton
                   type="button"
                   variant="secondary"
@@ -459,18 +570,26 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                   type="button"
                   variant="amber"
                   size="sm"
-                  onClick={startCamera}
+                  onClick={() => startCamera()}
                   leftIcon={<Camera className="w-4 h-4" />}
                   data-testid="start-barcode-camera-btn"
                 >
-                  {isNativeCapacitorEnvironment()
-                    ? isAr
-                      ? 'مسح بالكاميرا (Google ML Kit)'
-                      : 'Scan with ML Kit Camera'
-                    : isAr
-                    ? 'تشغيل الكاميرا الخلفية'
-                    : 'Start Rear Camera'}
+                  {isAr ? 'تشغيل الكاميرا الخلفية' : 'Start Rear Camera'}
                 </TactileButton>
+                {isNativeCapacitorEnvironment() && (
+                  <TactileButton
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setAndroidCameraMode('webrtc');
+                      void startCamera('webrtc');
+                    }}
+                    leftIcon={<RefreshCw className="w-4 h-4 text-amber-400" />}
+                  >
+                    {isAr ? 'تشغيل كاميرا الويب المباشرة' : 'Start Web Video Camera'}
+                  </TactileButton>
+                )}
                 <TactileButton
                   type="button"
                   variant="ghost"

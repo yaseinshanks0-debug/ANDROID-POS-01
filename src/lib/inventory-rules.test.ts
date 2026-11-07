@@ -282,5 +282,39 @@ test('getProductExpiryStatus evaluates expired, expiring_soon, valid, and none s
   assert.ok((validRes.daysRemaining ?? 0) > 30);
 });
 
+test('mergeAndDeduplicateCategories and filterCategoriesByQuery support custom categories and single-letter Arabic/English search', async () => {
+  const { mergeAndDeduplicateCategories, filterCategoriesByQuery } = await import('./inventory-rules');
+
+  const merged = mergeAndDeduplicateCategories(
+    ['كريمات البشرة', 'صبغات الشعر', 'Beverages'],
+    ['عطور وبخور', { name: 'كريمات البشرة' }, 'أدوية ومستلزمات']
+  );
+
+  // Deduplicates "كريمات البشرة" while keeping custom saved categories
+  assert.deepEqual(merged, [
+    'عطور وبخور',
+    'كريمات البشرة',
+    'أدوية ومستلزمات',
+    'صبغات الشعر',
+    'Beverages',
+  ]);
+
+  // Single-letter search ("ب") matches any category containing "ب" anywhere ("كريمات البشرة", "صبغات الشعر", "عطور وبخور")
+  const byLetterBa = filterCategoriesByQuery(merged, 'ب');
+  assert.equal(byLetterBa.length, 3);
+  assert.ok(byLetterBa.includes('كريمات البشرة'));
+  assert.ok(byLetterBa.includes('صبغات الشعر'));
+  assert.ok(byLetterBa.includes('عطور وبخور'));
+
+  // Arabic normalization search ("ادويه" without hamza and with ha instead of teh marbuta) matches "أدوية ومستلزمات"
+  const byNormalizedAr = filterCategoriesByQuery(merged, 'ادويه');
+  assert.deepEqual(byNormalizedAr, ['أدوية ومستلزمات']);
+
+  // Single English letter search ("v") matches "Beverages"
+  const byLetterV = filterCategoriesByQuery(merged, 'v');
+  assert.deepEqual(byLetterV, ['Beverages']);
+});
+
+
 
 

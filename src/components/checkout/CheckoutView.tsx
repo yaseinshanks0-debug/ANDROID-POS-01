@@ -529,28 +529,26 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
 
       {/* Right Column / Mobile Drawer: Live Shopping Cart Panel */}
       <div
-        className={`lg:w-96 shrink-0 flex flex-col bg-neutral-900/95 border border-neutral-800 rounded-3xl p-5 shadow-xl ${
+        data-testid="checkout-cart-panel"
+        className={`w-full lg:w-[390px] xl:w-[410px] shrink-0 flex flex-col bg-neutral-900/95 border border-neutral-800 rounded-3xl p-4 sm:p-5 shadow-xl transition-all ${
           isCartDrawerOpen
-            ? 'fixed inset-x-0 bottom-0 top-16 z-50 rounded-t-3xl rounded-b-none p-5 overflow-y-auto max-w-lg mx-auto bg-neutral-900'
-            : 'hidden lg:flex lg:sticky lg:top-20 lg:h-fit'
+            ? 'fixed inset-x-3 bottom-20 top-16 z-50 rounded-3xl p-4 sm:p-5 overflow-y-auto max-w-lg mx-auto bg-neutral-900 border-amber-500/40 shadow-2xl lg:static lg:inset-auto lg:z-auto lg:max-w-none lg:w-[390px] xl:w-[410px] lg:sticky lg:top-20 lg:h-fit'
+            : 'flex lg:sticky lg:top-20 lg:h-fit'
         }`}
       >
-        {/* Cart Header (div:nth-of-type(2) > div:nth-of-type(1)) */}
+        {/* Cart Header */}
         <div className="flex items-center justify-between gap-3 pb-3.5 border-b border-neutral-800/90">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-400 shrink-0 shadow-inner">
               <ShoppingBag className="w-4 h-4" />
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
+            <div className="min-w-0 space-y-0.5">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-extrabold text-sm sm:text-base text-white tracking-tight truncate">
                   {t.cart}
                 </h3>
-                <span className="text-neutral-600" aria-hidden="true">
-                  ·
-                </span>
-                <span className="text-xs font-mono font-bold text-amber-400 tabular-nums">
-                  ({cartTotals.totalItemsCount})
+                <span className="px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/35 text-xs font-mono font-extrabold text-amber-300 tabular-nums">
+                  {cartTotals.totalItemsCount}
                 </span>
               </div>
               <span className="text-[11px] text-neutral-400 font-mono tabular-nums block">
@@ -575,7 +573,7 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
             {isCartDrawerOpen && (
               <button
                 onClick={onCloseCartDrawer}
-                className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 lg:hidden transition-colors"
+                className="p-1.5 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 lg:hidden transition-colors"
                 aria-label="Close cart drawer"
               >
                 <X className="w-5 h-5" />
@@ -585,14 +583,14 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
         </div>
 
         {/* Cart Items List */}
-        <div className="flex-1 overflow-y-auto py-3.5 space-y-2.5 min-h-[140px] max-h-[34vh] lg:max-h-[38vh]">
+        <div className="flex-1 overflow-y-auto py-3.5 space-y-2.5 min-h-[140px] max-h-[36vh] lg:max-h-[38vh]">
           {cart.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-44 text-center text-neutral-400 px-4 rounded-2xl bg-neutral-950/50 border border-dashed border-neutral-800/80">
-              <div className="w-10 h-10 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-500 mb-2.5">
+            <div className="flex flex-col items-center justify-center h-40 text-center text-neutral-400 px-4 rounded-2xl bg-neutral-950/60 border border-dashed border-neutral-800/90">
+              <div className="w-10 h-10 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center justify-center text-amber-400/80 mb-2">
                 <ShoppingBag className="w-5 h-5" />
               </div>
-              <p className="text-xs font-semibold text-neutral-300">{t.cartEmpty}</p>
-              <span className="text-[11px] text-neutral-500 mt-1">
+              <p className="text-xs font-bold text-neutral-200">{t.cartEmpty}</p>
+              <span className="text-[11px] text-neutral-400 mt-1">
                 {isAr
                   ? 'امسح الباركود أو اضغط على أي صنف لإضافته للفاتورة'
                   : 'Scan a barcode or tap any catalog item to begin'}
@@ -617,11 +615,11 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
               return (
                 <div
                   key={item.product.id}
-                  className="p-3 bg-neutral-950/70 border border-neutral-800 rounded-2xl flex flex-col gap-2 group"
+                  className="p-3 bg-neutral-950/80 border border-neutral-800/90 rounded-2xl flex flex-col gap-2.5 group"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0 pr-1">
-                      <h5 className="text-xs font-semibold text-white truncate">
+                  <div className="flex items-center justify-between gap-2.5">
+                    <div className="flex-1 min-w-0">
+                      <h5 className="text-xs sm:text-sm font-bold text-white truncate">
                         {isAr && item.product.nameAr ? item.product.nameAr : item.product.name}
                       </h5>
                       <div className="flex items-center flex-wrap gap-1.5 text-[11px] text-neutral-400 mt-0.5">
@@ -634,12 +632,12 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
                         </span>
                         <span className="font-mono">× {item.quantity}</span>
                         {pkg.enablePackaging && (
-                          <span className="px-1.5 py-0.2 rounded bg-neutral-800 text-amber-300 text-[10px] font-bold">
+                          <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-amber-300 text-[10px] font-bold">
                             {pricing.saleUnitLabel}
                           </span>
                         )}
                         <span className="font-mono">=</span>
-                        <span className="font-mono font-semibold text-white tabular-nums">
+                        <span className="font-mono font-bold text-white tabular-nums">
                           {formatCurrency(
                             pricing.unitSellingPrice * item.quantity,
                             settings.currency,
@@ -650,7 +648,7 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
                     </div>
 
                     {/* Tactile Quantity Stepper */}
-                    <div className="flex items-center gap-1 shrink-0 bg-neutral-850 p-1 rounded-xl border border-neutral-750">
+                    <div className="flex items-center gap-1 shrink-0 bg-neutral-900 p-1 rounded-xl border border-neutral-800">
                       <button
                         onClick={() => updateCartQuantity(item.product.id, -1)}
                         className="w-7 h-7 rounded-lg bg-neutral-800 hover:bg-neutral-700 active:scale-95 text-neutral-200 flex items-center justify-center font-bold"
@@ -674,7 +672,7 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
 
                       <button
                         onClick={() => removeFromCart(item.product.id)}
-                        className="w-7 h-7 ml-1 rounded-lg text-neutral-500 hover:text-rose-400 flex items-center justify-center"
+                        className="w-7 h-7 ms-0.5 rounded-lg text-neutral-500 hover:text-rose-400 flex items-center justify-center"
                         aria-label={`Remove ${item.product.name} from cart`}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -686,8 +684,8 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
                   {pkg.enablePackaging &&
                     pkg.unitsPerPack > 1 &&
                     pkg.allowedSaleUnits === 'both' && (
-                      <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-neutral-800/80">
-                        <span className="text-[10px] text-neutral-400">
+                      <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-neutral-800/80">
+                        <span className="text-[10px] text-neutral-400 font-semibold">
                           {isAr ? 'وحدة البيع:' : 'Sale Unit:'}
                         </span>
                         <div className="flex items-center gap-1">
@@ -744,11 +742,11 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
         {cart.length > 0 && (
           <div
             data-testid="cart-discount-section"
-            className="pt-2.5 pb-1.5 border-t border-neutral-800/80 space-y-2"
+            className="pt-2.5 pb-1.5 border-t border-neutral-800/80 space-y-2.5"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-neutral-400 flex items-center gap-1 font-medium">
-                <Tag className="w-3.5 h-3.5 text-amber-500" />
+              <span className="text-xs text-neutral-300 flex items-center gap-1.5 font-semibold">
+                <Tag className="w-3.5 h-3.5 text-amber-400" />
                 <span>{isAr ? 'نسبة الخصم %:' : 'Discount %:'}</span>
               </span>
               <div className="flex gap-1">
@@ -763,7 +761,7 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
                         setDiscountAmountInput('');
                         setGlobalDiscountPercent(d);
                       }}
-                      className={`px-2 py-0.5 text-[11px] font-mono rounded-lg border transition-colors ${
+                      className={`px-2.5 py-1 text-[11px] font-mono rounded-lg border transition-colors ${
                         isChipActive
                           ? 'bg-amber-500 text-neutral-950 font-bold border-amber-400'
                           : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:border-neutral-600'
@@ -780,11 +778,11 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
             <div className="flex items-center justify-between gap-2">
               <label
                 htmlFor="cart-custom-discount-amount"
-                className="text-xs text-neutral-300 font-medium whitespace-nowrap"
+                className="text-xs text-neutral-300 font-semibold whitespace-nowrap"
               >
-                {isAr ? 'أو اكتب مبلغ الخصم:' : 'Or Discount Amount:'}
+                {isAr ? 'أو مبلغ الخصم:' : 'Or Discount Amount:'}
               </label>
-              <div className="relative flex-1 max-w-[190px]">
+              <div className="relative flex-1 max-w-[200px]">
                 <input
                   id="cart-custom-discount-amount"
                   data-testid="cart-discount-amount-input"
@@ -803,13 +801,13 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
                     setGlobalDiscountAmount(Math.max(0, parsed));
                   }}
                   placeholder={isAr ? `المبلغ (${settings.currency})` : `0.00 (${settings.currency})`}
-                  className={`w-full min-h-[34px] pl-2.5 pr-12 py-1 rounded-xl bg-neutral-950 border text-xs font-mono text-white placeholder:font-sans placeholder:text-neutral-500 focus:outline-none transition-colors ${
+                  className={`w-full min-h-[36px] pl-3 pr-14 py-1 rounded-xl bg-neutral-950 border text-xs font-mono text-white placeholder:font-sans placeholder:text-neutral-500 focus:outline-none transition-colors ${
                     globalDiscountAmount > 0
                       ? 'border-amber-500 ring-1 ring-amber-500/30'
                       : 'border-neutral-800 focus:border-amber-500'
                   }`}
                 />
-                <div className="absolute inset-y-0 right-1.5 flex items-center gap-1">
+                <div className="absolute inset-y-0 right-2 flex items-center gap-1">
                   {globalDiscountAmount > 0 && (
                     <button
                       type="button"
@@ -835,10 +833,10 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
         )}
 
         {/* Summary Breakdown */}
-        <div className="p-3.5 rounded-2xl bg-neutral-950/60 border border-neutral-800/80 space-y-2 text-xs text-neutral-400 mt-1">
+        <div className="p-3.5 rounded-2xl bg-neutral-950/80 border border-neutral-800/90 space-y-2 text-xs text-neutral-300 mt-1">
           <div className="flex justify-between items-center">
             <span>{t.subtotal}</span>
-            <span className="font-mono tabular-nums text-neutral-200 font-semibold">
+            <span className="font-mono tabular-nums text-white font-semibold">
               {formatCurrency(cartTotals.subtotal, settings.currency, settings.language)}
             </span>
           </div>
@@ -857,12 +855,12 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
               {t.tax} ({settings.taxRatePercent}%)
               {settings.isTaxInclusive && ' (incl.)'}
             </span>
-            <span className="font-mono tabular-nums text-neutral-200 font-semibold">
+            <span className="font-mono tabular-nums text-white font-semibold">
               {formatCurrency(cartTotals.taxAmount, settings.currency, settings.language)}
             </span>
           </div>
 
-          <div className="flex justify-between items-baseline text-base font-extrabold text-white pt-2.5 border-t border-neutral-800/90">
+          <div className="flex justify-between items-baseline text-base font-extrabold text-white pt-2.5 border-t border-neutral-800">
             <span>{t.total}</span>
             <span className="font-mono tabular-nums text-amber-400 text-xl tracking-tight">
               {formatCurrency(cartTotals.grandTotal, settings.currency, settings.language)}

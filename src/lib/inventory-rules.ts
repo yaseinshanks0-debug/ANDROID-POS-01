@@ -612,4 +612,98 @@ export function buildProductAuditTrail(params: {
   };
 }
 
+/**
+ * Normalizes Arabic and English text for tolerant category search by any letter or word
+ * (unifies Alef variants أ/إ/آ -> ا, Teh Marbuta ة -> ه, Alef Maksura ى -> ي, strips diacritics/tatweel).
+ */
+export function normalizeCategorySearchText(value: string): string {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .replace(/\s+/g, ' ');
+}
+
+/**
+ * Merges categories from existing products and custom saved categories (`pos_categories`),
+ * removing empty values and deduplicating by normalized name while preserving original display text.
+ */
+export function mergeAndDeduplicateCategories(
+  productCategories: Array<string | undefined | null>,
+  savedCategories?: Array<string | { name?: string; nameAr?: string } | undefined | null>
+): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  const addCandidate = (raw?: string | null) => {
+    const clean = String(raw || '').trim();
+    if (!clean) return;
+    const norm = normalizeCategorySearchText(clean);
+    if (!norm || seen.has(norm)) return;
+    seen.add(norm);
+    result.push(clean);
+  };
+
+  if (Array.isArray(savedCategories)) {
+    for (const item of savedCategories) {
+      if (typeof item === 'string') {
+        addCandidate(item);
+      } else if (item && typeof item === 'object') {
+        addCandidate(item.name || item.nameAr);
+      }
+    }
+  }
+
+  if (Array.isArray(productCategories)) {
+    for (const cat of productCategories) {
+      addCandidate(cat);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Filters categories by any single character, substring, or multi-word query (Arabic & English).
+ * Ranks exact matches first, then prefix matches, then substring matches.
+ */
+export function filterCategoriesByQuery(categories: string[], query: string): string[] {
+  const deduped = mergeAndDeduplicateCategories(categories);
+  const normQuery = normalizeCategorySearchText(query);
+  if (!normQuery) return deduped;
+
+  const queryTokens = normQuery.split(' ').filter(Boolean);
+  if (queryTokens.length === 0) return deduped;
+
+  const matched = deduped.filter((cat) => {
+    const normCat = normalizeCategorySearchText(cat);
+    return queryTokens.every((token) => normCat.includes(token));
+  });
+
+  return matched.sort((a, b) => {
+    const normA = normalizeCategorySearchText(a);
+    const normB = normalizeCategorySearchText(b);
+
+    const exactA = normA === normQuery ? 0 : 1;
+    const exactB = normB === normQuery ? 0 : 1;
+    if (exactA !== exactB) return exactA - exactB;
+
+    const startsA = normA.startsWith(normQuery) ? 0 : 1;
+    const startsB = normB.startsWith(normQuery) ? 0 : 1;
+    if (startsA !== startsB) return startsA - startsB;
+
+    const indexA = normA.indexOf(queryTokens[0]);
+    const indexB = normB.indexOf(queryTokens[0]);
+    if (indexA !== indexB) return indexA - indexB;
+
+    return a.localeCompare(b);
+  });
+}
+
+
 

@@ -27,6 +27,9 @@ import {
   formatProductSerialNumber,
   getNextProductSerialNumber,
   matchesProductSearchQuery,
+  normalizeCategorySearchText,
+  mergeAndDeduplicateCategories,
+  filterCategoriesByQuery,
 } from '../../lib/inventory-rules';
 import {
   decodeBarcodeFromImageFile,
@@ -34,10 +37,13 @@ import {
   decodeBarcodeFromVideoElement,
   decodeBarcodeFromVideoElementWithDiagnostics,
   isNativeCapacitorEnvironment,
+  ensureNativeCameraPermission,
   scanWithNativeMLKit,
+  stopInteractiveNativeMLKitScan,
   applyWebCameraTrackEnhancements,
   resetScannerFrameSignatureCache,
   recordScannerStage,
+  getScannerDiagnostics,
 } from '../../lib/barcode-scanner-engine';
 import { ScannerDiagnosticsPanel } from '../checkout/ScannerDiagnosticsPanel';
 import { normalizeNumberInput, parseNormalizedNumber } from '../../lib/number-utils';
@@ -77,6 +83,7 @@ import {
   UserCheck,
   PackageX,
   Calendar,
+  ChevronDown,
 } from 'lucide-react';
 import { playTactileClick, playScannerBeep, triggerHaptic } from '../../lib/sound-fx';
 import { compressImageToOptimalDataUrl, useDebouncedValue } from '../../lib/performance-monitor';
@@ -99,9 +106,11 @@ export const ProductsView: React.FC = () => {
     currencies,
     exchangeRates,
     workspaceMode,
+    currentCompany,
     pendingNewProductBarcode,
     setPendingNewProductBarcode,
     openUnmetDemandModal,
+    setActiveTab,
   } = usePOS();
   const t = getTranslation(settings.language);
   const isAr = settings.language === 'ar';
@@ -124,6 +133,22 @@ export const ProductsView: React.FC = () => {
   const [formAdditionalBarcodes, setFormAdditionalBarcodes] = useState<string[]>([]);
   const [newBarcodeInput, setNewBarcodeInput] = useState('');
   const [formCategory, setFormCategory] = useState('General');
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [categorySearchQuery, setCategorySearchQuery] = useState('');
+  const [newCategoryDraft, setNewCategoryDraft] = useState('');
+  const [savedCategories, setSavedCategories] = useState<string[]>(() => {
+    try {
+      const compId = currentCompany?.id || 'default';
+      const rawScoped = localStorage.getItem(`pos_categories__${compId}`);
+      const rawBase = localStorage.getItem('pos_categories');
+      const parsedScoped = rawScoped ? JSON.parse(rawScoped) : [];
+      const parsedBase = rawBase ? JSON.parse(rawBase) : [];
+      return mergeAndDeduplicateCategories([], [...(Array.isArray(parsedScoped) ? parsedScoped : []), ...(Array.isArray(parsedBase) ? parsedBase : [])]);
+    } catch {
+      return [];
+    }
+  });
+  const categoryDropdownRef = useRef<HTMLDivElement | null>(null);
   const [formPriceCurrency, setFormPriceCurrency] = useState<SupportedCurrency>(settings.currency || 'SDG');
   const [formCostPrice, setFormCostPrice] = useState('1000');
   const [formSellingPrice, setFormSellingPrice] = useState('1500');
@@ -150,6 +175,7 @@ export const ProductsView: React.FC = () => {
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
   const [cameraScanTarget, setCameraScanTarget] = useState<'additional' | 'primary'>('additional');
   const [cameraActive, setCameraActive] = useState(false);
+  const [isNativeCutoutActive, setIsNativeCutoutActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isDecodingCameraFrame, setIsDecodingCameraFrame] = useState(false);
   const [lastScannedBarcodeFeedback, setLastScannedBarcodeFeedback] = useState<string | null>(null);
@@ -174,12 +200,92 @@ export const ProductsView: React.FC = () => {
     return [];
   }, [currencies, workspaceMode]);
 
-  // Categories list
+  // Reload saved categories if company changes
+  useEffect(() => {
+    try {
+      const compId = currentCompany?.id || 'default';
+      const rawScoped = localStorage.getItem(`pos_categories__${compId}`);
+      const rawBase = localStorage.getItem('pos_categories');
+      const parsedScoped = rawScoped ? JSON.parse(rawScoped) : [];
+      const parsedBase = rawBase ? JSON.parse(rawBase) : [];
+      setSavedCategories((prev) =>
+        mergeAndDeduplicateCategories(prev, [
+          ...(Array.isArray(parsedScoped) ? parsedScoped : []),
+          ...(Array.isArray(parsedBase) ? parsedBase : []),
+        ])
+      );
+    } catch {}
+  }, [currentCompany?.id]);
+
+  // Close category dropdown when clicking outside
+  useEffect(() => {
+    if (!isCategoryDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        categoryDropdownRef.current &&
+        !categoryDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsCategoryDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isCategoryDropdownOpen]);
+
+  // Combined deduplicated categories list (from saved custom categories + existing products)
   const categories = useMemo(() => {
-    const set = new Set<string>();
-    products.forEach((p) => set.add(p.category));
-    return Array.from(set);
+    return mergeAndDeduplicateCategories(
+      products.map((p) => p.category),
+      savedCategories
+    );
+  }, [products, savedCategories]);
+
+  // Count of products per category for helpful badges in the dropdown
+  const categoryProductCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of products) {
+      const norm = normalizeCategorySearchText(p.category || '');
+      if (norm) {
+        counts[norm] = (counts[norm] || 0) + 1;
+      }
+    }
+    return counts;
   }, [products]);
+
+  // Filtered categories in the modal dropdown based on any typed letter or word
+  const filteredModalCategories = useMemo(() => {
+    return filterCategoriesByQuery(categories, categorySearchQuery);
+  }, [categories, categorySearchQuery]);
+
+  const persistCategoryName = (rawName: string): string => {
+    const clean = String(rawName || '').trim();
+    if (!clean) return '';
+    const nextList = mergeAndDeduplicateCategories([clean, ...categories], savedCategories);
+    setSavedCategories(nextList);
+    try {
+      const compId = currentCompany?.id || 'default';
+      const structured = nextList.map((catName, idx) => ({
+        id: `cat-${idx + 1}-${catName.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]/g, '-')}`,
+        companyId: compId,
+        name: catName,
+        nameAr: catName,
+        slug: catName.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]/g, '-'),
+      }));
+      localStorage.setItem('pos_categories', JSON.stringify(structured));
+      localStorage.setItem(`pos_categories__${compId}`, JSON.stringify(structured));
+    } catch {}
+    return clean;
+  };
+
+  const handleSelectOrAddCategory = (rawName: string) => {
+    const clean = persistCategoryName(rawName);
+    if (!clean) return;
+    playTactileClick(settings.soundEnabled);
+    setFormCategory(clean);
+    setCategorySearchQuery('');
+    setNewCategoryDraft('');
+    setIsCategoryDropdownOpen(false);
+  };
 
   const filteredProducts = useMemo(() => {
     return products.filter((p, idx) => {
@@ -430,8 +536,10 @@ export const ProductsView: React.FC = () => {
     playScannerBeep(settings.soundEnabled);
     triggerHaptic('success', settings.hapticsEnabled);
     setErrorMessage(null);
-    setFormBarcode(String(resolution.primaryBarcode));
+    const nextPrimaryStr = String(resolution.primaryBarcode);
+    setFormBarcode(nextPrimaryStr);
     setFormAdditionalBarcodes(resolution.additionalBarcodes);
+    setFormSku(normalizeProductBarcodes(nextPrimaryStr, resolution.additionalBarcodes).join(' | '));
     setNewBarcodeInput('');
     setLastScannedBarcodeFeedback(
       isAr
@@ -443,6 +551,13 @@ export const ProductsView: React.FC = () => {
       cameraStreamRef.current.getTracks().forEach((track) => track.stop());
       cameraStreamRef.current = null;
     }
+    if (typeof document !== 'undefined') {
+      document.body.classList.remove('barcode-scanner-active');
+    }
+    if (isNativePlatform) {
+      stopInteractiveNativeMLKitScan().catch(() => {});
+    }
+    setIsNativeCutoutActive(false);
     setCameraActive(false);
     return true;
   };
@@ -452,7 +567,11 @@ export const ProductsView: React.FC = () => {
     playTactileClick(settings.soundEnabled);
     setCameraScanTarget(target);
     setErrorMessage(null);
+    setIsNativeCutoutActive(true);
+    setCameraActive(true);
     const result = await scanWithNativeMLKit();
+    setIsNativeCutoutActive(false);
+    setCameraActive(false);
     if (result?.rawValue) {
       await handleApplyCameraScannedBarcode(String(result.rawValue), target);
     }
@@ -460,94 +579,124 @@ export const ProductsView: React.FC = () => {
 
   // Attach MediaStream to <video> element once cameraActive mounts the <video> node
   useEffect(() => {
-    if (cameraActive && cameraVideoRef.current && cameraStreamRef.current) {
+    if (cameraActive && !isNativeCutoutActive && cameraVideoRef.current && cameraStreamRef.current) {
       const videoEl = cameraVideoRef.current;
       if (videoEl.srcObject !== cameraStreamRef.current) {
         videoEl.srcObject = cameraStreamRef.current;
       }
       videoEl.play().catch(() => {});
     }
-  }, [cameraActive, isCameraScannerOpen]);
+  }, [cameraActive, isNativeCutoutActive, isCameraScannerOpen]);
 
   // Start/stop live rear camera stream and cross-browser barcode decoding when camera scanner panel is open
   useEffect(() => {
     let scanTimer: number | null = null;
     let isCancelled = false;
 
-    if (isModalOpen && isCameraScannerOpen) {
-      resetScannerFrameSignatureCache();
-      if (isNativePlatform) {
-        // On Android APK, trigger Native ML Kit scanner directly
-        scanWithNativeMLKit().then((res) => {
-          if (!isCancelled && res?.rawValue) {
-            handleApplyCameraScannedBarcode(String(res.rawValue));
-          }
-        });
-      } else if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-        recordScannerStage('Camera Initialized', 'Requesting rear camera in Product Modal');
-        navigator.mediaDevices
-          .getUserMedia({
-            video: {
-              facingMode: { ideal: 'environment' },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
-            audio: false,
-          })
-          .catch(() =>
-            navigator.mediaDevices.getUserMedia({
-              video: true,
-              audio: false,
-            })
-          )
-          .then(async (mediaStream) => {
-            if (isCancelled) {
-              mediaStream.getTracks().forEach((t) => t.stop());
-              return;
-            }
-            cameraStreamRef.current = mediaStream;
-            await applyWebCameraTrackEnhancements(mediaStream);
-            setCameraActive(true);
-            setCameraError(null);
-            recordScannerStage('Video Stream Started', 'Product Modal rear camera stream started');
-
-            const runDecodeLoop = async () => {
-              if (isCancelled) return;
-              const videoEl = cameraVideoRef.current;
-              if (videoEl && videoEl.readyState >= 2) {
-                try {
-                  const decoded = await decodeBarcodeFromVideoElementWithDiagnostics(videoEl);
-                  if (!isCancelled && decoded?.rawValue) {
-                    const applied = await handleApplyCameraScannedBarcode(String(decoded.rawValue));
-                    if (applied) {
-                      return; // Stop loop after valid barcode
-                    }
-                  }
-                } catch {}
-              }
-              if (!isCancelled) {
-                scanTimer = window.setTimeout(runDecodeLoop, 220);
-              }
-            };
-            scanTimer = window.setTimeout(runDecodeLoop, 300);
-          })
-          .catch(() => {
-            if (!isCancelled) {
-              setCameraActive(false);
-              setCameraError(
-                isAr
-                  ? 'الكاميرا المباشرة غير متاحة حالياً — يمكنك الضغط على "تصوير / اختيار صورة باركود" لقراءة الباركود من صورة.'
-                  : 'Live camera stream unavailable — click "Scan from Camera Photo" to decode a barcode from an image.'
-              );
-            }
-          });
-      } else {
+    const startWebRTCProductStream = async () => {
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
         setCameraActive(false);
+        setIsNativeCutoutActive(false);
         setCameraError(
           isAr
             ? 'الكاميرا المباشرة غير مدعومة في هذا المتصفح — استخدم زر "تصوير / اختيار صورة باركود" بالأسفل.'
             : 'Camera API unavailable — use the "Scan from Camera Photo" button below.'
         );
+        return;
+      }
+
+      if (isNativePlatform) {
+        await stopInteractiveNativeMLKitScan().catch(() => {});
+        await ensureNativeCameraPermission();
+      }
+
+      recordScannerStage('Camera Initialized', 'Requesting rear camera in Product Modal');
+      navigator.mediaDevices
+        .getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        })
+        .catch(() =>
+          navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          })
+        )
+        .then(async (mediaStream) => {
+          if (isCancelled) {
+            mediaStream.getTracks().forEach((t) => t.stop());
+            return;
+          }
+          cameraStreamRef.current = mediaStream;
+          await applyWebCameraTrackEnhancements(mediaStream);
+          setIsNativeCutoutActive(false);
+          setCameraActive(true);
+          setCameraError(null);
+          recordScannerStage('Video Stream Started', 'Product Modal rear camera stream started');
+
+          const runDecodeLoop = async () => {
+            if (isCancelled) return;
+            const videoEl = cameraVideoRef.current;
+            if (videoEl && videoEl.readyState >= 2) {
+              try {
+                const decoded = await decodeBarcodeFromVideoElementWithDiagnostics(videoEl);
+                if (!isCancelled && decoded?.rawValue) {
+                  const applied = await handleApplyCameraScannedBarcode(String(decoded.rawValue));
+                  if (applied) {
+                    return; // Stop loop after valid barcode
+                  }
+                }
+              } catch {}
+            }
+            if (!isCancelled) {
+              scanTimer = window.setTimeout(runDecodeLoop, 220);
+            }
+          };
+          scanTimer = window.setTimeout(runDecodeLoop, 300);
+        })
+        .catch(() => {
+          if (!isCancelled) {
+            setCameraActive(false);
+            setIsNativeCutoutActive(false);
+            setCameraError(
+              isAr
+                ? 'الكاميرا المباشرة غير متاحة حالياً — يمكنك الضغط على "تصوير / اختيار صورة باركود" لقراءة الباركود من صورة.'
+                : 'Live camera stream unavailable — click "Scan from Camera Photo" to decode a barcode from an image.'
+            );
+          }
+        });
+    };
+
+    if (isModalOpen && isCameraScannerOpen) {
+      resetScannerFrameSignatureCache();
+      if (isNativePlatform) {
+        // Immediately activate transparent CameraX viewfinder inside Product Modal
+        setIsNativeCutoutActive(true);
+        setCameraActive(true);
+        setCameraError(null);
+        if (typeof document !== 'undefined') {
+          document.body.classList.add('barcode-scanner-active');
+        }
+        scanWithNativeMLKit().then((res) => {
+          if (isCancelled) return;
+          if (res?.rawValue) {
+            void handleApplyCameraScannedBarcode(String(res.rawValue));
+            return;
+          }
+          const latestDiag = getScannerDiagnostics();
+          if (latestDiag.cameraStatus === 'Error') {
+            void startWebRTCProductStream();
+          } else {
+            setIsNativeCutoutActive(false);
+            setCameraActive(false);
+          }
+        });
+      } else {
+        void startWebRTCProductStream();
       }
     }
 
@@ -558,6 +707,13 @@ export const ProductsView: React.FC = () => {
         cameraStreamRef.current.getTracks().forEach((track) => track.stop());
         cameraStreamRef.current = null;
       }
+      if (typeof document !== 'undefined') {
+        document.body.classList.remove('barcode-scanner-active');
+      }
+      if (isNativePlatform) {
+        stopInteractiveNativeMLKitScan().catch(() => {});
+      }
+      setIsNativeCutoutActive(false);
       setCameraActive(false);
     };
   }, [isModalOpen, isCameraScannerOpen, isAr]);
@@ -661,7 +817,10 @@ export const ProductsView: React.FC = () => {
     setFormAdditionalBarcodes([]);
     setNewBarcodeInput('');
     setFormExpiryDate('');
-    setFormCategory(categories[0] || (isPractice ? 'Beverages' : ''));
+    setFormCategory(categories[0] || (isPractice ? 'Beverages' : 'General'));
+    setCategorySearchQuery('');
+    setNewCategoryDraft('');
+    setIsCategoryDropdownOpen(false);
     const activeCurr =
       (activeCurrencies.length > 0 ? activeCurrencies[0].code : '') ||
       settings.currency ||
@@ -729,6 +888,9 @@ export const ProductsView: React.FC = () => {
       (p.expiryDate || p.customFields?.expiryDate || '').toString().slice(0, 10)
     );
     setFormCategory(p.category);
+    setCategorySearchQuery('');
+    setNewCategoryDraft('');
+    setIsCategoryDropdownOpen(false);
 
     // Load prices in the current active store currency so the user can edit or switch currencies seamlessly
     const displayCurr = settings.currency || p.priceCurrency || 'SDG';
@@ -843,6 +1005,8 @@ export const ProductsView: React.FC = () => {
       packSellingPrice: rawPackSelling,
     };
 
+    const resolvedCategory = persistCategoryName(formCategory.trim() || 'General') || 'General';
+
     const payload: Omit<Product, 'id' | 'updatedAt'> = {
       serialNumber: parsedSerial,
       name: formName.trim(),
@@ -852,7 +1016,7 @@ export const ProductsView: React.FC = () => {
       sku: synchronizedSku,
       barcode: finalBarcodes[0] || '',
       barcodes: finalBarcodes,
-      category: formCategory.trim() || 'General',
+      category: resolvedCategory,
       costPrice: rawCost,
       sellingPrice: rawSelling,
       priceCurrency: formPriceCurrency,
@@ -947,13 +1111,16 @@ export const ProductsView: React.FC = () => {
       </div>
 
       {/* Live Currency Switcher Bar (Links all product prices with active currency & exchange rate) */}
-      <div className="p-4 rounded-2xl bg-neutral-900/95 border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+      <div
+        data-testid="products-currency-switcher-bar"
+        className="p-4 rounded-2xl bg-neutral-900/95 border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 shadow-md"
+      >
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-400 shrink-0 shadow-inner">
             <Coins className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <div className="text-xs sm:text-sm font-bold text-white truncate">
+            <div className="text-xs sm:text-sm font-extrabold text-white truncate">
               {isAr
                 ? 'عملة عرض وتسعير المنتجات (مرتبطة بسعر الصرف)'
                 : 'Active Product Pricing Currency (Exchange Rate Linked)'}
@@ -971,7 +1138,20 @@ export const ProductsView: React.FC = () => {
         </div>
 
         <div className="flex items-center flex-wrap gap-1.5 shrink-0">
-          {activeCurrencies.map((curr) => {
+          {(activeCurrencies.length > 0
+            ? activeCurrencies
+            : [
+                {
+                  code: 'SDG' as SupportedCurrency,
+                  name: 'Sudanese Pound',
+                  nameAr: 'جنيه سوداني',
+                  symbol: 'ج.س',
+                  decimalPlaces: 2,
+                  isBase: true,
+                  isActive: true,
+                },
+              ]
+          ).map((curr) => {
             const isSelected = settings.currency === curr.code;
             const rateVal = curr.code === 'SDG' ? 1 : exchangeRates[curr.code] || 1;
             return (
@@ -982,7 +1162,7 @@ export const ProductsView: React.FC = () => {
                   playTactileClick(settings.soundEnabled);
                   updateSettings({ currency: curr.code });
                 }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold tabular-nums transition-all border inline-flex items-center gap-1.5 whitespace-nowrap ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold tabular-nums transition-all border inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                   isSelected
                     ? 'bg-amber-500 text-neutral-950 border-amber-400 shadow-sm'
                     : 'bg-neutral-950 text-neutral-300 border-neutral-800 hover:border-neutral-700 hover:text-white'
@@ -1001,6 +1181,15 @@ export const ProductsView: React.FC = () => {
               </button>
             );
           })}
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('settings')}
+            className="px-3 py-1.5 rounded-xl bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 hover:border-amber-500/40 text-amber-400 text-xs font-bold inline-flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>{isAr ? 'إدارة العملات' : 'Currencies'}</span>
+          </button>
         </div>
       </div>
 
@@ -1769,15 +1958,26 @@ export const ProductsView: React.FC = () => {
                   </div>
 
                   {/* Camera Viewfinder with Laser Line */}
-                  <div className="relative w-full h-36 bg-neutral-950 rounded-xl border-2 border-dashed border-emerald-500/50 overflow-hidden flex flex-col items-center justify-center">
+                  <div
+                    data-testid="product-scanner-viewfinder-box"
+                    className={`relative w-full h-44 rounded-xl border-2 border-dashed border-emerald-500/50 overflow-hidden flex flex-col items-center justify-center ${
+                      cameraActive && isNativeCutoutActive
+                        ? 'scanner-viewfinder-active bg-transparent'
+                        : 'bg-neutral-950'
+                    }`}
+                  >
                     {cameraActive ? (
-                      <video
-                        ref={cameraVideoRef}
-                        className="absolute inset-0 w-full h-full object-cover opacity-75"
-                        autoPlay
-                        muted
-                        playsInline
-                      />
+                      isNativeCutoutActive ? (
+                        <div className="w-full h-full bg-transparent" />
+                      ) : (
+                        <video
+                          ref={cameraVideoRef}
+                          className="absolute inset-0 w-full h-full object-cover opacity-85"
+                          autoPlay
+                          muted
+                          playsInline
+                        />
+                      )
                     ) : (
                       <div className="flex flex-col items-center gap-1.5 text-neutral-400 z-10 px-4 text-center">
                         <Camera className="w-7 h-7 text-emerald-400 animate-pulse" />
@@ -2251,12 +2451,297 @@ export const ProductsView: React.FC = () => {
 
             {/* Category + Unit (Strip/Piece) Cost & Selling Prices */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <AppInput
-                label={t.category}
-                value={formCategory}
-                onChange={(e) => setFormCategory(e.target.value)}
-                required
-              />
+              <div
+                ref={categoryDropdownRef}
+                data-testid="product-category-combobox"
+                className="flex flex-col gap-1.5 w-full relative"
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <label
+                    htmlFor="product-category-input"
+                    className="text-xs font-medium text-neutral-300 tracking-wide select-none"
+                  >
+                    {t.category}
+                  </label>
+                  <button
+                    type="button"
+                    data-testid="toggle-category-dropdown-top-btn"
+                    onClick={() => {
+                      playTactileClick(settings.soundEnabled);
+                      setIsCategoryDropdownOpen((prev) => {
+                        const next = !prev;
+                        if (next) setCategorySearchQuery('');
+                        return next;
+                      });
+                    }}
+                    className="text-[10px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-0.5"
+                  >
+                    <span>
+                      {isAr
+                        ? `القائمة (${categories.length})`
+                        : `List (${categories.length})`}
+                    </span>
+                    <ChevronDown
+                      className={`w-3 h-3 transition-transform ${
+                        isCategoryDropdownOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="relative flex items-center">
+                  <input
+                    id="product-category-input"
+                    data-testid="product-category-input"
+                    type="text"
+                    required
+                    autoComplete="off"
+                    value={formCategory}
+                    onFocus={() => {
+                      setIsCategoryDropdownOpen(true);
+                      setCategorySearchQuery('');
+                    }}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormCategory(val);
+                      setCategorySearchQuery(val);
+                      setIsCategoryDropdownOpen(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setIsCategoryDropdownOpen(true);
+                      } else if (e.key === 'Escape') {
+                        setIsCategoryDropdownOpen(false);
+                      } else if (e.key === 'Enter' && isCategoryDropdownOpen) {
+                        e.preventDefault();
+                        if (filteredModalCategories.length > 0 && categorySearchQuery.trim()) {
+                          handleSelectOrAddCategory(filteredModalCategories[0]);
+                        } else if (formCategory.trim()) {
+                          handleSelectOrAddCategory(formCategory.trim());
+                        }
+                      }
+                    }}
+                    placeholder={
+                      isAr
+                        ? 'اختر تصنيفاً أو ابحث بأي حرف أو أضف جديداً...'
+                        : 'Select, search by any letter, or type new category...'
+                    }
+                    className="w-full min-h-[46px] bg-neutral-900 text-neutral-100 placeholder-neutral-500 rounded-xl border border-neutral-800 hover:border-neutral-700 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 px-3.5 py-2.5 pe-16 text-sm transition-all duration-150"
+                  />
+
+                  <div className="absolute end-1.5 flex items-center gap-1">
+                    {formCategory && (
+                      <button
+                        type="button"
+                        data-testid="clear-category-input-btn"
+                        onClick={() => {
+                          setFormCategory('');
+                          setCategorySearchQuery('');
+                          setIsCategoryDropdownOpen(true);
+                        }}
+                        title={isAr ? 'مسح للبحث في كل التصنيفات' : 'Clear to search all categories'}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      data-testid="product-category-dropdown-trigger"
+                      aria-label={isAr ? 'فتح قائمة التصنيفات' : 'Open categories dropdown'}
+                      onClick={() => {
+                        playTactileClick(settings.soundEnabled);
+                        setIsCategoryDropdownOpen((prev) => {
+                          const next = !prev;
+                          if (next) setCategorySearchQuery('');
+                          return next;
+                        });
+                      }}
+                      className="p-1.5 rounded-lg bg-neutral-800/80 hover:bg-neutral-700 text-amber-400 transition-colors"
+                    >
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform ${
+                          isCategoryDropdownOpen ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Searchable Dropdown Menu */}
+                {isCategoryDropdownOpen && (
+                  <div
+                    data-testid="product-category-dropdown-menu"
+                    className="absolute top-full inset-x-0 mt-1.5 z-50 rounded-2xl bg-neutral-900 border border-amber-500/40 shadow-2xl overflow-hidden flex flex-col max-h-72"
+                  >
+                    {/* Instant Search-by-Letter & Quick Add Bar inside Dropdown */}
+                    <div className="p-2 bg-neutral-950/90 border-b border-neutral-800 flex items-center gap-1.5">
+                      <div className="relative flex-1">
+                        <Search className="w-3.5 h-3.5 text-neutral-400 absolute start-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          type="text"
+                          data-testid="category-dropdown-search-input"
+                          value={categorySearchQuery}
+                          onChange={(e) => setCategorySearchQuery(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const q = categorySearchQuery.trim();
+                              if (q) {
+                                handleSelectOrAddCategory(
+                                  filteredModalCategories.length === 1
+                                    ? filteredModalCategories[0]
+                                    : q
+                                );
+                              }
+                            }
+                          }}
+                          placeholder={
+                            isAr
+                              ? 'ابحث بأي حرف أو اكتب تصنيفاً جديداً لإضافته...'
+                              : 'Filter by any letter or type a new category...'
+                          }
+                          className="w-full min-h-[34px] ps-8 pe-2.5 py-1 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                      {(categorySearchQuery.trim() || formCategory.trim()) &&
+                        !categories.some(
+                          (c) =>
+                            normalizeCategorySearchText(c) ===
+                            normalizeCategorySearchText(
+                              categorySearchQuery.trim() || formCategory.trim()
+                            )
+                        ) && (
+                          <button
+                            type="button"
+                            data-testid="add-new-category-inline-btn"
+                            onClick={() =>
+                              handleSelectOrAddCategory(
+                                categorySearchQuery.trim() || formCategory.trim()
+                              )
+                            }
+                            className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 text-[11px] font-bold flex items-center gap-1 shrink-0 transition-colors"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>{isAr ? 'إضافة' : 'Add'}</span>
+                          </button>
+                        )}
+                    </div>
+
+                    {/* Matching Categories List */}
+                    <div className="overflow-y-auto divide-y divide-neutral-800/60 max-h-44">
+                      {filteredModalCategories.length > 0 ? (
+                        filteredModalCategories.map((cat) => {
+                          const isSelected =
+                            normalizeCategorySearchText(cat) ===
+                            normalizeCategorySearchText(formCategory);
+                          const count =
+                            categoryProductCounts[normalizeCategorySearchText(cat)] || 0;
+                          return (
+                            <button
+                              key={cat}
+                              type="button"
+                              data-testid={`category-option-${cat}`}
+                              onClick={() => handleSelectOrAddCategory(cat)}
+                              className={`w-full px-3 py-2.5 text-start text-xs flex items-center justify-between gap-2 transition-colors ${
+                                isSelected
+                                  ? 'bg-amber-500/15 text-amber-300 font-bold'
+                                  : 'text-neutral-200 hover:bg-neutral-800/80'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                {isSelected ? (
+                                  <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                ) : (
+                                  <Layers className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                                )}
+                                <span className="truncate">{cat}</span>
+                              </div>
+                              <span className="px-1.5 py-0.5 rounded-md bg-neutral-800 text-[10px] font-mono text-neutral-400 shrink-0">
+                                {isAr ? `${count} منتج` : `${count} items`}
+                              </span>
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="px-3 py-3 text-center text-xs text-neutral-400">
+                          {isAr
+                            ? 'لا يوجد تصنيف مطابق لهذا الحرف — يمكنك إضافته كتصنيف جديد بالأسفل'
+                            : 'No matching category found — add it below as a new category'}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quick Add New Category Option when typing a non-existing category */}
+                    {(() => {
+                      const candidateNew = (
+                        categorySearchQuery.trim() || formCategory.trim()
+                      ).trim();
+                      const alreadyExists =
+                        candidateNew.length > 0 &&
+                        categories.some(
+                          (c) =>
+                            normalizeCategorySearchText(c) ===
+                            normalizeCategorySearchText(candidateNew)
+                        );
+
+                      if (!candidateNew || alreadyExists) return null;
+
+                      return (
+                        <button
+                          type="button"
+                          data-testid="add-new-category-option-btn"
+                          onClick={() => handleSelectOrAddCategory(candidateNew)}
+                          className="w-full px-3 py-2 bg-emerald-950/70 hover:bg-emerald-900/80 border-t border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center justify-between gap-2 transition-colors"
+                        >
+                          <span className="flex items-center gap-1.5 truncate">
+                            <Plus className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            <span className="truncate">
+                              {isAr
+                                ? `+ اعتماد وإضافة تصنيف: "${candidateNew}"`
+                                : `+ Add & select category: "${candidateNew}"`}
+                            </span>
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500 text-neutral-950 text-[10px] font-extrabold shrink-0">
+                            {isAr ? 'جديد' : 'NEW'}
+                          </span>
+                        </button>
+                      );
+                    })()}
+
+                    {/* Dedicated New Category Input Bar (Always available in dropdown footer) */}
+                    <div className="p-2 bg-neutral-950/90 border-t border-neutral-800 flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        data-testid="new-category-footer-input"
+                        value={newCategoryDraft}
+                        onChange={(e) => setNewCategoryDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && newCategoryDraft.trim()) {
+                            e.preventDefault();
+                            handleSelectOrAddCategory(newCategoryDraft.trim());
+                          }
+                        }}
+                        placeholder={
+                          isAr ? '+ إضافة تصنيف جديد للقائمة...' : '+ Add new category to list...'
+                        }
+                        className="flex-1 min-h-[32px] px-2.5 py-1 rounded-xl bg-neutral-900 border border-neutral-800 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        data-testid="new-category-footer-add-btn"
+                        disabled={!newCategoryDraft.trim()}
+                        onClick={() => handleSelectOrAddCategory(newCategoryDraft.trim())}
+                        className="px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-neutral-950 text-[11px] font-bold flex items-center gap-1 shrink-0 transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>{isAr ? 'إضافة تصنيف' : 'Add'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <AppInput
                 label={

@@ -7,29 +7,32 @@
     --font-mono: 'JetBrains Mono', ui-monospace, monospace;
   }
 
-  html {
+  html,
+  body {
     font-family: var(--font-sans);
+    background-color: #090a0f;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
   }
 
-  html[dir="rtl"] {
+  html[dir="rtl"],
+  html[dir="rtl"] body {
     font-family: var(--font-arabic);
   }
+}
 
-  /* Support Android system bars & safe areas */
-  .pt-safe {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-  .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-  .pl-safe {
-    padding-left: env(safe-area-inset-left, 0px);
-  }
-  .pr-safe {
-    padding-right: env(safe-area-inset-right, 0px);
-  }
+/* Support Android system bars & safe areas without being overridden by py-* utilities */
+.pt-safe {
+  padding-top: max(0.625rem, env(safe-area-inset-top, 0px));
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pl-safe {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+.pr-safe {
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 /* Custom scrollbar for dense retail tables */
@@ -81,14 +84,45 @@
   transform: translateY(3px);
 }
 
-/* Transparent WebView support when @capacitor-mlkit/barcode-scanning startScan() renders camera behind WebView */
+/* Transparent WebView cutout support when @capacitor-mlkit/barcode-scanning startScan() renders CameraX PreviewView behind the WebView */
 body.barcode-scanner-active,
 html:has(body.barcode-scanner-active) {
   background: transparent !important;
   background-color: transparent !important;
 }
 
-body.barcode-scanner-active #root {
-  background: transparent !important;
+/* Hide the background POS screen inside #root so it does not cover the native camera behind the portal modal */
+body.barcode-scanner-active #root:not(:has(.scanner-viewfinder-active)) {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
+
+/* Remove backdrop blur and opaque background from all ancestors of the active scanner viewfinder */
+body.barcode-scanner-active .app-modal-backdrop,
+body.barcode-scanner-active *:has(.scanner-viewfinder-active) {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Shade the viewport outside the modal card without painting inside the modal card */
+body.barcode-scanner-active .app-modal-card:has(.scanner-viewfinder-active) {
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.82) !important;
+}
+
+/* Keep the modal header solid and readable */
+body.barcode-scanner-active .app-modal-header {
+  background-color: #171717 !important;
+}
+
+/* The active viewfinder window itself is 100% transparent inside its border, while its outer box-shadow shades the rest of the modal body around it */
+body.barcode-scanner-active .scanner-viewfinder-active {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: 0 0 0 9999px rgba(15, 17, 23, 0.95) !important;
+}
+
 

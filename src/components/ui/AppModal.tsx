@@ -56,7 +56,7 @@ export const AppModal: React.FC<AppModalProps> = ({
   const modalContent = (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4 overflow-y-auto">
+        <div className="app-modal-portal-root fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4 overflow-y-auto">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -64,7 +64,7 @@ export const AppModal: React.FC<AppModalProps> = ({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/75 backdrop-blur-sm"
+            className="app-modal-backdrop fixed inset-0 bg-black/75 backdrop-blur-sm"
             aria-hidden="true"
           />
 
@@ -74,7 +74,7 @@ export const AppModal: React.FC<AppModalProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={asSheetOnMobile ? { opacity: 0, y: 40 } : { opacity: 0, scale: 0.95 }}
             transition={{ type: 'spring', damping: 28, stiffness: 350 }}
-            className={`relative z-10 w-full ${maxWidthClass} bg-neutral-900 border border-neutral-800 text-neutral-100 shadow-2xl flex flex-col max-h-[90vh] ${
+            className={`app-modal-card relative z-10 w-full ${maxWidthClass} bg-neutral-900 border border-neutral-800 text-neutral-100 shadow-2xl flex flex-col max-h-[90vh] ${
               asSheetOnMobile
                 ? 'max-md:mt-auto max-md:rounded-t-3xl max-md:border-b-0 rounded-2xl'
                 : 'rounded-2xl'
@@ -91,7 +91,7 @@ export const AppModal: React.FC<AppModalProps> = ({
 
             {/* Header */}
             {(title || description) && (
-              <div className="flex items-start justify-between p-5 pb-3 border-b border-neutral-800/80">
+              <div className="app-modal-header flex items-start justify-between p-5 pb-3 border-b border-neutral-800/80">
                 <div className="pr-4">
                   {title && (
                     <h3 className="text-base sm:text-lg font-bold text-neutral-100 tracking-tight">
@@ -115,7 +115,7 @@ export const AppModal: React.FC<AppModalProps> = ({
             )}
 
             {/* Body */}
-            <div className="p-5 overflow-y-auto flex-1">{children}</div>
+            <div className="app-modal-body p-5 overflow-y-auto flex-1">{children}</div>
           </motion.div>
         </div>
       )}

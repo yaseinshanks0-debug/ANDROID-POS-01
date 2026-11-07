@@ -3,13 +3,37 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { usePOS } from '../../context/POSContext';
 import { getTranslation } from '../../lib/translations';
 import { formatCurrency } from '../../lib/pos-calculations';
 import { TactileButton } from '../ui/TactileButton';
-import { ShoppingBag, Globe, Wifi, Coins, Users, ShieldCheck, Check, Settings as SettingsIcon, GraduationCap, Building2, FlaskConical } from 'lucide-react';
+import {
+  ShoppingBag,
+  Globe,
+  Wifi,
+  Coins,
+  Users,
+  ShieldCheck,
+  Check,
+  Settings as SettingsIcon,
+  GraduationCap,
+  Building2,
+  FlaskConical,
+  Bell,
+  BellRing,
+} from 'lucide-react';
 import { UserRole } from '../../lib/types';
+import { SmartAlertLifecycleStatus } from '../../analytics/analytics.types';
+import {
+  buildStoreNotificationsList,
+  computeNotificationSummaryCounts,
+  loadNotificationLifecycleMap,
+  saveNotificationLifecycleStatus,
+  NOTIFICATIONS_UPDATED_EVENT,
+  StoreNotificationItem,
+} from '../../lib/notifications-center';
+import { NotificationsBellModal } from './NotificationsBellModal';
 
 const ROLE_LABELS: Record<UserRole, { en: string; ar: string; badgeClass: string }> = {
   admin: {
@@ -36,6 +60,11 @@ const ROLE_LABELS: Record<UserRole, { en: string; ar: string; badgeClass: string
 
 export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart }) => {
   const {
+    products,
+    transactions,
+    customers,
+    unmetDemandRequests,
+    openUnmetDemandModal,
     settings,
     updateSettings,
     currencies,
@@ -57,7 +86,79 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
   const isAr = settings.language === 'ar';
 
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
+  const [lifecycleMap, setLifecycleMap] = useState(() => loadNotificationLifecycleMap());
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const refreshLifecycle = () => {
+      setLifecycleMap(loadNotificationLifecycleMap());
+    };
+    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, refreshLifecycle);
+    return () => window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, refreshLifecycle);
+  }, []);
+
+  const storeNotifications = useMemo(
+    () =>
+      buildStoreNotificationsList({
+        products,
+        transactions,
+        customers,
+        unmetDemandRequests,
+        lifecycleMap,
+      }),
+    [products, transactions, customers, unmetDemandRequests, lifecycleMap]
+  );
+
+  const notificationCounts = useMemo(
+    () => computeNotificationSummaryCounts(storeNotifications),
+    [storeNotifications]
+  );
+
+  const handleUpdateNotificationStatus = useCallback(
+    (item: StoreNotificationItem, nextStatus: SmartAlertLifecycleStatus, note?: string) => {
+      const updated = saveNotificationLifecycleStatus(
+        [item.id, item.dedupeKey],
+        nextStatus,
+        note
+      );
+      setLifecycleMap(updated);
+    },
+    []
+  );
+
+  const handleMarkAllNotificationsRead = useCallback(() => {
+    const activeKeys: string[] = [];
+    for (const item of storeNotifications) {
+      if (item.status === 'active') {
+        activeKeys.push(item.id, item.dedupeKey);
+      }
+    }
+    if (activeKeys.length > 0) {
+      const updated = saveNotificationLifecycleStatus(activeKeys, 'acknowledged');
+      setLifecycleMap(updated);
+    }
+  }, [storeNotifications]);
+
+  const handleExecuteNotificationPrimaryAction = useCallback(
+    (item: StoreNotificationItem) => {
+      // Automatically mark as acknowledged if currently active
+      if (item.status === 'active') {
+        const updated = saveNotificationLifecycleStatus(
+          [item.id, item.dedupeKey],
+          'acknowledged'
+        );
+        setLifecycleMap(updated);
+      }
+      setIsNotificationsModalOpen(false);
+      if (item.primaryActionTarget === 'unmet_demand_modal') {
+        openUnmetDemandModal({ sourceScreen: 'analytics' });
+      } else {
+        setActiveTab(item.primaryActionTarget);
+      }
+    },
+    [openUnmetDemandModal, setActiveTab]
+  );
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -368,6 +469,45 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
             )}
           </button>
 
+          {/* Notifications Bell Trigger */}
+          <button
+            type="button"
+            data-testid="header-notifications-bell-btn"
+            onClick={() => {
+              setIsNotificationsModalOpen(true);
+            }}
+            aria-label={isAr ? 'جرس التنبيهات والإشعارات الذكية' : 'Smart Notifications & Alerts Bell'}
+            title={isAr ? 'جرس التنبيهات (اضغط لعرض التفاصيل والتعامل معها)' : 'Notifications Bell (Click to view details & handle)'}
+            className={`relative min-h-[34px] sm:min-h-[36px] px-2.5 py-1 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              notificationCounts.criticalActive > 0
+                ? 'bg-rose-500/20 hover:bg-rose-500/30 border-rose-500/50 text-rose-300'
+                : notificationCounts.active > 0
+                ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/50 text-amber-300'
+                : 'bg-neutral-900 hover:bg-neutral-800 border-neutral-800 text-neutral-300'
+            }`}
+          >
+            {notificationCounts.active > 0 ? (
+              <BellRing className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
+            ) : (
+              <Bell className="w-4 h-4 text-neutral-400 shrink-0" />
+            )}
+            <span className="hidden lg:inline">
+              {isAr ? 'التنبيهات' : 'Alerts'}
+            </span>
+            {notificationCounts.active > 0 && (
+              <span
+                data-testid="header-notifications-bell-badge"
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-extrabold leading-none ${
+                  notificationCounts.criticalActive > 0
+                    ? 'bg-rose-500 text-white'
+                    : 'bg-amber-500 text-neutral-950'
+                }`}
+              >
+                {notificationCounts.active}
+              </span>
+            )}
+          </button>
+
           {/* Language Switcher */}
           <TactileButton
             variant="ghost"
@@ -403,6 +543,19 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
           </TactileButton>
         </div>
       </div>
+
+      <NotificationsBellModal
+        isOpen={isNotificationsModalOpen}
+        onClose={() => {
+          setIsNotificationsModalOpen(false);
+        }}
+        notifications={storeNotifications}
+        counts={notificationCounts}
+        isAr={isAr}
+        onUpdateStatus={handleUpdateNotificationStatus}
+        onMarkAllRead={handleMarkAllNotificationsRead}
+        onExecutePrimaryAction={handleExecuteNotificationPrimaryAction}
+      />
     </header>
   );
 };

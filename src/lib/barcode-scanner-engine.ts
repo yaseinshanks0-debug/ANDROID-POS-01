@@ -9,7 +9,6 @@ import {
   BarcodeFormat as MLKitBarcodeFormat,
   LensFacing as MLKitLensFacing,
   Resolution as MLKitResolution,
-  GoogleBarcodeScannerModuleInstallState,
 } from '@capacitor-mlkit/barcode-scanning';
 import {
   BarcodeDetector as PonyfillBarcodeDetector,
@@ -797,19 +796,19 @@ export async function setScannerTorch(
   webStream?: MediaStream | null
 ): Promise<boolean> {
   try {
+    const track = webStream?.getVideoTracks()?.[0];
+    if (track && typeof track.applyConstraints === 'function') {
+      await track.applyConstraints({ advanced: [{ torch: enabled } as any] });
+      updateScannerDiagnostics({ torchEnabled: enabled });
+      return enabled;
+    }
+
     if (isNativeCapacitorEnvironment()) {
       if (enabled) {
         await MLKitBarcodeScanner.enableTorch();
       } else {
         await MLKitBarcodeScanner.disableTorch();
       }
-      updateScannerDiagnostics({ torchEnabled: enabled });
-      return enabled;
-    }
-
-    const track = webStream?.getVideoTracks()?.[0];
-    if (track && typeof track.applyConstraints === 'function') {
-      await track.applyConstraints({ advanced: [{ torch: enabled } as any] });
       updateScannerDiagnostics({ torchEnabled: enabled });
       return enabled;
     }
@@ -824,15 +823,15 @@ export async function setScannerZoom(
   webStream?: MediaStream | null
 ): Promise<number> {
   try {
-    if (isNativeCapacitorEnvironment()) {
-      await MLKitBarcodeScanner.setZoomRatio({ zoomRatio });
+    const track = webStream?.getVideoTracks()?.[0];
+    if (track && typeof track.applyConstraints === 'function') {
+      await track.applyConstraints({ advanced: [{ zoom: zoomRatio } as any] });
       updateScannerDiagnostics({ zoomRatio });
       return zoomRatio;
     }
 
-    const track = webStream?.getVideoTracks()?.[0];
-    if (track && typeof track.applyConstraints === 'function') {
-      await track.applyConstraints({ advanced: [{ zoom: zoomRatio } as any] });
+    if (isNativeCapacitorEnvironment()) {
+      await MLKitBarcodeScanner.setZoomRatio({ zoomRatio });
       updateScannerDiagnostics({ zoomRatio });
       return zoomRatio;
     }
@@ -842,21 +841,49 @@ export async function setScannerZoom(
   return zoomRatio;
 }
 
+let activeNativeScanResolve: ((outcome: BarcodeDecodeOutcome | null) => void) | null = null;
+
+/**
+ * Ensures Android OS runtime camera permission is granted and stops any previous native scan session
+ * so the hardware camera is free.
+ */
+export async function ensureNativeCameraPermission(): Promise<boolean> {
+  if (!isNativeCapacitorEnvironment()) return true;
+  try {
+    const perm = await MLKitBarcodeScanner.checkPermissions();
+    if (perm.camera !== 'granted') {
+      const req = await MLKitBarcodeScanner.requestPermissions();
+      return req.camera === 'granted';
+    }
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Phase 2B: Native Android Capacitor 8 ML Kit Barcode Scanner
- * Supports both:
- * 1. Ready-to-use Google Barcode Scanner UI (`MLKitBarcodeScanner.scan()`) with automatic Google Module availability check & installation.
- * 2. Custom transparent WebView overlay (`MLKitBarcodeScanner.startScan()`) with Torch & Zoom support.
+ * Directly launches the bundled CameraX + Google ML Kit `startScan()` inside our transparent viewfinder
+ * with zero delay (no waiting for external Play Services UI module downloads), plus Torch & Zoom support.
  */
 export async function scanWithNativeMLKit(): Promise<BarcodeDecodeOutcome | null> {
   if (!isNativeCapacitorEnvironment()) {
     return null;
   }
+  return await startInteractiveNativeMLKitScan();
+}
 
-  recordScannerStage('Camera Initialized', 'Starting Native Android Google ML Kit Scanner');
+/**
+ * Interactive Native ML Kit `startScan()` with transparent WebView viewfinder support,
+ * Torch detection, and Zoom range initialization.
+ */
+export async function startInteractiveNativeMLKitScan(): Promise<BarcodeDecodeOutcome | null> {
+  if (!isNativeCapacitorEnvironment()) return null;
+
+  recordScannerStage('Camera Initialized', 'Starting Native Android CameraX + ML Kit Viewfinder');
   updateScannerDiagnostics({
     environment: 'Native',
-    engineName: 'Google ML Kit (@capacitor-mlkit/barcode-scanning)',
+    engineName: 'Google ML Kit CameraX (@capacitor-mlkit/barcode-scanning)',
     cameraStatus: 'Initializing',
     lastError: null,
   });
@@ -864,124 +891,40 @@ export async function scanWithNativeMLKit(): Promise<BarcodeDecodeOutcome | null
   try {
     const supported = await MLKitBarcodeScanner.isSupported();
     if (!supported.supported) {
-      throw new Error('Google ML Kit Barcode Scanning is not supported on this device.');
+      throw new Error('Hardware camera is not supported on this Android device.');
     }
 
-    // Check & install Google Barcode Scanner Module if needed
-    const moduleStatus = await MLKitBarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
-    if (!moduleStatus.available) {
-      recordScannerStage(
-        'Barcode Engine Initialized',
-        'Installing Google Barcode Scanner Module via Play Services...'
-      );
-      await new Promise<void>(async (resolve, reject) => {
-        const timeout = setTimeout(() => {
-          resolve(); // Proceed to startScan fallback if module install takes too long
-        }, 12000);
-
-        const listener = await MLKitBarcodeScanner.addListener(
-          'googleBarcodeScannerModuleInstallProgress',
-          (event) => {
-            if (event.state === GoogleBarcodeScannerModuleInstallState.COMPLETED) {
-              clearTimeout(timeout);
-              listener.remove();
-              recordScannerStage(
-                'Barcode Engine Initialized',
-                'Google Barcode Scanner Module installed successfully.'
-              );
-              resolve();
-            } else if (
-              event.state === GoogleBarcodeScannerModuleInstallState.FAILED ||
-              event.state === GoogleBarcodeScannerModuleInstallState.CANCELED
-            ) {
-              clearTimeout(timeout);
-              listener.remove();
-              reject(new Error(`Google Barcode Scanner Module install failed (state=${event.state})`));
-            }
-          }
-        );
-
-        try {
-          await MLKitBarcodeScanner.installGoogleBarcodeScannerModule();
-        } catch (installErr) {
-          clearTimeout(timeout);
-          listener.remove();
-          reject(installErr);
-        }
-      });
+    const permGranted = await ensureNativeCameraPermission();
+    if (!permGranted) {
+      throw new Error('Camera permission denied on Android device.');
     }
 
-    updateScannerDiagnostics({ cameraStatus: 'Native ML Kit Active' });
-    recordScannerStage(
-      'Video Stream Started',
-      `MLKitBarcodeScanner.scan() active (${ENABLED_BARCODE_FORMAT_LABELS.length} formats)`
-    );
-
-    const scanResult = await MLKitBarcodeScanner.scan({
-      formats: MLKIT_BARCODE_FORMATS,
-    });
-
-    updateScannerDiagnostics({ cameraStatus: 'Stopped' });
-
-    if (scanResult.barcodes && scanResult.barcodes.length > 0) {
-      const first = scanResult.barcodes[0];
-      const rawValue = String(first.rawValue || first.displayValue || '').trim();
-      if (rawValue.length > 0) {
-        const fmt = String(first.format || 'UNKNOWN');
-        updateScannerDiagnostics({
-          framesProcessed: diagnosticsState.framesProcessed + 1,
-          lastDetectedValue: rawValue,
-          lastDetectedFormat: fmt,
-          lastError: null,
-        });
-        recordScannerStage('Barcode Detected', `ML Kit Native | Format: ${fmt}`);
-        recordScannerStage('Raw Value Received', `"${rawValue}"`);
-        return {
-          rawValue,
-          format: fmt,
-          engine: 'Google ML Kit (scan)',
-        };
-      }
+    // Stop any previous dangling native scan session before starting a fresh one
+    if (activeNativeScanResolve) {
+      const prevResolve = activeNativeScanResolve;
+      activeNativeScanResolve = null;
+      prevResolve(null);
     }
-
-    return null;
-  } catch (err: any) {
-    const msg = err?.message || String(err);
-    // If user canceled the native scanner dialog, don't treat as fatal error
-    if (msg.toLowerCase().includes('cancel')) {
-      updateScannerDiagnostics({ cameraStatus: 'Stopped' });
-      recordScannerStage('Camera Stopped', 'User canceled native ML Kit scan');
-      return null;
-    }
-    recordScannerStage('Scanner Error', `MLKit scan() error: ${msg}. Attempting startScan() fallback...`);
-    return await startInteractiveNativeMLKitScan();
-  }
-}
-
-/**
- * Interactive Native ML Kit `startScan()` fallback with transparent WebView support,
- * Torch detection, and Zoom range initialization.
- */
-export async function startInteractiveNativeMLKitScan(): Promise<BarcodeDecodeOutcome | null> {
-  if (!isNativeCapacitorEnvironment()) return null;
-
-  try {
-    const perm = await MLKitBarcodeScanner.checkPermissions();
-    if (perm.camera !== 'granted') {
-      const req = await MLKitBarcodeScanner.requestPermissions();
-      if (req.camera !== 'granted') {
-        throw new Error('Camera permission denied on Android device.');
-      }
-    }
+    try {
+      await MLKitBarcodeScanner.removeAllListeners();
+      await MLKitBarcodeScanner.stopScan();
+    } catch {}
 
     if (typeof document !== 'undefined') {
       document.body.classList.add('barcode-scanner-active');
     }
 
-    updateScannerDiagnostics({ cameraStatus: 'Native ML Kit Active' });
+    updateScannerDiagnostics({ cameraStatus: 'Streaming' });
 
     return await new Promise<BarcodeDecodeOutcome | null>(async (resolve) => {
-      const cleanup = async () => {
+      let resolved = false;
+
+      const finish = async (result: BarcodeDecodeOutcome | null) => {
+        if (resolved) return;
+        resolved = true;
+        if (activeNativeScanResolve === finishResolve) {
+          activeNativeScanResolve = null;
+        }
         if (typeof document !== 'undefined') {
           document.body.classList.remove('barcode-scanner-active');
         }
@@ -990,36 +933,50 @@ export async function startInteractiveNativeMLKitScan(): Promise<BarcodeDecodeOu
           await MLKitBarcodeScanner.stopScan();
         } catch {}
         updateScannerDiagnostics({ cameraStatus: 'Stopped', torchEnabled: false });
+        resolve(result);
       };
+
+      const finishResolve = (res: BarcodeDecodeOutcome | null) => {
+        void finish(res);
+      };
+      activeNativeScanResolve = finishResolve;
+
+      const onBarcodeCandidate = async (b: any) => {
+        if (!b || resolved) return;
+        const rawValue = String(b.rawValue || b.displayValue || '').trim();
+        if (rawValue.length > 0) {
+          const fmt = String(b.format || 'UNKNOWN');
+          updateScannerDiagnostics({
+            framesProcessed: diagnosticsState.framesProcessed + 1,
+            lastDetectedValue: rawValue,
+            lastDetectedFormat: fmt,
+            lastError: null,
+          });
+          recordScannerStage('Barcode Detected', `ML Kit CameraX | Format: ${fmt}`);
+          recordScannerStage('Raw Value Received', `"${rawValue}"`);
+          await finish({
+            rawValue,
+            format: fmt,
+            engine: 'Google ML Kit CameraX (startScan)',
+          });
+        }
+      };
+
+      await (MLKitBarcodeScanner as any).addListener('barcodeScanned', async (event: any) => {
+        if (event?.barcode) {
+          await onBarcodeCandidate(event.barcode);
+        }
+      });
 
       await MLKitBarcodeScanner.addListener('barcodesScanned', async (event) => {
         if (event.barcodes && event.barcodes.length > 0) {
-          const b = event.barcodes[0];
-          const rawValue = String(b.rawValue || b.displayValue || '').trim();
-          if (rawValue.length > 0) {
-            const fmt = String(b.format || 'UNKNOWN');
-            await cleanup();
-            updateScannerDiagnostics({
-              framesProcessed: diagnosticsState.framesProcessed + 1,
-              lastDetectedValue: rawValue,
-              lastDetectedFormat: fmt,
-              lastError: null,
-            });
-            recordScannerStage('Barcode Detected', `ML Kit startScan | Format: ${fmt}`);
-            recordScannerStage('Raw Value Received', `"${rawValue}"`);
-            resolve({
-              rawValue,
-              format: fmt,
-              engine: 'Google ML Kit (startScan)',
-            });
-          }
+          await onBarcodeCandidate(event.barcodes[0]);
         }
       });
 
       await MLKitBarcodeScanner.addListener('scanError', async (event) => {
         recordScannerStage('Scanner Error', `ML Kit scanError: ${event.message}`);
-        await cleanup();
-        resolve(null);
+        await finish(null);
       });
 
       await MLKitBarcodeScanner.startScan({
@@ -1027,6 +984,11 @@ export async function startInteractiveNativeMLKitScan(): Promise<BarcodeDecodeOu
         lensFacing: MLKitLensFacing.Back,
         resolution: MLKitResolution['1280x720'],
       });
+
+      recordScannerStage(
+        'Video Stream Started',
+        `Native CameraX PreviewView active (1280x720, ${ENABLED_BARCODE_FORMAT_LABELS.length} formats)`
+      );
 
       // Query Torch & Zoom availability once native camera starts
       try {
@@ -1054,10 +1016,15 @@ export async function startInteractiveNativeMLKitScan(): Promise<BarcodeDecodeOu
 }
 
 export async function stopInteractiveNativeMLKitScan(): Promise<void> {
-  if (!isNativeCapacitorEnvironment()) return;
   if (typeof document !== 'undefined') {
     document.body.classList.remove('barcode-scanner-active');
   }
+  if (activeNativeScanResolve) {
+    const fn = activeNativeScanResolve;
+    activeNativeScanResolve = null;
+    fn(null);
+  }
+  if (!isNativeCapacitorEnvironment()) return;
   try {
     await MLKitBarcodeScanner.removeAllListeners();
     await MLKitBarcodeScanner.stopScan();
