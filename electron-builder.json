@@ -1,6 +1,7 @@
 {
   "appId": "com.dqnamo.pos",
   "productName": "Dqnamo POS",
+  "electronVersion": "33.4.0",
   "extraMetadata": {
     "name": "dqnamo-pos",
     "version": "2.4.0",
@@ -10,11 +11,13 @@
   "directories": {
     "output": "release-exe"
   },
+  "npmRebuild": false,
   "files": [
     "dist/**/*",
     "dist-server/**/*",
     "electron/**/*",
-    "package.json"
+    "package.json",
+    "!node_modules/**/*"
   ],
   "asar": true,
   "asarUnpack": [

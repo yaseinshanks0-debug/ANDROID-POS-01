@@ -92,6 +92,8 @@ jobs:
         run: npm install --legacy-peer-deps --no-audit --no-fund
 
       - name: Install Electron & Electron Builder for Windows Packaging
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
         run: npm install --no-save --legacy-peer-deps electron@33.4.0 electron-builder@25.1.8
 
       - name: Build Frontend (Vite) & Bundle Embedded Server (esbuild)
@@ -99,10 +101,21 @@ jobs:
           npm run build
           npm run server:bundle
 
-      - name: Package Windows Installer & Portable EXE
+      - name: Package Windows Installer & Portable EXE (with Mirror Retry on 504)
+        shell: bash
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npx electron-builder --win --x64 --config electron-builder.json --publish never
+        run: |
+          echo "Attempt 1: Building Windows EXE via default Electron CDN..."
+          if npx electron-builder --win --x64 --config electron-builder.json --publish never; then
+            echo "Windows EXE build succeeded on Attempt 1."
+          else
+            echo "Attempt 1 encountered a network timeout (504). Retrying with high-availability Electron Mirror..."
+            sleep 3
+            export ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
+            export ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder-binaries/"
+            npx electron-builder --win --x64 --config electron-builder.json --publish never
+          fi
 
       - name: Collect Built Windows Executables
         shell: bash
