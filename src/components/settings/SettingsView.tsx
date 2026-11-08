@@ -36,6 +36,7 @@ import { ExchangeRateSettings } from './ExchangeRateSettings';
 import { UsersPermissionsSection } from './UsersPermissionsSection';
 import { TrainingCenterSection } from './TrainingCenterSection';
 import { BackupRestoreCenterSection } from './BackupRestoreCenterSection';
+import { LiveWifiSyncSection } from './LiveWifiSyncSection';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -501,6 +502,11 @@ export const SettingsView: React.FC = () => {
           >
             {t.syncNow}
           </TactileButton>
+        </div>
+
+        {/* Live Wi-Fi LAN Bidirectional Sync (Windows <-> Android) */}
+        <div className="mt-5 pt-4 border-t border-neutral-800/80">
+          <LiveWifiSyncSection />
         </div>
 
         {/* Factory Reset Safety Zone (Part 8: Two-Scope Authorized Reset Workflow) */}

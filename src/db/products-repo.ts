@@ -8,6 +8,7 @@ import { products, categories, stockMovements, productBarcodes } from './schema.
 import { eq, and, or, ilike, desc } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
+import { getDataDir } from '../server/runtime-paths.ts';
 import { INITIAL_PRODUCTS } from '../lib/initial-data.ts';
 import {
   normalizeProductBarcodes,
@@ -56,7 +57,7 @@ export interface ProductRecord {
 }
 
 // Persistent fallback file storage in project root directory (.data/products.json)
-const DATA_DIR = path.resolve('.data');
+const DATA_DIR = getDataDir();
 const DATA_FILE = path.join(DATA_DIR, 'products.json');
 
 const DEMO_SEED_PRODUCT_IDS = new Set([

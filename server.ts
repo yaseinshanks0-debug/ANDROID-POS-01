@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
-import { fileURLToPath } from 'url';
+import { getDataDir, getDistDir } from './src/server/runtime-paths.ts';
 import { hasDatabaseCredentials } from './src/db/index.ts';
 import {
   getAllProducts,
@@ -43,14 +43,26 @@ import {
   writePracticeSandboxState,
 } from './src/server/release-onboarding.service.ts';
 import { backupRestoreRouter } from './src/server/backup-restore.service.ts';
+import { lanSyncRouter } from './src/server/lan-sync.service.ts';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
+
+// Enable Cross-Origin Wi-Fi LAN Sync so Android APK (https://localhost) can connect directly to Windows Laptop IP (http://192.168.x.x:3000)
+app.use((req: Request, res: Response, next: express.NextFunction) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, x-user-id, x-user-role, x-company-id, x-workspace-mode, x-device-id, x-pairing-pin'
+  );
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  next();
+});
 
 app.use(express.json({ limit: '50mb' }));
 
@@ -110,6 +122,9 @@ app.use('/api', releasePlatformRouter);
 
 // API: Backup, Restore, Company Migration & Intelligent Data Merge Endpoints
 app.use('/api/backups', backupRestoreRouter);
+
+// API: Real-Time Bidirectional Wi-Fi LAN Sync (Windows <-> Android Live Sync)
+app.use('/api/lan-sync', lanSyncRouter);
 
 function isPracticeModeRequest(req: Request): boolean {
   const modeHeader = String(req.headers['x-workspace-mode'] || '').toUpperCase();
@@ -578,7 +593,7 @@ app.delete(
 );
 
 // Multi-Device Shared Store Synchronization (.data/store-state.json)
-const STORE_SYNC_FILE = path.resolve(__dirname, '.data', 'store-state.json');
+const STORE_SYNC_FILE = path.resolve(getDataDir(), 'store-state.json');
 
 interface SharedStoreState {
   storeCode: string;
@@ -789,41 +804,50 @@ app.post('/api/store-sync', async (req: Request, res: Response) => {
   }
 });
 
-// Full-stack Vite development integration
-if (process.env.NODE_ENV !== 'production') {
-  const { createServer } = await import('vite');
-  const vite = await createServer({
-    server: { middlewareMode: true },
-    appType: 'spa',
-  });
-  app.use(vite.middlewares);
-} else {
-  // Production static file hosting with immutable caching for hashed assets & no-cache for HTML/SW (#27)
-  app.use(
-    express.static(path.resolve(__dirname, 'dist'), {
-      setHeaders: (res, filePath) => {
-        if (
-          filePath.endsWith('index.html') ||
-          filePath.endsWith('sw.js') ||
-          filePath.endsWith('manifest.json')
-        ) {
-          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-          res.setHeader('Pragma', 'no-cache');
-          res.setHeader('Expires', '0');
-        } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
-          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        }
-      },
-    })
-  );
-  app.get('*', (req: Request, res: Response) => {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+async function startServer() {
+  // Full-stack Vite development integration
+  if (process.env.NODE_ENV !== 'production') {
+    const vitePkg = 'vite';
+    const { createServer } = await import(vitePkg);
+    const vite = await createServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distDir = getDistDir();
+    // Production static file hosting with immutable caching for hashed assets & no-cache for HTML/SW (#27)
+    app.use(
+      express.static(distDir, {
+        setHeaders: (res, filePath) => {
+          if (
+            filePath.endsWith('index.html') ||
+            filePath.endsWith('sw.js') ||
+            filePath.endsWith('manifest.json')
+          ) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+          } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        },
+      })
+    );
+    app.get('*', (req: Request, res: Response) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.sendFile(path.resolve(distDir, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Dqnamo POS Backend Server listening on http://0.0.0.0:${PORT}`);
   });
 }
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Dqnamo POS Backend Server listening on http://0.0.0.0:${PORT}`);
+startServer().catch((err) => {
+  console.error('Failed to start Dqnamo POS server:', err);
 });
+

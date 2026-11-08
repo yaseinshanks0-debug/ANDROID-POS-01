@@ -15,7 +15,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed:phase1": "tsx src/db/seed-phase1.ts",
     "apk:sync": "vite build && cap sync android",
-    "apk:build": "vite build && cap sync android && cd android && ./gradlew assembleDebug"
+    "apk:build": "vite build && cap sync android && cd android && ./gradlew assembleDebug",
+    "server:bundle": "esbuild server.ts --bundle --platform=node --format=cjs --outfile=dist-server/server.cjs --external:vite --external:pg-native",
+    "exe:build": "npm run build && npm run server:bundle && npx electron-builder --win --x64 --config electron-builder.json --publish never"
   },
   "dependencies": {
     "@capacitor-mlkit/barcode-scanning": "^8.2.2",

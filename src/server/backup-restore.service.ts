@@ -7,7 +7,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
-import { fileURLToPath } from 'url';
+import { getDataDir, getRootDir } from './runtime-paths.ts';
 import { Router, Request, Response } from 'express';
 import {
   ALL_BACKUP_MODULE_IDS,
@@ -49,10 +49,8 @@ import {
 } from '../lib/rbac-capabilities.ts';
 import type { CompanyProfile } from '../lib/types.ts';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const ROOT_DIR = path.resolve(__dirname, '..', '..');
-const DATA_DIR = path.resolve(ROOT_DIR, '.data');
+const ROOT_DIR = getRootDir();
+const DATA_DIR = getDataDir();
 const BACKUPS_DIR = path.resolve(DATA_DIR, 'backups');
 const PROD_STORE_FILE = path.resolve(DATA_DIR, 'store-state.json');
 const PRODUCTS_FILE = path.resolve(DATA_DIR, 'products.json');

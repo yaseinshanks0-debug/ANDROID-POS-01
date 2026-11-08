@@ -6,7 +6,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { getDataDir, getRootDir } from './runtime-paths.ts';
 import { Router, Request, Response, NextFunction } from 'express';
 import { eq, and } from 'drizzle-orm';
 import { db, hasDatabaseCredentials } from '../db/index.ts';
@@ -48,10 +48,8 @@ import type {
   WorkspaceMode,
 } from '../lib/types.ts';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const ROOT_DIR = path.resolve(__dirname, '..', '..');
-const DATA_DIR = path.resolve(ROOT_DIR, '.data');
+const ROOT_DIR = getRootDir();
+const DATA_DIR = getDataDir();
 const PROD_STORE_FILE = path.resolve(DATA_DIR, 'store-state.json');
 const PRACTICE_STORE_FILE = path.resolve(DATA_DIR, 'practice-store-state.json');
 const PLATFORM_STATE_FILE = path.resolve(DATA_DIR, 'platform-onboarding-state.json');

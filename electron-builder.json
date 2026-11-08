@@ -1,0 +1,48 @@
+{
+  "appId": "com.dqnamo.pos",
+  "productName": "Dqnamo POS",
+  "extraMetadata": {
+    "name": "dqnamo-pos",
+    "version": "2.4.0",
+    "main": "electron/main.cjs",
+    "description": "Dqnamo POS — Enterprise Retail Point of Sale & Live Wi-Fi LAN Sync"
+  },
+  "directories": {
+    "output": "release-exe"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-server/**/*",
+    "electron/**/*",
+    "package.json"
+  ],
+  "asar": true,
+  "asarUnpack": [
+    "dist/**/*",
+    "dist-server/**/*"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Dqnamo POS",
+    "artifactName": "Dqnamo-POS-Setup.exe"
+  },
+  "portable": {
+    "artifactName": "Dqnamo-POS-Portable.exe"
+  }
+}

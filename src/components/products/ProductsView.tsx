@@ -111,6 +111,7 @@ export const ProductsView: React.FC = () => {
     setPendingNewProductBarcode,
     openUnmetDemandModal,
     setActiveTab,
+    pushLiveLanSyncNow,
   } = usePOS();
   const t = getTranslation(settings.language);
   const isAr = settings.language === 'ar';
@@ -148,6 +149,29 @@ export const ProductsView: React.FC = () => {
       return [];
     }
   });
+
+  useEffect(() => {
+    const refreshCategoriesFromStorage = () => {
+      try {
+        const compId = currentCompany?.id || 'default';
+        const rawScoped = localStorage.getItem(`pos_categories__${compId}`);
+        const rawBase = localStorage.getItem('pos_categories');
+        const parsedScoped = rawScoped ? JSON.parse(rawScoped) : [];
+        const parsedBase = rawBase ? JSON.parse(rawBase) : [];
+        setSavedCategories(
+          mergeAndDeduplicateCategories(
+            [],
+            [
+              ...(Array.isArray(parsedScoped) ? parsedScoped : []),
+              ...(Array.isArray(parsedBase) ? parsedBase : []),
+            ]
+          )
+        );
+      } catch {}
+    };
+    window.addEventListener('pos:categories-updated', refreshCategoriesFromStorage);
+    return () => window.removeEventListener('pos:categories-updated', refreshCategoriesFromStorage);
+  }, [currentCompany?.id]);
   const categoryDropdownRef = useRef<HTMLDivElement | null>(null);
   const [formPriceCurrency, setFormPriceCurrency] = useState<SupportedCurrency>(settings.currency || 'SDG');
   const [formCostPrice, setFormCostPrice] = useState('1000');
@@ -273,6 +297,9 @@ export const ProductsView: React.FC = () => {
       }));
       localStorage.setItem('pos_categories', JSON.stringify(structured));
       localStorage.setItem(`pos_categories__${compId}`, JSON.stringify(structured));
+      setTimeout(() => {
+        pushLiveLanSyncNow(`إضافة تصنيف: ${clean}`, `Added category: ${clean}`).catch(() => {});
+      }, 80);
     } catch {}
     return clean;
   };

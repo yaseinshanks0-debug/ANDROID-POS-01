@@ -1,4 +1,4 @@
-name: Build Android APK (Dqnamo POS)
+name: Build Android APK & Windows EXE (Dqnamo POS)
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build-apk:
-    name: Build & Publish Dqnamo POS APK
+    name: Build Android APK (.apk)
     runs-on: ubuntu-latest
 
     steps:
@@ -68,23 +68,98 @@ jobs:
       - name: Rename APK for Direct Download
         run: cp android/app/build/outputs/apk/debug/app-debug.apk Dqnamo-POS.apk
 
-      - name: Upload APK Artifact
+      - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Dqnamo-POS-APK
           path: Dqnamo-POS.apk
           retention-days: 90
 
-      - name: Publish Direct Download Release (Latest)
+  build-exe:
+    name: Build Windows Desktop App (.exe)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Project Dependencies
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Install Electron & Electron Builder for Windows Packaging
+        run: npm install --no-save --legacy-peer-deps electron@33.4.0 electron-builder@25.1.8
+
+      - name: Build Frontend (Vite) & Bundle Embedded Server (esbuild)
+        run: |
+          npm run build
+          npm run server:bundle
+
+      - name: Package Windows Installer & Portable EXE
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --win --x64 --config electron-builder.json --publish never
+
+      - name: Collect Built Windows Executables
+        shell: bash
+        run: |
+          cp release-exe/Dqnamo-POS-Setup.exe ./Dqnamo-POS-Setup.exe
+          cp release-exe/Dqnamo-POS-Portable.exe ./Dqnamo-POS-Portable.exe
+
+      - name: Upload Windows EXE Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dqnamo-POS-Windows-EXE
+          path: |
+            Dqnamo-POS-Setup.exe
+            Dqnamo-POS-Portable.exe
+          retention-days: 90
+
+  publish-release:
+    name: Publish APK & EXE to GitHub Releases
+    needs:
+      - build-apk
+      - build-exe
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Download Android APK Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Dqnamo-POS-APK
+          path: ./release-assets
+
+      - name: Download Windows EXE Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: Dqnamo-POS-Windows-EXE
+          path: ./release-assets
+
+      - name: Publish Direct Download Release (APK + EXE)
         uses: softprops/action-gh-release@v2
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         with:
           tag_name: latest-apk
-          name: "Dqnamo POS Android APK (Latest Build)"
+          name: "Dqnamo POS — Android (.apk) & Windows (.exe) Latest Build"
           body: |
-            ### Dqnamo POS — نسخة أندرويد الجاهزة للتثبيت (`.apk`)
-            قم بتحميل الملف **`Dqnamo-POS.apk`** أدناه وتثبيته مباشرة على جهاز الأندرويد.
-          files: Dqnamo-POS.apk
+            ### Dqnamo POS — النسخ الجاهزة للتثبيت المباشر (أندرويد `.apk` + ويندوز `.exe`)
+
+            #### 📱 1. نسخة الأندرويد (`Dqnamo-POS.apk`)
+            - قم بتحميل الملف **`Dqnamo-POS.apk`** وتثبيته مباشرة على هاتف أو تابلت الأندرويد.
+            - يدعم العمل أوفلاين، والنسخ الاحتياطي المحلي، والمزامنة الفورية الحية (Live Wi-Fi Sync) مع جهاز اللابتوب.
+
+            #### 💻 2. نسخة الويندوز لسطح المكتب (`.exe`)
+            - **`Dqnamo-POS-Setup.exe`**: معالج التثبيت الرسمي للويندوز (ينشئ اختصاراً على سطح المكتب وقائمة ابدأ).
+            - **`Dqnamo-POS-Portable.exe`**: نسخة محمولة تعمل فوراً بمجرد النقر عليها دون الحاجة للتثبيت.
+            - تتضمن نسخة الويندوز خادم المزامنة المحلي المدمج تلقائياً (على المنفذ `3000`) لربط تطبيق الأندرويد مع تطبيق الويندوز عبر الواي فاي مباشرة بدون أي إعدادات خارجية.
+          files: |
+            release-assets/Dqnamo-POS.apk
+            release-assets/Dqnamo-POS-Setup.exe
+            release-assets/Dqnamo-POS-Portable.exe
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

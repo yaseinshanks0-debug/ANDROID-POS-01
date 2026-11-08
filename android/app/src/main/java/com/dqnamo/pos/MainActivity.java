@@ -13,6 +13,7 @@ import android.provider.MediaStore;
 import android.view.View;
 import android.view.Window;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.Toast;
 import androidx.core.content.FileProvider;
@@ -60,6 +61,10 @@ public class MainActivity extends BridgeActivity {
         if (getBridge() != null && getBridge().getWebView() != null) {
             WebView webView = getBridge().getWebView();
             webView.setBackgroundColor(Color.TRANSPARENT);
+            WebSettings webSettings = webView.getSettings();
+            if (webSettings != null) {
+                webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+            }
             webView.addJavascriptInterface(new AndroidNativeFileBridge(this), "AndroidNativeFileBridge");
         }
     }

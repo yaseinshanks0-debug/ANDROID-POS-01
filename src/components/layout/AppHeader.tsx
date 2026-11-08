@@ -8,6 +8,7 @@ import { usePOS } from '../../context/POSContext';
 import { getTranslation } from '../../lib/translations';
 import { formatCurrency } from '../../lib/pos-calculations';
 import { TactileButton } from '../ui/TactileButton';
+import { AppModal } from '../ui/AppModal';
 import {
   ShoppingBag,
   Globe,
@@ -22,6 +23,7 @@ import {
   FlaskConical,
   Bell,
   BellRing,
+  WifiOff,
 } from 'lucide-react';
 import { UserRole } from '../../lib/types';
 import { SmartAlertLifecycleStatus } from '../../analytics/analytics.types';
@@ -34,6 +36,7 @@ import {
   StoreNotificationItem,
 } from '../../lib/notifications-center';
 import { NotificationsBellModal } from './NotificationsBellModal';
+import { LiveWifiSyncSection } from '../settings/LiveWifiSyncSection';
 
 const ROLE_LABELS: Record<UserRole, { en: string; ar: string; badgeClass: string }> = {
   admin: {
@@ -81,12 +84,15 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
     trainingTourProgress,
     workspaceMode,
     openOnboardingModal,
+    lanConnectionStatus,
+    lanConnectedDevices,
   } = usePOS();
   const t = getTranslation(settings.language);
   const isAr = settings.language === 'ar';
 
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
+  const [isWifiSyncModalOpen, setIsWifiSyncModalOpen] = useState(false);
   const [lifecycleMap, setLifecycleMap] = useState(() => loadNotificationLifecycleMap());
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -208,10 +214,6 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="text-xs sm:text-base font-bold tracking-tight text-white truncate max-w-[105px] sm:max-w-[220px] md:max-w-none">
                   {settings.language === 'ar' ? settings.storeNameAr : settings.storeName}
-                </span>
-                <span className="hidden md:inline-flex items-center gap-1 text-[11px] font-mono font-medium text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded-md shrink-0">
-                  <Wifi className="w-3 h-3 text-emerald-400" />
-                  <span>ONLINE</span>
                 </span>
               </div>
               <p className="text-[11px] text-neutral-400 font-medium hidden lg:block truncate max-w-[240px]">
@@ -469,6 +471,44 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
             )}
           </button>
 
+          {/* Live Wi-Fi Sync (Windows <-> Android) Trigger */}
+          <button
+            type="button"
+            data-testid="header-live-wifi-sync-btn"
+            onClick={() => setIsWifiSyncModalOpen(true)}
+            aria-label={
+              isAr
+                ? 'المزامنة الحية عبر الواي فاي بين الويندوز والأندرويد'
+                : 'Live Wi-Fi Sync (Windows & Android)'
+            }
+            title={
+              isAr
+                ? 'ربط ومزامنة حية عبر الواي فاي بين اللابتوب والأندرويد'
+                : 'Pair & Sync Live over Wi-Fi between Windows Laptop and Android'
+            }
+            className={`min-h-[34px] sm:min-h-[36px] px-2 sm:px-2.5 py-1 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              lanConnectionStatus === 'connected'
+                ? 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/40 text-emerald-300'
+                : lanConnectionStatus === 'connecting'
+                ? 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/40 text-amber-300'
+                : 'bg-neutral-900 hover:bg-neutral-800 border-neutral-800 text-neutral-400'
+            }`}
+          >
+            {lanConnectionStatus === 'connected' ? (
+              <Wifi className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            ) : (
+              <WifiOff className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+            )}
+            <span className="hidden md:inline">
+              {isAr ? 'مزامنة Wi-Fi' : 'Wi-Fi Sync'}
+            </span>
+            {lanConnectedDevices.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-mono text-[10px] font-black leading-none">
+                {lanConnectedDevices.length}
+              </span>
+            )}
+          </button>
+
           {/* Notifications Bell Trigger */}
           <button
             type="button"
@@ -556,6 +596,24 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
         onMarkAllRead={handleMarkAllNotificationsRead}
         onExecutePrimaryAction={handleExecuteNotificationPrimaryAction}
       />
+
+      <AppModal
+        isOpen={isWifiSyncModalOpen}
+        onClose={() => setIsWifiSyncModalOpen(false)}
+        maxWidth="full"
+        title={
+          isAr
+            ? 'المزامنة الحية عبر الواي فاي (ربط اللابتوب مع الأندرويد)'
+            : 'Live Wi-Fi LAN Sync (Windows Laptop ⇄ Android)'
+        }
+        description={
+          isAr
+            ? 'كل العمليات التي تقوم بها في الأندرويد تظهر لايف في الويندوز وكذلك العكس'
+            : 'All actions on Android appear live on Windows and vice-versa'
+        }
+      >
+        <LiveWifiSyncSection />
+      </AppModal>
     </header>
   );
 };
