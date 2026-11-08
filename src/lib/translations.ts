@@ -16,6 +16,7 @@ export const translations = {
     inventory: 'Inventory',
     customers: 'Customers',
     sales: 'Sales',
+    expenses: 'Expenses',
     reports: 'Reports',
     settings: 'Settings',
 
@@ -206,6 +207,7 @@ export const translations = {
     inventory: 'المخزون',
     customers: 'العملاء',
     sales: 'المبيعات',
+    expenses: 'المنصرفات',
     reports: 'التقارير',
     settings: 'الإعدادات',
 

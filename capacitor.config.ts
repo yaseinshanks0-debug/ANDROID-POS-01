@@ -20,6 +20,11 @@ const config: CapacitorConfig = {
       overlaysWebView: false,
     },
     Haptics: {},
+    CapacitorSQLite: {
+      iosDatabaseLocation: 'Library/CapacitorDatabase',
+      iosIsEncryption: false,
+      androidIsEncryption: false,
+    },
   },
 };
 

@@ -20,6 +20,7 @@
     "exe:build": "npm run build && npm run server:bundle && npx electron-builder --win --x64 --config electron-builder.json --publish never"
   },
   "dependencies": {
+    "@capacitor-community/sqlite": "^8.1.1",
     "@capacitor-mlkit/barcode-scanning": "^8.2.2",
     "@capacitor/core": "^8.6.0",
     "@capacitor/haptics": "^8.0.2",
@@ -43,6 +44,7 @@
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "react-router-dom": "^7.18.5",
+    "recharts": "^3.10.1",
     "tsx": "^4.21.0",
     "vite": "^8.3.0"
   },

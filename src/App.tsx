@@ -29,6 +29,9 @@ const CustomersView = lazy(() =>
 const SalesView = lazy(() =>
   import('./components/sales/SalesView').then((m) => ({ default: m.SalesView }))
 );
+const ExpensesView = lazy(() =>
+  import('./components/expenses/ExpensesView').then((m) => ({ default: m.ExpensesView }))
+);
 const ReportsView = lazy(() =>
   import('./components/reports/ReportsView').then((m) => ({ default: m.ReportsView }))
 );
@@ -107,6 +110,7 @@ function POSAppInner() {
           {activeTab === 'inventory' && <InventoryView />}
           {activeTab === 'customers' && <CustomersView />}
           {activeTab === 'sales' && <SalesView />}
+          {activeTab === 'expenses' && <ExpensesView />}
           {activeTab === 'reports' && <ReportsView />}
           {activeTab === 'settings' && <SettingsView />}
         </Suspense>

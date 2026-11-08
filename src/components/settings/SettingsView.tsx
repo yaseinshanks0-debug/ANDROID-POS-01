@@ -30,13 +30,22 @@ import {
   Lock,
   Trash2,
   X,
+  Download,
+  Upload,
+  HardDriveDownload,
 } from 'lucide-react';
 import { playTactileClick } from '../../lib/sound-fx';
+import { offlineSqliteStorage } from '../../lib/offline-sqlite-storage';
+import {
+  triggerUniversalFileDownload,
+  triggerUniversalFileShare,
+} from '../../lib/native-file-download';
 import { ExchangeRateSettings } from './ExchangeRateSettings';
 import { UsersPermissionsSection } from './UsersPermissionsSection';
 import { TrainingCenterSection } from './TrainingCenterSection';
 import { BackupRestoreCenterSection } from './BackupRestoreCenterSection';
 import { LiveWifiSyncSection } from './LiveWifiSyncSection';
+import { FirebaseCloudSyncSection } from './FirebaseCloudSyncSection';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -51,6 +60,12 @@ export const SettingsView: React.FC = () => {
     syncTransactions,
     isSyncing,
     lastSyncedAt,
+    sqliteDiagnostics,
+    products,
+    transactions,
+    customers,
+    stockMovements,
+    applyIncomingLanSyncState,
   } = usePOS();
   const t = getTranslation(settings.language);
   const isAr = settings.language === 'ar';
@@ -98,6 +113,110 @@ export const SettingsView: React.FC = () => {
   const [isTaxInclusive, setIsTaxInclusive] = useState(settings.isTaxInclusive);
   const [savedNotification, setSavedNotification] = useState(false);
   const logoInputRef = React.useRef<HTMLInputElement | null>(null);
+  const sqliteRestoreInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [isExportingSqlite, setIsExportingSqlite] = useState(false);
+  const [sqliteBackupStatus, setSqliteBackupStatus] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+
+  const handleExportSqliteBackup = async (shareAfterExport = false) => {
+    setIsExportingSqlite(true);
+    setSqliteBackupStatus(null);
+    try {
+      const exported = await offlineSqliteStorage.exportDatabaseToBackupFile({
+        companyId: currentCompany.id,
+        companyName: currentCompany.displayName || currentCompany.legalName || settings.storeName,
+        transactions,
+        products,
+        customers,
+        stockMovements,
+        currencies: contextCurrencies,
+        settings: settings as unknown as Record<string, any>,
+      });
+
+      if (shareAfterExport) {
+        await triggerUniversalFileShare(
+          exported.jsonContent,
+          exported.fileName,
+          'application/json'
+        );
+      } else {
+        triggerUniversalFileDownload(
+          exported.jsonContent,
+          exported.fileName,
+          'application/json'
+        );
+      }
+
+      setSqliteBackupStatus({
+        type: 'success',
+        message: isAr
+          ? `تم تصدير وتنزيل قاعدة بيانات SQLite المحلية بنجاح (${exported.fileName} — ${exported.transactionsCount} فاتورة، ${exported.productsCount} منتج، ${exported.customersCount} عميل).`
+          : `Exported & downloaded SQLite database backup (${exported.fileName} — ${exported.transactionsCount} invoices, ${exported.productsCount} products).`,
+      });
+    } catch (err: any) {
+      setSqliteBackupStatus({
+        type: 'error',
+        message: isAr
+          ? `فشل تصدير قاعدة بيانات SQLite: ${err?.message || ''}`
+          : `Failed to export SQLite database: ${err?.message || ''}`,
+      });
+    } finally {
+      setIsExportingSqlite(false);
+    }
+  };
+
+  const handleImportSqliteBackupFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setIsExportingSqlite(true);
+    setSqliteBackupStatus(null);
+    try {
+      const rawText = await file.text();
+      const res = await offlineSqliteStorage.importDatabaseFromBackupFile(
+        rawText,
+        currentCompany.id
+      );
+      if (!res.ok) {
+        setSqliteBackupStatus({
+          type: 'error',
+          message:
+            res.error ||
+            (isAr
+              ? 'ملف النسخة الاحتياطية لـ SQLite غير صالح.'
+              : 'Invalid SQLite backup file.'),
+        });
+        return;
+      }
+
+      applyIncomingLanSyncState({
+        transactions: res.restoredTransactions,
+        products: res.restoredProducts,
+        customers: res.restoredCustomers,
+        stockMovements: res.restoredStockMovements,
+        currencies: res.restoredCurrencies,
+      });
+
+      setSqliteBackupStatus({
+        type: 'success',
+        message: isAr
+          ? `تم استيراد واستعادة قاعدة بيانات SQLite بنجاح (${res.restoredTransactions.length} فاتورة، ${res.restoredProducts.length} منتج، ${res.restoredCustomers.length} عميل)!`
+          : `Successfully restored SQLite database backup (${res.restoredTransactions.length} invoices, ${res.restoredProducts.length} products, ${res.restoredCustomers.length} customers)!`,
+      });
+    } catch (err: any) {
+      setSqliteBackupStatus({
+        type: 'error',
+        message: isAr
+          ? `فشل استيراد ملف SQLite: ${err?.message || ''}`
+          : `Failed to import SQLite backup: ${err?.message || ''}`,
+      });
+    } finally {
+      setIsExportingSqlite(false);
+    }
+  };
 
   React.useEffect(() => {
     setStoreName(settings.storeName);
@@ -482,14 +601,27 @@ export const SettingsView: React.FC = () => {
         </div>
 
         <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-neutral-950/70 border border-neutral-800 rounded-2xl">
-          <div>
-            <div className="text-sm font-bold text-white flex items-center gap-2">
+          <div className="space-y-1.5">
+            <div className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-              <span>Offline Durable Engine Active</span>
+              <span>
+                {isAr
+                  ? 'محرك قاعدة البيانات المحلية أوفلاين (Capacitor SQLite Engine)'
+                  : 'Capacitor SQLite Offline Durable Engine Active'}
+              </span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-purple-500/15 border border-purple-500/30 text-purple-300">
+                {sqliteDiagnostics.engineType === 'capacitor-sqlite'
+                  ? 'Native SQLite DB'
+                  : sqliteDiagnostics.engineType === 'indexeddb-sqlite-mirror'
+                  ? 'SQLite + IndexedDB'
+                  : 'SQLite Journal'}
+              </span>
             </div>
-            <p className="text-xs text-neutral-400 mt-1">
-              Local journal persists all transactions, catalog changes, and movements on Android storage.
-              {lastSyncedAt && ` Last synced: ${lastSyncedAt.toLocaleTimeString()}`}
+            <p className="text-xs text-neutral-400">
+              {isAr
+                ? `قاعدة بيانات SQLite المحلية (${sqliteDiagnostics.databaseName}) تحفظ جميع الفواتير (${sqliteDiagnostics.totalPersistedTransactions} فاتورة محفوظة، ${sqliteDiagnostics.pendingOfflineTransactions} بانتظار المزامنة) تلقائياً عند انقطاع الإنترنت.`
+                : `Local SQLite database (${sqliteDiagnostics.databaseName}) persists all offline transactions (${sqliteDiagnostics.totalPersistedTransactions} saved, ${sqliteDiagnostics.pendingOfflineTransactions} pending outbox).`}
+              {lastSyncedAt && ` • ${isAr ? 'آخر مزامنة:' : 'Last synced:'} ${lastSyncedAt.toLocaleTimeString()}`}
             </p>
           </div>
 
@@ -502,6 +634,88 @@ export const SettingsView: React.FC = () => {
           >
             {t.syncNow}
           </TactileButton>
+        </div>
+
+        {/* Capacitor SQLite Database Backup Export & Restore to Local File */}
+        <div
+          data-testid="sqlite-backup-export-card"
+          className="mt-4 p-4 rounded-2xl bg-purple-950/20 border border-purple-500/30 space-y-3"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-300 shrink-0">
+                <HardDriveDownload className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs sm:text-sm font-black text-white">
+                  {isAr
+                    ? 'نسخ احتياطي وتصدير قاعدة بيانات SQLite المحلية (SQLite Database Backup)'
+                    : 'Local Capacitor SQLite Database Backup & File Export'}
+                </h4>
+                <p className="text-[11px] text-neutral-400 mt-0.5">
+                  {isAr
+                    ? 'قم بتصدير وتنزيل ملف قاعدة بيانات SQLite الكامل (.sqlite.json) لحفظ نسخة احتياطية من الفواتير والمنتجات والعملاء على جهازك.'
+                    : 'Export the local Capacitor SQLite database tables to a downloadable (.sqlite.json) backup file or restore from an existing file.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={sqliteRestoreInputRef}
+                type="file"
+                accept=".json,.sqlite.json"
+                onChange={handleImportSqliteBackupFile}
+                className="hidden"
+              />
+              <TactileButton
+                type="button"
+                variant="amber"
+                size="sm"
+                data-testid="export-sqlite-backup-btn"
+                isLoading={isExportingSqlite}
+                onClick={() => handleExportSqliteBackup(false)}
+                leftIcon={<Download className="w-3.5 h-3.5" />}
+              >
+                {isAr ? 'تنزيل نسخة SQLite الاحتياطية' : 'Download SQLite Backup'}
+              </TactileButton>
+
+              <TactileButton
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="import-sqlite-backup-btn"
+                isLoading={isExportingSqlite}
+                onClick={() => sqliteRestoreInputRef.current?.click()}
+                leftIcon={<Upload className="w-3.5 h-3.5" />}
+              >
+                {isAr ? 'استعادة ملف SQLite' : 'Restore SQLite File'}
+              </TactileButton>
+            </div>
+          </div>
+
+          {sqliteBackupStatus && (
+            <div
+              data-testid="sqlite-backup-status-banner"
+              className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
+                sqliteBackupStatus.type === 'success'
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+              }`}
+            >
+              {sqliteBackupStatus.type === 'success' ? (
+                <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+              )}
+              <span>{sqliteBackupStatus.message}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Firebase Auth (Google Sign-In) & Cloud Firestore Persistence */}
+        <div className="mt-5 pt-4 border-t border-neutral-800/80">
+          <FirebaseCloudSyncSection />
         </div>
 
         {/* Live Wi-Fi LAN Bidirectional Sync (Windows <-> Android) */}

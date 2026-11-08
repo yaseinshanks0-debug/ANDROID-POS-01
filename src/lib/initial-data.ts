@@ -14,6 +14,7 @@ import {
   ActiveUserSession,
   UserRole,
   RolePermissions,
+  ExpenseRecord,
 } from './types';
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
@@ -1345,5 +1346,64 @@ export const INITIAL_UNMET_DEMAND_REQUESTS = [
     createdAt: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
   },
 ];
+
+export const INITIAL_EXPENSES: ExpenseRecord[] = [
+  {
+    id: 'EXP-20261108-4102',
+    companyId: 'comp-demo-practice',
+    branchId: 'branch-practice-main',
+    timestamp: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+    title: 'فاتورة كهرباء وإنترنت للمحل',
+    category: 'utilities',
+    amount: 45,
+    currency: 'SDG',
+    exchangeRateUsed: 2700,
+    exchangeRatesSnapshot: { SDG: 1, USD: 2700, SAR: 720, AED: 735 },
+    paymentMethod: 'bank_transfer',
+    transferReference: 'BNK-EXP-7721',
+    beneficiary: 'الشركة السودانية لتوزيع الكهرباء',
+    notes: 'شحن رصيد عداد الكهرباء وباقة الإنترنت الشهرية',
+    recordedBy: 'Ahmed Al-Amin',
+    status: 'recorded',
+    syncStatus: 'synced',
+  },
+  {
+    id: 'EXP-20261108-3908',
+    companyId: 'comp-demo-practice',
+    branchId: 'branch-practice-main',
+    timestamp: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
+    title: 'ترحيل وتوصيل بضائع من المخزن',
+    category: 'transport',
+    amount: 25,
+    currency: 'SDG',
+    exchangeRateUsed: 2700,
+    exchangeRatesSnapshot: { SDG: 1, USD: 2700, SAR: 720, AED: 735 },
+    paymentMethod: 'cash',
+    beneficiary: 'سائق الترحيل - محمد عثمان',
+    notes: 'نقل 15 كرتونة بضاعة للفرع الرئيسي',
+    recordedBy: 'Omer Hassan',
+    status: 'recorded',
+    syncStatus: 'synced',
+  },
+  {
+    id: 'EXP-20261106-1840',
+    companyId: 'comp-demo-practice',
+    branchId: 'branch-practice-main',
+    timestamp: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
+    title: 'أكياس تغليف ورول ورق طابعة الكاشير',
+    category: 'supplies',
+    amount: 32,
+    currency: 'SDG',
+    exchangeRateUsed: 2700,
+    exchangeRatesSnapshot: { SDG: 1, USD: 2700, SAR: 720, AED: 735 },
+    paymentMethod: 'cash',
+    beneficiary: 'مطبعة النيلين للتغليف',
+    notes: 'شراء 20 رول حراري وأكياس مطبوعة',
+    recordedBy: 'Ahmed Al-Amin',
+    status: 'recorded',
+    syncStatus: 'synced',
+  },
+];
+
 
 

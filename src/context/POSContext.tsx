@@ -40,7 +40,13 @@ import {
   CompanyProfile,
   BranchRecord,
   OnboardingChecklistStatus,
+  ExpenseRecord,
+  ExpenseInput,
 } from '../lib/types';
+import {
+  validateExpenseInput,
+  generateExpenseId,
+} from '../lib/expense-calculations';
 import {
   CapabilityCode,
   deriveCapabilitiesFromUser,
@@ -59,6 +65,7 @@ import {
   INITIAL_ACTIVE_SESSIONS,
   DEFAULT_ROLE_PERMISSIONS,
   INITIAL_UNMET_DEMAND_REQUESTS,
+  INITIAL_EXPENSES,
 } from '../lib/initial-data';
 import {
   UnmetDemandRequestInput,
@@ -121,6 +128,10 @@ import {
   BackupPayloadV1,
   scrubSensitiveUserFields,
 } from '../lib/backup-merge-engine';
+import {
+  offlineSqliteStorage,
+  OfflineSqliteDiagnostics,
+} from '../lib/offline-sqlite-storage';
 
 export type OnboardingModalView =
   | 'hub'
@@ -133,6 +144,7 @@ interface POSContextType {
   products: Product[];
   cart: CartItem[];
   transactions: Transaction[];
+  expenses: ExpenseRecord[];
   customers: Customer[];
   stockMovements: StockMovement[];
   settings: AppSettings;
@@ -247,6 +259,12 @@ interface POSContextType {
   updateCustomer: (id: string, updates: Partial<Customer>) => void;
   deleteCustomer: (id: string) => void;
 
+  // Expenses (المنصرفات)
+  addExpense: (input: ExpenseInput) => { ok: boolean; expense?: ExpenseRecord; error?: string };
+  updateExpense: (id: string, updates: Partial<ExpenseRecord>) => boolean;
+  voidExpense: (id: string) => boolean;
+  deleteExpense: (id: string) => void;
+
   // Transactions
   voidTransaction: (transactionId: string) => boolean;
   settleTransactionDebt: (
@@ -307,6 +325,7 @@ interface POSContextType {
   syncTransactions: () => Promise<void>;
   isSyncing: boolean;
   lastSyncedAt: Date | null;
+  sqliteDiagnostics: OfflineSqliteDiagnostics;
 
   // Interactive Training Tour & Onboarding
   isTrainingTourOpen: boolean;
@@ -340,6 +359,7 @@ interface POSContextType {
   lanPrimaryHostUrl: string;
   lanLastSyncError: string | null;
   pushLiveLanSyncNow: (summaryAr?: string, summaryEn?: string) => Promise<boolean>;
+  applyIncomingLanSyncState: (remoteState: any, sourceDeviceId?: string) => void;
 }
 
 const POSContext = createContext<POSContextType | null>(null);
@@ -363,6 +383,7 @@ const STORAGE_KEYS = {
   COMPANIES: 'dqnamo_pos_companies_v1',
   BRANCHES: 'dqnamo_pos_branches_v1',
   ACTIVE_BRANCH_ID: 'dqnamo_pos_active_branch_id_v1',
+  EXPENSES: 'pos_expenses',
 };
 
 const PRACTICE_STORAGE_KEYS = {
@@ -373,6 +394,7 @@ const PRACTICE_STORAGE_KEYS = {
   SETTINGS: 'dqnamo_pos_practice_settings_v1',
   USERS: 'dqnamo_pos_practice_users_v1',
   UNMET_DEMAND_REQUESTS: 'dqnamo_pos_practice_unmet_demand_v1',
+  EXPENSES: 'dqnamo_pos_practice_expenses_v1',
 };
 
 const DEFAULT_COMPANY_PROFILE: CompanyProfile = {
@@ -629,6 +651,7 @@ function buildPracticeExchangeRateItems(): ExchangeRateItem[] {
 function loadCompanyOperationalState(companyId: string) {
   let products: Product[] = [];
   let transactions: Transaction[] = [];
+  let expenses: ExpenseRecord[] = [];
   let customers: Customer[] = [];
   let stockMovements: StockMovement[] = [];
   let unmetDemandRequests: UnmetDemandRequestRecord[] = [];
@@ -774,9 +797,22 @@ function loadCompanyOperationalState(companyId: string) {
     }
   } catch {}
 
+  try {
+    const rawExpenses = localStorage.getItem(
+      getCompanyStorageKey(STORAGE_KEYS.EXPENSES, companyId)
+    );
+    if (rawExpenses) {
+      const parsed: ExpenseRecord[] = JSON.parse(rawExpenses);
+      if (Array.isArray(parsed)) {
+        expenses = parsed.filter((e) => e && e.id && e.title);
+      }
+    }
+  } catch {}
+
   return {
     products,
     transactions,
+    expenses,
     customers,
     stockMovements,
     unmetDemandRequests,
@@ -936,6 +972,17 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return INITIAL_TRANSACTIONS;
     }
     return initialCompanyData.transactions;
+  });
+
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>(() => {
+    if (workspaceMode === 'PRACTICE') {
+      try {
+        const stored = localStorage.getItem(PRACTICE_STORAGE_KEYS.EXPENSES);
+        if (stored) return JSON.parse(stored);
+      } catch {}
+      return INITIAL_EXPENSES;
+    }
+    return initialCompanyData.expenses;
   });
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
@@ -1130,6 +1177,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [productionSnapshot, setProductionSnapshot] = useState<{
     products: Product[];
     transactions: Transaction[];
+    expenses: ExpenseRecord[];
     customers: Customer[];
     stockMovements: StockMovement[];
     users: POSUser[];
@@ -1301,6 +1349,45 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
   }, [unmetDemandRequests, workspaceMode, currentCompanyId]);
 
+  const sqliteCompanyScope =
+    workspaceMode === 'PRACTICE' ? PRACTICE_COMPANY_PROFILE.id : currentCompanyId;
+
+  const [sqliteDiagnostics, setSqliteDiagnostics] = useState<OfflineSqliteDiagnostics>(() =>
+    offlineSqliteStorage.getDiagnostics(sqliteCompanyScope)
+  );
+
+  // Hydrate any offline SQLite transactions on mount / workspace switch
+  useEffect(() => {
+    let active = true;
+    offlineSqliteStorage
+      .loadTransactions(sqliteCompanyScope)
+      .then((sqliteTxs) => {
+        if (!active || !Array.isArray(sqliteTxs) || sqliteTxs.length === 0) {
+          if (active) {
+            setSqliteDiagnostics(offlineSqliteStorage.getDiagnostics(sqliteCompanyScope));
+          }
+          return;
+        }
+        setTransactions((prev) => {
+          const map = new Map<string, Transaction>();
+          for (const t of sqliteTxs) {
+            if (t?.id) map.set(t.id, t);
+          }
+          for (const t of prev) {
+            if (t?.id) map.set(t.id, t);
+          }
+          return Array.from(map.values()).sort(
+            (a, b) => (Date.parse(b.timestamp || '') || 0) - (Date.parse(a.timestamp || '') || 0)
+          );
+        });
+        setSqliteDiagnostics(offlineSqliteStorage.getDiagnostics(sqliteCompanyScope));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [sqliteCompanyScope]);
+
   useEffect(() => {
     try {
       const key =
@@ -1312,7 +1399,29 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
       }
     } catch {}
-  }, [transactions, workspaceMode, currentCompanyId]);
+    offlineSqliteStorage
+      .persistTransactions(sqliteCompanyScope, transactions)
+      .then(() => {
+        setSqliteDiagnostics(offlineSqliteStorage.getDiagnostics(sqliteCompanyScope));
+      })
+      .catch(() => {});
+  }, [transactions, workspaceMode, currentCompanyId, sqliteCompanyScope]);
+
+  useEffect(() => {
+    try {
+      const key =
+        workspaceMode === 'PRACTICE'
+          ? PRACTICE_STORAGE_KEYS.EXPENSES
+          : getCompanyStorageKey(STORAGE_KEYS.EXPENSES, currentCompanyId);
+      localStorage.setItem(key, JSON.stringify(expenses));
+      if (workspaceMode === 'PRODUCTION') {
+        localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(expenses));
+      }
+    } catch {}
+    offlineSqliteStorage
+      .persistWorkspaceSnapshot(sqliteCompanyScope, 'expenses', expenses)
+      .catch(() => {});
+  }, [expenses, workspaceMode, currentCompanyId, sqliteCompanyScope]);
 
   useEffect(() => {
     try {
@@ -1325,7 +1434,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
       }
     } catch {}
-  }, [customers, workspaceMode, currentCompanyId]);
+    offlineSqliteStorage
+      .persistWorkspaceSnapshot(sqliteCompanyScope, 'customers', customers)
+      .catch(() => {});
+  }, [customers, workspaceMode, currentCompanyId, sqliteCompanyScope]);
 
   useEffect(() => {
     try {
@@ -1338,7 +1450,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem(STORAGE_KEYS.MOVEMENTS, JSON.stringify(stockMovements));
       }
     } catch {}
-  }, [stockMovements, workspaceMode, currentCompanyId]);
+    offlineSqliteStorage
+      .persistWorkspaceSnapshot(sqliteCompanyScope, 'stockMovements', stockMovements)
+      .catch(() => {});
+  }, [stockMovements, workspaceMode, currentCompanyId, sqliteCompanyScope]);
 
   useEffect(() => {
     if (workspaceMode === 'PRODUCTION') {
@@ -2420,6 +2535,124 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [settings.hapticsEnabled]
   );
 
+  // ============================================================================
+  // Expenses Management (بند المنصرفات)
+  // ============================================================================
+  const addExpense = useCallback(
+    (input: ExpenseInput): { ok: boolean; expense?: ExpenseRecord; error?: string } => {
+      const validation = validateExpenseInput(input, settings.language);
+      if (!validation.valid) {
+        return { ok: false, error: validation.error };
+      }
+
+      const expCurrency = (input.currency || settings.currency || 'SDG')
+        .toString()
+        .toUpperCase()
+        .trim();
+      const liveRates: Record<string, number> = {
+        SDG: 1,
+        ...(exchangeRates || {}),
+      };
+      const rateUsed =
+        input.exchangeRateUsed && input.exchangeRateUsed > 0
+          ? Number(input.exchangeRateUsed)
+          : expCurrency !== 'SDG'
+          ? Number(liveRates[expCurrency] || 1)
+          : Number(liveRates['USD'] || 2700);
+
+      const newExpense: ExpenseRecord = {
+        id: generateExpenseId(),
+        companyId: currentCompany.id,
+        branchId: activeBranchId,
+        timestamp: input.timestamp || new Date().toISOString(),
+        title: input.title.trim(),
+        category: input.category || 'other',
+        amount: Math.round(Number(input.amount) * 100) / 100,
+        currency: expCurrency,
+        exchangeRateUsed: rateUsed,
+        exchangeRatesSnapshot: liveRates,
+        paymentMethod: input.paymentMethod || 'cash',
+        transferReference: input.transferReference?.trim() || undefined,
+        receiptImage: input.receiptImage?.trim() || undefined,
+        beneficiary: input.beneficiary?.trim() || undefined,
+        notes: input.notes?.trim() || undefined,
+        recordedBy: currentUser?.name || 'POS Operator',
+        status: 'recorded',
+        syncStatus: offlineSqliteStorage.isOnline() ? 'synced' : 'pending_sync',
+      };
+
+      setExpenses((prev) => [newExpense, ...prev]);
+      playSuccessChime(settings.soundEnabled);
+      triggerHaptic('success', settings.hapticsEnabled);
+      return { ok: true, expense: newExpense };
+    },
+    [
+      settings.language,
+      settings.currency,
+      settings.soundEnabled,
+      settings.hapticsEnabled,
+      exchangeRates,
+      currentCompany.id,
+      activeBranchId,
+      currentUser?.name,
+    ]
+  );
+
+  const updateExpense = useCallback(
+    (id: string, updates: Partial<ExpenseRecord>): boolean => {
+      let updated = false;
+      setExpenses((prev) =>
+        prev.map((exp) => {
+          if (exp.id !== id) return exp;
+          updated = true;
+          return {
+            ...exp,
+            ...updates,
+            title: updates.title !== undefined ? updates.title.trim() : exp.title,
+            amount:
+              updates.amount !== undefined && Number(updates.amount) > 0
+                ? Math.round(Number(updates.amount) * 100) / 100
+                : exp.amount,
+          };
+        })
+      );
+      if (updated) {
+        triggerHaptic('light', settings.hapticsEnabled);
+      }
+      return updated;
+    },
+    [settings.hapticsEnabled]
+  );
+
+  const voidExpense = useCallback(
+    (id: string): boolean => {
+      let changed = false;
+      setExpenses((prev) =>
+        prev.map((exp) => {
+          if (exp.id !== id) return exp;
+          changed = true;
+          return {
+            ...exp,
+            status: exp.status === 'voided' ? 'recorded' : 'voided',
+          };
+        })
+      );
+      if (changed) {
+        triggerHaptic('medium', settings.hapticsEnabled);
+      }
+      return changed;
+    },
+    [settings.hapticsEnabled]
+  );
+
+  const deleteExpense = useCallback(
+    (id: string) => {
+      setExpenses((prev) => prev.filter((exp) => exp.id !== id));
+      triggerHaptic('medium', settings.hapticsEnabled);
+    },
+    [settings.hapticsEnabled]
+  );
+
   const updateSettings = useCallback(
     (updates: Partial<AppSettings>) => {
       setSettings((prev) => {
@@ -2814,6 +3047,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setProductionSnapshot({
         products,
         transactions,
+        expenses,
         customers,
         stockMovements,
         users,
@@ -2848,6 +3082,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Load Practice Mode operational seed data locally first so it works offline
     setProducts(INITIAL_PRODUCTS.map((p, idx) => enrichProductWithSeedMetadata(p, idx)));
     setTransactions(INITIAL_TRANSACTIONS);
+    setExpenses(INITIAL_EXPENSES);
     setCustomers(INITIAL_CUSTOMERS);
     setStockMovements(INITIAL_STOCK_MOVEMENTS);
     setUnmetDemandRequests(INITIAL_UNMET_DEMAND_REQUESTS as UnmetDemandRequestRecord[]);
@@ -2909,6 +3144,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (productionSnapshot) {
       setProducts(productionSnapshot.products);
       setTransactions(productionSnapshot.transactions);
+      setExpenses(productionSnapshot.expenses || []);
       setCustomers(productionSnapshot.customers);
       setStockMovements(productionSnapshot.stockMovements);
       setUsers(productionSnapshot.users);
@@ -2929,6 +3165,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const loaded = loadCompanyOperationalState(currentCompanyId);
       setProducts(loaded.products);
       setTransactions(loaded.transactions);
+      setExpenses(loaded.expenses);
       setCustomers(loaded.customers);
       setStockMovements(loaded.stockMovements);
       setCurrencies(loaded.currencies);
@@ -2956,6 +3193,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (workspaceMode === 'PRACTICE') {
       setProducts(INITIAL_PRODUCTS.map((p, idx) => enrichProductWithSeedMetadata(p, idx)));
       setTransactions(INITIAL_TRANSACTIONS);
+      setExpenses(INITIAL_EXPENSES);
       setCustomers(INITIAL_CUSTOMERS);
       setStockMovements(INITIAL_STOCK_MOVEMENTS);
       setUnmetDemandRequests(INITIAL_UNMET_DEMAND_REQUESTS as UnmetDemandRequestRecord[]);
@@ -3035,6 +3273,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       getCompanyStorageKey(STORAGE_KEYS.UNMET_DEMAND_REQUESTS, currentCompanyId),
       getCompanyStorageKey(STORAGE_KEYS.USERS, currentCompanyId),
       getCompanyStorageKey(STORAGE_KEYS.ACTIVE_SESSIONS, currentCompanyId),
+      STORAGE_KEYS.EXPENSES,
+      getCompanyStorageKey(STORAGE_KEYS.EXPENSES, currentCompanyId),
     ];
     for (const k of keysToRemove) {
       try {
@@ -3044,6 +3284,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setProducts([]);
     setTransactions([]);
+    setExpenses([]);
     setCustomers([]);
     setStockMovements([]);
     setCurrencies([]);
@@ -3486,6 +3727,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const loaded = loadCompanyOperationalState(companyId);
       setProducts(loaded.products);
       setTransactions(loaded.transactions);
+      setExpenses(loaded.expenses);
       setCustomers(loaded.customers);
       setStockMovements(loaded.stockMovements);
       setUnmetDemandRequests(loaded.unmetDemandRequests);
@@ -3666,23 +3908,25 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             prev.map((t) => (t.syncStatus !== 'synced' ? { ...t, syncStatus: 'synced' } : t))
           );
         }
+        await offlineSqliteStorage.markTransactionsSynced(sqliteCompanyScope);
+        setSqliteDiagnostics(offlineSqliteStorage.getDiagnostics(sqliteCompanyScope));
       } else {
         setTransactions((prev) =>
           prev.map((t) => (t.syncStatus !== 'synced' ? { ...t, syncStatus: 'synced' } : t))
         );
       }
     } catch {
-      setTransactions((prev) =>
-        prev.map((t) => (t.syncStatus !== 'synced' ? { ...t, syncStatus: 'synced' } : t))
-      );
+      // Device is offline: keep pending transactions safely queued in Capacitor SQLite outbox
     } finally {
       setLastSyncedAt(new Date());
       setIsSyncing(false);
+      setSqliteDiagnostics(offlineSqliteStorage.getDiagnostics(sqliteCompanyScope));
       triggerHaptic('success', settings.hapticsEnabled);
     }
   }, [
     workspaceMode,
     currentCompany.id,
+    sqliteCompanyScope,
     settings.hapticsEnabled,
     transactions,
     customers,
@@ -4329,7 +4573,20 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchTransfers: readScopedJson<any[]>('pos_branch_transfers', []),
       purchases: readScopedJson<any[]>('pos_purchase_orders', []),
       transactions,
-      expenses: readScopedJson<any[]>('pos_expenses', []),
+      expenses: expenses.map((e) => ({
+        id: e.id,
+        companyId: e.companyId || currentCompany.id,
+        branchId: e.branchId || activeBranchId,
+        title: e.title,
+        category: e.category,
+        amount: e.amount,
+        currency: e.currency,
+        paymentMethod: e.paymentMethod,
+        reference: e.transferReference,
+        notes: e.notes,
+        date: e.timestamp,
+        createdBy: e.recordedBy,
+      })),
       accounts: readScopedJson<any[]>('pos_accounts', []),
       journalEntries: readScopedJson<any[]>('pos_journal_entries', []),
       unmetDemandRequests,
@@ -4338,6 +4595,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [
     currentCompany,
+    activeBranchId,
     settings,
     currencies,
     exchangeRates,
@@ -4349,6 +4607,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     customers,
     stockMovements,
     transactions,
+    expenses,
     unmetDemandRequests,
   ]);
 
@@ -4598,10 +4857,31 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             JSON.stringify(payload.purchases)
           );
         }
-        if (payload.expenses) {
+        if (Array.isArray(payload.expenses)) {
+          const normalizedExpenses: ExpenseRecord[] = payload.expenses.map((be: any) => ({
+            id: be.id || generateExpenseId(),
+            companyId: targetCompId,
+            branchId: be.branchId,
+            timestamp: be.timestamp || be.date || new Date().toISOString(),
+            title: be.title || 'منصرف',
+            category: be.category || 'other',
+            amount: Number(be.amount || 0),
+            currency: be.currency || 'SDG',
+            exchangeRateUsed: be.exchangeRateUsed,
+            exchangeRatesSnapshot: be.exchangeRatesSnapshot,
+            paymentMethod: be.paymentMethod || 'cash',
+            transferReference: be.transferReference || be.reference,
+            receiptImage: be.receiptImage,
+            beneficiary: be.beneficiary,
+            notes: be.notes,
+            recordedBy: be.recordedBy || be.createdBy || 'POS Operator',
+            status: be.status || 'recorded',
+            syncStatus: 'synced',
+          }));
+          setExpenses(normalizedExpenses);
           localStorage.setItem(
             getCompanyStorageKey('pos_expenses', targetCompId),
-            JSON.stringify(payload.expenses)
+            JSON.stringify(normalizedExpenses)
           );
         }
         if (payload.accounts) {
@@ -4732,6 +5012,27 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 ) {
                   byId.set(inc.id, { ...ex, ...inc, syncStatus: 'synced' });
                 }
+              }
+            }
+            return Array.from(byId.values()).sort(
+              (a, b) => (Date.parse(b.timestamp || '') || 0) - (Date.parse(a.timestamp || '') || 0)
+            );
+          });
+        }
+
+        if (Array.isArray(remoteState.expenses)) {
+          setExpenses((prev) => {
+            const byId = new Map<string, ExpenseRecord>();
+            for (const e of prev) {
+              if (e?.id) byId.set(e.id, e);
+            }
+            for (const inc of remoteState.expenses as ExpenseRecord[]) {
+              if (!inc?.id) continue;
+              const ex = byId.get(inc.id);
+              if (!ex || inc.status === 'voided') {
+                byId.set(inc.id, { ...inc, syncStatus: 'synced' });
+              } else {
+                byId.set(inc.id, { ...ex, ...inc, syncStatus: 'synced' });
               }
             }
             return Array.from(byId.values()).sort(
@@ -4918,6 +5219,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               products,
               deletedProductIds: Array.from(deletedProductIdsRef.current),
               transactions: transactions.map((t) => ({ ...t, syncStatus: 'synced' })),
+              expenses: expenses.map((e) => ({ ...e, syncStatus: 'synced' })),
               customers,
               deletedCustomerIds: Array.from(deletedCustomerIdsRef.current),
               stockMovements,
@@ -5211,6 +5513,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     products,
     cart,
     transactions,
+    expenses,
     customers,
     stockMovements,
     settings,
@@ -5278,6 +5581,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addCustomer,
     updateCustomer,
     deleteCustomer,
+    addExpense,
+    updateExpense,
+    voidExpense,
+    deleteExpense,
     voidTransaction,
     settleTransactionDebt,
     updateTransactionFulfillment,
@@ -5299,6 +5606,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     syncTransactions,
     isSyncing,
     lastSyncedAt,
+    sqliteDiagnostics,
     isTrainingTourOpen,
     trainingTourStepIndex,
     trainingTourProgress,
@@ -5324,6 +5632,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     lanPrimaryHostUrl,
     lanLastSyncError,
     pushLiveLanSyncNow,
+    applyIncomingLanSyncState,
   };
 
   return <POSContext.Provider value={value}>{children}</POSContext.Provider>;

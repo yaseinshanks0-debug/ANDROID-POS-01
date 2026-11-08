@@ -4,7 +4,18 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { scalePoint, scaleLinear, max, line, area, curveMonotoneX } from 'd3';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Area,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ReferenceLine,
+} from 'recharts';
 import { usePOS } from '../../context/POSContext';
 import { getTranslation } from '../../lib/translations';
 import {
@@ -19,6 +30,9 @@ import { ScrambleText } from '../ui/ScrambleText';
 import { ReceiptModal } from '../checkout/ReceiptModal';
 import { Transaction } from '../../lib/types';
 import {
+  computeExpensesSummary,
+} from '../../lib/expense-calculations';
+import {
   DollarSign,
   TrendingUp,
   Package,
@@ -27,19 +41,21 @@ import {
   PlusCircle,
   Layers,
   Receipt,
+  Wallet,
   Award,
   Activity,
   Calendar,
 } from 'lucide-react';
 
 export const DashboardView: React.FC = () => {
-  const { transactions, products, settings, exchangeRates, setActiveTab } = usePOS();
+  const { transactions, expenses, products, settings, exchangeRates, setActiveTab } = usePOS();
   const t = getTranslation(settings.language);
   const isAr = settings.language === 'ar';
 
   const [selectedTxn, setSelectedTxn] = useState<Transaction | null>(null);
   const [rangeDays, setRangeDays] = useState<7 | 14 | 30>(7);
   const [showCollectedCurve, setShowCollectedCurve] = useState<boolean>(true);
+  const [chartVisualMode, setChartVisualMode] = useState<'area' | 'composed'>('area');
   const [activePointKey, setActivePointKey] = useState<string | null>(null);
 
   // Compute live actual metrics from real transactions store using saved sale exchange rate
@@ -60,14 +76,23 @@ export const DashboardView: React.FC = () => {
     }, 0);
     const lowStockCount = products.filter((p) => p.stock <= p.minStockAlert).length;
 
+    const expSummary = computeExpensesSummary(
+      expenses || [],
+      settings.currency,
+      exchangeRates,
+      'historical'
+    );
+
     return {
       salesTotal: Math.round(todayGross * 100) / 100,
       txCount: todayTxns.length,
+      todayExpenses: expSummary.todayExpenses,
+      totalExpenses: expSummary.totalExpenses,
       totalProducts: products.length,
       lowStockCount,
       recentTxns: transactions.slice(0, 5),
     };
-  }, [transactions, products, settings.currency, exchangeRates]);
+  }, [transactions, expenses, products, settings.currency, exchangeRates]);
 
   // Compute D3 Daily Revenue Trends & Performance Peaks
   const trendSummary = useMemo(() => {
@@ -81,79 +106,14 @@ export const DashboardView: React.FC = () => {
     );
   }, [transactions, rangeDays, settings.currency, exchangeRates, settings.language]);
 
-  // D3 SVG Geometry & Path Calculations
-  const chartGeometry = useMemo(() => {
-    const width = 1080;
-    const height = 235;
-    const margin = { top: 34, right: 32, bottom: 34, left: 54 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-
-    const points = trendSummary.points;
-    const domainKeys = points.map((p) => p.dateKey);
-
-    const xScale = scalePoint<string>()
-      .domain(domainKeys)
-      .range([0, innerWidth])
-      .padding(0.12);
-
-    const maxRev = max(points, (d) => Math.max(d.revenue, d.collected)) || 0;
-    const yMax = maxRev > 0 ? maxRev * 1.22 : 100;
-
-    const yScale = scaleLinear()
-      .domain([0, yMax])
-      .nice(4)
-      .range([innerHeight, 0]);
-
-    const revenueLineGen = line<DailyRevenueTrendPoint>()
-      .x((d) => xScale(d.dateKey) ?? 0)
-      .y((d) => yScale(d.revenue))
-      .curve(curveMonotoneX);
-
-    const revenueAreaGen = area<DailyRevenueTrendPoint>()
-      .x((d) => xScale(d.dateKey) ?? 0)
-      .y0(innerHeight)
-      .y1((d) => yScale(d.revenue))
-      .curve(curveMonotoneX);
-
-    const collectedLineGen = line<DailyRevenueTrendPoint>()
-      .x((d) => xScale(d.dateKey) ?? 0)
-      .y((d) => yScale(d.collected))
-      .curve(curveMonotoneX);
-
-    const revenueLinePath = revenueLineGen(points) || '';
-    const revenueAreaPath = revenueAreaGen(points) || '';
-    const collectedLinePath = collectedLineGen(points) || '';
-
-    const yTicks = yScale.ticks(4);
-    const avgY = yScale(trendSummary.averageDailyRevenue);
-
-    // Determine which X ticks to display cleanly when 14 or 30 days are selected
-    const labelStep = points.length > 16 ? 4 : points.length > 9 ? 2 : 1;
-
-    const plottedPoints = points.map((pt, idx) => ({
+  const rechartsData = useMemo(() => {
+    return trendSummary.points.map((pt) => ({
       ...pt,
-      x: xScale(pt.dateKey) ?? 0,
-      y: yScale(pt.revenue),
-      collectedY: yScale(pt.collected),
-      showXLabel:
-        idx % labelStep === 0 || idx === points.length - 1 || pt.isPeak,
+      name: pt.label,
+      grossRevenue: Math.round(pt.revenue * 100) / 100,
+      collectedCash: Math.round(pt.collected * 100) / 100,
+      remainingDebt: Math.round(pt.debt * 100) / 100,
     }));
-
-    return {
-      width,
-      height,
-      margin,
-      innerWidth,
-      innerHeight,
-      revenueLinePath,
-      revenueAreaPath,
-      collectedLinePath,
-      yTicks,
-      yScale,
-      avgY,
-      plottedPoints,
-    };
   }, [trendSummary]);
 
   const inspectedPoint = useMemo(() => {
@@ -188,6 +148,14 @@ export const DashboardView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <TactileButton
+            variant="secondary"
+            size="md"
+            onClick={() => setActiveTab('expenses')}
+            leftIcon={<Wallet className="w-4 h-4 text-rose-400" />}
+          >
+            {isAr ? 'بند المنصرفات' : 'Expenses'}
+          </TactileButton>
           <TactileButton
             variant="amber"
             size="md"
@@ -297,19 +265,47 @@ export const DashboardView: React.FC = () => {
               <div>
                 <h3 className="text-base font-extrabold text-white tracking-tight">
                   {isAr
-                    ? 'اتجاهات الإيرادات اليومية وذروة الأداء'
-                    : 'Daily Revenue Trends & Performance Peaks'}
+                    ? 'الأداء اليومي للمبيعات واتجاهات الإيرادات (Recharts)'
+                    : 'Daily Sales Performance & Revenue Trends'}
                 </h3>
                 <p className="text-[11px] text-neutral-400">
                   {isAr
-                    ? `منحنى D3.js التفاعلي للمبيعات اليومية (${settings.currency}) محسوباً بسعر الصرف المحفوظ لكل فاتورة`
-                    : `Interactive D3.js daily revenue trajectory (${settings.currency}) valued at each invoice's saved exchange rate`}
+                    ? `رسم بياني تفاعلي للمبيعات اليومية (${settings.currency}) محسوباً بسعر الصرف المحفوظ لكل فاتورة`
+                    : `Interactive Recharts daily sales & revenue trajectory (${settings.currency}) valued at each invoice's saved exchange rate`}
                 </p>
               </div>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Visual Mode Switcher: Area vs Composed Bars */}
+            <div className="inline-flex items-center rounded-xl bg-neutral-950 p-1 border border-neutral-800">
+              <button
+                type="button"
+                data-testid="chart-mode-area-btn"
+                onClick={() => setChartVisualMode('area')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                  chartVisualMode === 'area'
+                    ? 'bg-emerald-500 text-neutral-950 shadow-sm'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                {isAr ? 'منحنى مساحي' : 'Area Trend'}
+              </button>
+              <button
+                type="button"
+                data-testid="chart-mode-composed-btn"
+                onClick={() => setChartVisualMode('composed')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                  chartVisualMode === 'composed'
+                    ? 'bg-emerald-500 text-neutral-950 shadow-sm'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                {isAr ? 'أعمدة + اتجاه' : 'Bars + Line'}
+              </button>
+            </div>
+
             {/* Toggle Collected Cash Line */}
             <button
               type="button"
@@ -472,240 +468,167 @@ export const DashboardView: React.FC = () => {
           </div>
         </div>
 
-        {/* D3 SVG Line & Area Visualization */}
-        <div className="relative rounded-2xl bg-neutral-950/90 border border-neutral-800/90 p-3 sm:p-4 overflow-hidden">
-          <svg
-            data-testid="d3-revenue-line-chart"
-            viewBox={`0 0 ${chartGeometry.width} ${chartGeometry.height}`}
-            className="w-full h-auto overflow-visible select-none"
-            role="img"
-            aria-label={
-              isAr
-                ? 'مخطط خطي لاتجاهات الإيرادات اليومية وذروة الأداء'
-                : 'Daily revenue trends and performance peaks line chart'
-            }
-          >
-            <defs>
-              <linearGradient id="d3RevenueAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#10b981" stopOpacity="0.38" />
-                <stop offset="65%" stopColor="#10b981" stopOpacity="0.08" />
-                <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-              </linearGradient>
-              <linearGradient id="d3RevenueStrokeGradient" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#34d399" />
-                <stop offset="50%" stopColor="#10b981" />
-                <stop offset="100%" stopColor="#f59e0b" />
-              </linearGradient>
-            </defs>
-
-            <g
-              transform={`translate(${chartGeometry.margin.left}, ${chartGeometry.margin.top})`}
+        {/* Recharts Daily Sales Performance Visualization */}
+        <div
+          data-testid="recharts-daily-sales-container"
+          className="relative rounded-2xl bg-neutral-950/90 border border-neutral-800/90 p-3 sm:p-4 overflow-hidden h-[270px] w-full"
+          dir="ltr"
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart
+              data={rechartsData}
+              margin={{ top: 16, right: 16, left: 4, bottom: 6 }}
+              onClick={(state: any) => {
+                const clickedKey = state?.activePayload?.[0]?.payload?.dateKey;
+                if (clickedKey) {
+                  setActivePointKey(clickedKey);
+                }
+              }}
             >
-              {/* Horizontal Y Grid Lines & Labels */}
-              {chartGeometry.yTicks.map((tickVal) => {
-                const yPos = chartGeometry.yScale(tickVal);
-                return (
-                  <g key={`ytick-${tickVal}`} transform={`translate(0, ${yPos})`}>
-                    <line
-                      x1={0}
-                      x2={chartGeometry.innerWidth}
-                      stroke="#262626"
-                      strokeDasharray="4 4"
-                      strokeWidth={1}
-                    />
-                    <text
-                      x={-10}
-                      y={4}
-                      textAnchor="end"
-                      direction="ltr"
-                      className="fill-neutral-500 text-[10px] font-semibold tabular-nums"
-                    >
-                      {tickVal >= 1000
-                        ? `${(tickVal / 1000).toFixed(1)}k`
-                        : tickVal.toFixed(0)}
-                    </text>
-                  </g>
-                );
-              })}
+              <defs>
+                <linearGradient id="rechartsRevenueAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.42} />
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                </linearGradient>
+                <linearGradient id="rechartsBarGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10b981" stopOpacity={0.85} />
+                  <stop offset="100%" stopColor="#059669" stopOpacity={0.35} />
+                </linearGradient>
+              </defs>
 
-              {/* Average Daily Revenue Reference Line */}
-              {trendSummary.averageDailyRevenue > 0 && (
-                <g transform={`translate(0, ${chartGeometry.avgY})`}>
-                  <line
-                    x1={0}
-                    x2={chartGeometry.innerWidth}
-                    stroke="#f59e0b"
-                    strokeOpacity={0.45}
-                    strokeDasharray="6 4"
-                    strokeWidth={1.25}
-                  />
-                  <rect
-                    x={8}
-                    y={-18}
-                    width={78}
-                    height={15}
-                    rx={4}
-                    fill="#171717"
-                    stroke="#f59e0b"
-                    strokeOpacity={0.4}
-                  />
-                  <text
-                    x={47}
-                    y={-7}
-                    textAnchor="middle"
-                    className="fill-amber-400 text-[9px] font-bold"
-                  >
-                    {isAr ? 'المتوسط اليومي' : 'DAILY AVG'}
-                  </text>
-                </g>
-              )}
+              <CartesianGrid stroke="#262626" strokeDasharray="4 4" vertical={false} />
 
-              {/* D3 Smooth Area under Gross Revenue */}
-              <path
-                data-testid="d3-revenue-area-path"
-                d={chartGeometry.revenueAreaPath}
-                fill="url(#d3RevenueAreaGradient)"
+              <XAxis
+                dataKey="label"
+                stroke="#737373"
+                tick={{ fill: '#a3a3a3', fontSize: 11, fontWeight: 600 }}
+                tickLine={false}
+                axisLine={{ stroke: '#262626' }}
               />
 
-              {/* D3 Optional Collected Cash Curve */}
-              {showCollectedCurve && (
-                <path
-                  data-testid="d3-collected-line-path"
-                  d={chartGeometry.collectedLinePath}
-                  fill="none"
-                  stroke="#38bdf8"
-                  strokeWidth={2}
-                  strokeDasharray="5 3"
-                  strokeLinecap="round"
-                  opacity={0.85}
+              <YAxis
+                stroke="#737373"
+                tick={{ fill: '#737373', fontSize: 11, fontWeight: 600 }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(val: number) =>
+                  val >= 1000 ? `${(val / 1000).toFixed(1)}k` : String(Math.round(val))
+                }
+              />
+
+              <Tooltip
+                cursor={{ stroke: '#10b981', strokeWidth: 1, strokeDasharray: '4 4' }}
+                content={({ active, payload }) => {
+                  if (!active || !payload || !payload.length) return null;
+                  const pt = payload[0].payload as DailyRevenueTrendPoint;
+                  return (
+                    <div
+                      dir={isAr ? 'rtl' : 'ltr'}
+                      className="rounded-xl bg-neutral-900/95 border border-neutral-700 px-3.5 py-2.5 shadow-xl text-xs space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between gap-4 border-b border-neutral-800 pb-1">
+                        <span className="font-extrabold text-white">
+                          {pt.weekdayLabel} • {pt.label}
+                        </span>
+                        <span className="font-mono text-[10px] text-amber-400 font-bold">
+                          {pt.transactionCount} {isAr ? 'فواتير' : 'orders'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-neutral-400">
+                          {isAr ? 'إجمالي المبيعات:' : 'Gross Sales:'}
+                        </span>
+                        <span className="font-extrabold text-emerald-400 tabular-nums">
+                          {formatCurrency(pt.revenue, settings.currency, settings.language)}
+                        </span>
+                      </div>
+                      {showCollectedCurve && (
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-neutral-400">
+                            {isAr ? 'المحصل نقداً/بنكياً:' : 'Collected:'}
+                          </span>
+                          <span className="font-bold text-sky-400 tabular-nums">
+                            {formatCurrency(pt.collected, settings.currency, settings.language)}
+                          </span>
+                        </div>
+                      )}
+                      {pt.debt > 0 && (
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-neutral-400">
+                            {isAr ? 'آجل / ذمم:' : 'Remaining Debt:'}
+                          </span>
+                          <span className="font-bold text-amber-400 tabular-nums">
+                            {formatCurrency(pt.debt, settings.currency, settings.language)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }}
+              />
+
+              {trendSummary.averageDailyRevenue > 0 && (
+                <ReferenceLine
+                  y={trendSummary.averageDailyRevenue}
+                  stroke="#f59e0b"
+                  strokeDasharray="6 4"
+                  strokeOpacity={0.65}
                 />
               )}
 
-              {/* D3 Smooth Gross Revenue Line Path */}
-              <path
-                data-testid="d3-revenue-line-path"
-                d={chartGeometry.revenueLinePath}
-                fill="none"
-                stroke="url(#d3RevenueStrokeGradient)"
-                strokeWidth={3}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-
-              {/* Data Points, Peak Highlight Marker & X-Axis Labels */}
-              {chartGeometry.plottedPoints.map((pt) => {
-                const isSelected = inspectedPoint?.dateKey === pt.dateKey;
-                return (
-                  <g
-                    key={pt.dateKey}
-                    data-testid={`chart-point-${pt.dateKey}`}
-                    transform={`translate(${pt.x}, 0)`}
-                    className="cursor-pointer group"
-                    onMouseEnter={() => setActivePointKey(pt.dateKey)}
-                    onClick={() => setActivePointKey(pt.dateKey)}
-                  >
-                    {/* Hover / Active Vertical Guide Line */}
-                    <line
-                      x1={0}
-                      x2={0}
-                      y1={0}
-                      y2={chartGeometry.innerHeight}
-                      stroke={
-                        pt.isPeak
-                          ? '#f59e0b'
-                          : isSelected
-                          ? '#10b981'
-                          : 'transparent'
+              {chartVisualMode === 'area' ? (
+                <Area
+                  type="monotone"
+                  dataKey="grossRevenue"
+                  name={isAr ? 'إجمالي المبيعات' : 'Gross Revenue'}
+                  stroke="#10b981"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#rechartsRevenueAreaGrad)"
+                  activeDot={{
+                    r: 6,
+                    fill: '#f59e0b',
+                    stroke: '#fef3c7',
+                    strokeWidth: 2,
+                    onClick: (_e: any, dotPayload: any) => {
+                      if (dotPayload?.payload?.dateKey) {
+                        setActivePointKey(dotPayload.payload.dateKey);
                       }
-                      strokeOpacity={pt.isPeak || isSelected ? 0.35 : 0}
-                      strokeDasharray="3 3"
-                      strokeWidth={1.5}
-                    />
+                    },
+                  }}
+                />
+              ) : (
+                <>
+                  <Bar
+                    dataKey="grossRevenue"
+                    name={isAr ? 'إجمالي المبيعات' : 'Gross Revenue'}
+                    fill="url(#rechartsBarGrad)"
+                    radius={[6, 6, 0, 0]}
+                    maxBarSize={36}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="grossRevenue"
+                    stroke="#f59e0b"
+                    strokeWidth={2.5}
+                    dot={{ r: 3.5, fill: '#f59e0b' }}
+                  />
+                </>
+              )}
 
-                    {/* Invisible wider hit target for effortless mouse/touch interaction */}
-                    <rect
-                      x={-16}
-                      y={0}
-                      width={32}
-                      height={chartGeometry.innerHeight + 28}
-                      fill="transparent"
-                    />
-
-                    {/* Collected Cash Node */}
-                    {showCollectedCurve && (
-                      <circle
-                        cx={0}
-                        cy={pt.collectedY}
-                        r={isSelected ? 4 : 2.5}
-                        fill="#0284c7"
-                        stroke="#bae6fd"
-                        strokeWidth={1.5}
-                      />
-                    )}
-
-                    {/* Peak Performance Outer Halo & Callout */}
-                    {pt.isPeak && (
-                      <g transform={`translate(0, ${pt.y})`}>
-                        <circle
-                          cx={0}
-                          cy={0}
-                          r={11}
-                          fill="#f59e0b"
-                          fillOpacity={0.22}
-                        />
-                        <rect
-                          x={-34}
-                          y={-28}
-                          width={68}
-                          height={18}
-                          rx={6}
-                          fill="#451a03"
-                          stroke="#f59e0b"
-                          strokeWidth={1.2}
-                        />
-                        <text
-                          x={0}
-                          y={-16}
-                          textAnchor="middle"
-                          className="fill-amber-300 text-[9px] font-extrabold tracking-wide"
-                        >
-                          {isAr ? '★ الذروة' : '★ PEAK'}
-                        </text>
-                      </g>
-                    )}
-
-                    {/* Primary Gross Revenue Node */}
-                    <circle
-                      cx={0}
-                      cy={pt.y}
-                      r={pt.isPeak ? 6.5 : isSelected ? 5.5 : 4}
-                      fill={pt.isPeak ? '#f59e0b' : isSelected ? '#10b981' : '#064e3b'}
-                      stroke={pt.isPeak ? '#fef3c7' : '#34d399'}
-                      strokeWidth={pt.isPeak || isSelected ? 2.5 : 2}
-                    />
-
-                    {/* X-Axis Date Label */}
-                    {pt.showXLabel && (
-                      <text
-                        x={0}
-                        y={chartGeometry.innerHeight + 22}
-                        textAnchor="middle"
-                        className={`text-[10px] tabular-nums transition-colors ${
-                          pt.isPeak
-                            ? 'fill-amber-400 font-extrabold'
-                            : isSelected
-                            ? 'fill-emerald-400 font-bold'
-                            : 'fill-neutral-400 font-medium'
-                        }`}
-                      >
-                        {pt.label}
-                      </text>
-                    )}
-                  </g>
-                );
-              })}
-            </g>
-          </svg>
+              {showCollectedCurve && (
+                <Line
+                  type="monotone"
+                  dataKey="collectedCash"
+                  name={isAr ? 'المبيعات المحصلة' : 'Collected Cash'}
+                  stroke="#38bdf8"
+                  strokeWidth={2}
+                  strokeDasharray="5 3"
+                  dot={{ r: 3, fill: '#0284c7', stroke: '#bae6fd', strokeWidth: 1.5 }}
+                />
+              )}
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
 
         {/* Interactive Point / Peak Day Inspector Footer */}
@@ -806,7 +729,7 @@ export const DashboardView: React.FC = () => {
         <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-3">
           {t.quickShortcuts}
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <button
             onClick={() => setActiveTab('checkout')}
             className="flex items-center gap-3 p-4 rounded-2xl bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 hover:border-neutral-700 text-left transition-all active:scale-[0.98] group"
@@ -818,6 +741,23 @@ export const DashboardView: React.FC = () => {
               <span className="text-sm font-bold text-white block">{t.newSale}</span>
               <span className="text-[11px] text-neutral-500">
                 {isAr ? 'فتح نقطة البيع' : 'Open register'}
+              </span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('expenses')}
+            className="flex items-center gap-3 p-4 rounded-2xl bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 hover:border-rose-500/40 text-left transition-all active:scale-[0.98] group"
+          >
+            <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <Wallet className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-sm font-bold text-white block">
+                {isAr ? 'المنصرفات' : 'Expenses'}
+              </span>
+              <span className="text-[11px] text-rose-400 font-mono">
+                {formatCurrency(todayMetrics.todayExpenses, settings.currency, settings.language)}
               </span>
             </div>
           </button>

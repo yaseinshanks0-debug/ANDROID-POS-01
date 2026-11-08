@@ -1,0 +1,215 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated POS operator or store owner profile linked to Firebase Authentication.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID matching the document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified Google account email address.",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name of the authenticated user.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Profile avatar URL.",
+          "minLength": 0,
+          "maxLength": 512
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Active POS company identifier.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last update timestamp."
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "displayName",
+        "photoURL",
+        "companyId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudStoreSnapshot": {
+      "title": "CloudStoreSnapshot",
+      "description": "Cloud-persisted POS workspace snapshot containing products, sales, customers, and settings for a company.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the workspace owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "companyId": {
+          "type": "string",
+          "description": "POS company identifier.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Display name of the POS store/company.",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "productsCount": {
+          "type": "number",
+          "description": "Total number of products in the snapshot."
+        },
+        "transactionsCount": {
+          "type": "number",
+          "description": "Total number of transactions in the snapshot."
+        },
+        "customersCount": {
+          "type": "number",
+          "description": "Total number of customers in the snapshot."
+        },
+        "lastDeviceName": {
+          "type": "string",
+          "description": "Name of the device (Windows or Android) that pushed the latest update.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "snapshotPayload": {
+          "type": "object",
+          "description": "Structured map containing products, transactions, customers, stockMovements, currencies, and settings."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": [
+        "ownerId",
+        "companyId",
+        "companyName",
+        "productsCount",
+        "transactionsCount",
+        "customersCount",
+        "lastDeviceName",
+        "snapshotPayload",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudSyncEvent": {
+      "title": "CloudSyncEvent",
+      "description": "Audit log entry for a cloud push or pull synchronization operation.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user who triggered the sync.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "workspaceId": {
+          "type": "string",
+          "description": "Parent cloudWorkspaces document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "deviceName": {
+          "type": "string",
+          "description": "Device name (e.g. Windows Desktop or Android POS).",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "platform": {
+          "type": "string",
+          "description": "Platform identifier.",
+          "enum": ["windows", "android", "web"],
+          "minLength": 3,
+          "maxLength": 16
+        },
+        "actionType": {
+          "type": "string",
+          "description": "Sync direction.",
+          "enum": ["PUSH", "PULL", "AUTO_SYNC"],
+          "minLength": 4,
+          "maxLength": 16
+        },
+        "summary": {
+          "type": "string",
+          "description": "Human-readable summary of synced counts.",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        }
+      },
+      "required": [
+        "ownerId",
+        "workspaceId",
+        "deviceName",
+        "platform",
+        "actionType",
+        "summary",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Private user profiles keyed by Firebase Auth UID."
+    },
+    "/cloudWorkspaces/{workspaceId}": {
+      "schema": {
+        "$ref": "#/entities/CloudStoreSnapshot"
+      },
+      "description": "Cloud-persisted POS workspace snapshots owned by authenticated users."
+    },
+    "/cloudWorkspaces/{workspaceId}/syncEvents/{eventId}": {
+      "schema": {
+        "$ref": "#/entities/CloudSyncEvent"
+      },
+      "description": "Subcollection of cloud synchronization events for a workspace."
+    }
+  }
+}

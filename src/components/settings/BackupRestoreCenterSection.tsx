@@ -24,8 +24,10 @@ import {
   KeyRound,
   FolderSync,
   Share2,
+  Database,
 } from 'lucide-react';
 import { usePOS } from '../../context/POSContext';
+import { offlineSqliteStorage } from '../../lib/offline-sqlite-storage';
 import { AppCard } from '../ui/AppCard';
 import {
   ALL_BACKUP_MODULE_IDS,
@@ -212,6 +214,11 @@ export const BackupRestoreCenterSection: React.FC = () => {
     hasCapability,
     collectClientBackupDataset,
     hydrateCompanyFromBackupPayload,
+    products,
+    transactions,
+    customers,
+    stockMovements,
+    currencies,
   } = usePOS();
 
   const isAr = settings.language === 'ar';
@@ -670,6 +677,48 @@ export const BackupRestoreCenterSection: React.FC = () => {
           rawParsed.envelope.formatSignature === 'DQNAMO_POS_BACKUP_V1'
         ) {
           parsed = rawParsed.envelope as BackupEnvelopeV1;
+        } else if (
+          rawParsed &&
+          (rawParsed.format === 'DQNAMO_CAPACITOR_SQLITE_EXPORT_V1' ||
+            rawParsed.capacitorSqliteExport)
+        ) {
+          const sqliteImport = await offlineSqliteStorage.importDatabaseFromBackupFile(
+            text,
+            currentCompany.id
+          );
+          const currentFallback = collectClientBackupDataset();
+          const wrappedPayload: BackupPayloadV1 = {
+            ...currentFallback,
+            products:
+              sqliteImport.restoredProducts.length > 0
+                ? sqliteImport.restoredProducts
+                : currentFallback.products,
+            transactions:
+              sqliteImport.restoredTransactions.length > 0
+                ? sqliteImport.restoredTransactions
+                : currentFallback.transactions,
+            customers:
+              sqliteImport.restoredCustomers.length > 0
+                ? sqliteImport.restoredCustomers
+                : currentFallback.customers,
+            stockMovements:
+              sqliteImport.restoredStockMovements.length > 0
+                ? sqliteImport.restoredStockMovements
+                : currentFallback.stockMovements,
+            currencies:
+              sqliteImport.restoredCurrencies.length > 0
+                ? sqliteImport.restoredCurrencies
+                : currentFallback.currencies,
+          };
+          parsed = buildLocalFallbackEnvelope({
+            payload: wrappedPayload,
+            backupType: 'FULL_COMPANY',
+            selectedModules: ALL_BACKUP_MODULE_IDS,
+            autoIncludeHardDependencies: true,
+            userId: currentUser.id,
+            username: currentUser.username || currentUser.name,
+            notes: `Imported Capacitor SQLite DB from ${file.name}`,
+          });
         } else if (
           rawParsed &&
           (Array.isArray(rawParsed.products) ||
@@ -1461,26 +1510,81 @@ export const BackupRestoreCenterSection: React.FC = () => {
             </div>
           </div>
 
-          {/* Hidden File Input for Uploading .backup (allows all MIME types so Android DocumentsUI never greys out .backup files) */}
+          {/* Hidden File Input for Uploading .backup / .sqlite.json */}
           <input
             ref={fileInputRef}
             type="file"
-            accept=".backup,.json,application/json,application/octet-stream,*/*"
+            accept=".backup,.sqlite.json,.json,application/json,application/octet-stream,*/*"
             onChange={handleFileUpload}
             className="hidden"
           />
 
-          <button
-            type="button"
-            data-testid="backup-upload-file-btn"
-            onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-amber-300 border border-amber-500/30 text-xs font-bold transition-colors self-start sm:self-auto"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>
-              {isAr ? 'رفع ملف نسخة احتياطية (.backup)' : 'Upload .backup File'}
-            </span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <button
+              type="button"
+              data-testid="backup-export-sqlite-db-btn"
+              disabled={isBusy}
+              onClick={async () => {
+                setIsBusy(true);
+                setStatusBanner(null);
+                try {
+                  const exported = await offlineSqliteStorage.exportDatabaseToBackupFile({
+                    companyId: currentCompany.id,
+                    companyName:
+                      currentCompany.displayName ||
+                      currentCompany.legalName ||
+                      settings.storeName,
+                    transactions,
+                    products,
+                    customers,
+                    stockMovements,
+                    currencies,
+                    settings: settings as unknown as Record<string, any>,
+                  });
+                  const dl = triggerUniversalFileDownload(
+                    exported.jsonContent,
+                    exported.fileName,
+                    'application/json'
+                  );
+                  setStatusBanner({
+                    type: dl.ok ? 'success' : 'error',
+                    message: dl.ok
+                      ? isAr
+                        ? `تم تصدير وتنزيل قاعدة بيانات SQLite المحلية بنجاح (${exported.fileName} — ${exported.transactionsCount} فاتورة، ${exported.productsCount} منتج، ${exported.customersCount} عميل).`
+                        : `Exported & downloaded local Capacitor SQLite database (${exported.fileName} — ${exported.transactionsCount} invoices, ${exported.productsCount} products).`
+                      : dl.error || 'SQLite export download failed.',
+                  });
+                } catch (err: any) {
+                  setStatusBanner({
+                    type: 'error',
+                    message: err?.message || 'Failed to export SQLite database.',
+                  });
+                } finally {
+                  setIsBusy(false);
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 text-purple-200 border border-purple-500/40 text-xs font-bold transition-colors"
+            >
+              <Database className="w-3.5 h-3.5 text-purple-300" />
+              <span>
+                {isAr
+                  ? 'تصدير قاعدة بيانات SQLite (.sqlite.json)'
+                  : 'Export SQLite DB (.sqlite.json)'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              data-testid="backup-upload-file-btn"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-amber-300 border border-amber-500/30 text-xs font-bold transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>
+                {isAr ? 'رفع ملف نسخة احتياطية (.backup / .sqlite.json)' : 'Upload Backup File'}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Navigation Tabs */}

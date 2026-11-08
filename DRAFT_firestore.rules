@@ -1,0 +1,258 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Global Hardened Primitives
+    // =========================================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'yaseinshanks0@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // =========================================================================
+    // Validation Blueprints (Anti-Update-Gap)
+    // =========================================================================
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+          'uid',
+          'email',
+          'displayName',
+          'photoURL',
+          'companyId',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid',
+          'email',
+          'displayName',
+          'photoURL',
+          'companyId',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.uid == request.auth.uid &&
+        isValidId(data.uid) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120 &&
+        data.photoURL is string && data.photoURL.size() <= 512 &&
+        isValidId(data.companyId) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCloudStoreSnapshot(data) {
+      return data.keys().hasAll([
+          'ownerId',
+          'companyId',
+          'companyName',
+          'productsCount',
+          'transactionsCount',
+          'customersCount',
+          'lastDeviceName',
+          'snapshotPayload',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'ownerId',
+          'companyId',
+          'companyName',
+          'productsCount',
+          'transactionsCount',
+          'customersCount',
+          'lastDeviceName',
+          'snapshotPayload',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.ownerId == request.auth.uid &&
+        isValidId(data.ownerId) &&
+        isValidId(data.companyId) &&
+        data.companyName is string && data.companyName.size() >= 1 && data.companyName.size() <= 160 &&
+        data.productsCount is int && data.productsCount >= 0 && data.productsCount <= 100000 &&
+        data.transactionsCount is int && data.transactionsCount >= 0 && data.transactionsCount <= 500000 &&
+        data.customersCount is int && data.customersCount >= 0 && data.customersCount <= 100000 &&
+        data.lastDeviceName is string && data.lastDeviceName.size() >= 1 && data.lastDeviceName.size() <= 120 &&
+        data.snapshotPayload is map && data.snapshotPayload.keys().size() <= 20 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCloudSyncEvent(data, workspaceId) {
+      return data.keys().hasAll([
+          'ownerId',
+          'workspaceId',
+          'deviceName',
+          'platform',
+          'actionType',
+          'summary',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'ownerId',
+          'workspaceId',
+          'deviceName',
+          'platform',
+          'actionType',
+          'summary',
+          'createdAt'
+        ]) &&
+        data.ownerId == request.auth.uid &&
+        isValidId(data.ownerId) &&
+        data.workspaceId == workspaceId &&
+        isValidId(data.workspaceId) &&
+        data.deviceName is string && data.deviceName.size() >= 1 && data.deviceName.size() <= 120 &&
+        data.platform is string && data.platform.size() >= 3 && data.platform.size() <= 16 &&
+        data.platform in ['windows', 'android', 'web'] &&
+        data.actionType is string && data.actionType.size() >= 4 && data.actionType.size() <= 16 &&
+        data.actionType in ['PUSH', 'PULL', 'AUTO_SYNC'] &&
+        data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 240 &&
+        data.createdAt is timestamp;
+    }
+
+    function isParentWorkspaceOwner(workspaceId) {
+      return exists(/databases/$(database)/documents/cloudWorkspaces/$(workspaceId)) &&
+        get(/databases/$(database)/documents/cloudWorkspaces/$(workspaceId)).data.ownerId == request.auth.uid;
+    }
+
+    // =========================================================================
+    // Collection Rules
+    // =========================================================================
+
+    match /admins/{adminId} {
+      allow get: if isVerifiedUser() && isValidId(adminId) && (request.auth.uid == adminId || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.uid == request.auth.uid || isAdmin());
+
+      allow create: if isVerifiedUser() &&
+        isValidId(userId) &&
+        userId == request.auth.uid &&
+        isValidUserProfile(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            request.auth.uid == userId &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'email',
+              'displayName',
+              'photoURL',
+              'companyId',
+              'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isVerifiedUser() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+    }
+
+    match /cloudWorkspaces/{workspaceId} {
+      allow get: if isVerifiedUser() && isValidId(workspaceId) && (
+        existing().ownerId == request.auth.uid || isAdmin()
+      );
+
+      allow list: if isVerifiedUser() && (
+        resource.data.ownerId == request.auth.uid || isAdmin()
+      );
+
+      allow create: if isVerifiedUser() &&
+        isValidId(workspaceId) &&
+        isValidCloudStoreSnapshot(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser() &&
+        isValidId(workspaceId) &&
+        isValidCloudStoreSnapshot(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().companyId == existing().companyId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            existing().ownerId == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'companyName',
+              'productsCount',
+              'transactionsCount',
+              'customersCount',
+              'lastDeviceName',
+              'snapshotPayload',
+              'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isVerifiedUser() && isValidId(workspaceId) && (
+        existing().ownerId == request.auth.uid || isAdmin()
+      );
+
+      match /syncEvents/{eventId} {
+        allow get: if isVerifiedUser() &&
+          isValidId(workspaceId) &&
+          isValidId(eventId) &&
+          existing().ownerId == request.auth.uid &&
+          isParentWorkspaceOwner(workspaceId);
+
+        allow list: if isVerifiedUser() &&
+          resource.data.ownerId == request.auth.uid;
+
+        allow create: if isVerifiedUser() &&
+          isValidId(workspaceId) &&
+          isValidId(eventId) &&
+          isValidCloudSyncEvent(incoming(), workspaceId) &&
+          incoming().createdAt == request.time &&
+          isParentWorkspaceOwner(workspaceId);
+
+        allow update: if false;
+
+        allow delete: if isVerifiedUser() &&
+          isValidId(workspaceId) &&
+          isValidId(eventId) &&
+          existing().ownerId == request.auth.uid &&
+          isParentWorkspaceOwner(workspaceId);
+      }
+    }
+  }
+}

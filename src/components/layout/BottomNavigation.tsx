@@ -12,6 +12,7 @@ import {
   Layers,
   Users,
   Receipt,
+  Wallet,
   BarChart3,
   Settings,
 } from 'lucide-react';
@@ -32,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'products', labelKey: 'products', icon: Package },
   { id: 'inventory', labelKey: 'inventory', icon: Layers },
   { id: 'sales', labelKey: 'sales', icon: Receipt },
+  { id: 'expenses', labelKey: 'expenses', icon: Wallet },
   { id: 'customers', labelKey: 'customers', icon: Users },
   { id: 'reports', labelKey: 'reports', icon: BarChart3 },
   { id: 'settings', labelKey: 'settings', icon: Settings },
@@ -54,7 +56,7 @@ export const BottomNavigation: React.FC = () => {
       role="navigation"
       aria-label="Main application navigation"
     >
-      <div className="max-w-[1600px] mx-auto px-1 sm:px-3 grid grid-cols-8 gap-0.5 sm:gap-1.5 h-16 items-center">
+      <div className="max-w-[1600px] mx-auto px-1 sm:px-3 grid grid-cols-9 gap-0.5 sm:gap-1 h-16 items-center">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;

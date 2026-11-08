@@ -414,6 +414,52 @@ export interface AppSettings {
   language: AppLanguage;
 }
 
+export type ExpenseCategory =
+  | 'rent'
+  | 'utilities'
+  | 'salaries'
+  | 'transport'
+  | 'maintenance'
+  | 'supplies'
+  | 'taxes_fees'
+  | 'marketing'
+  | 'other';
+
+export interface ExpenseRecord {
+  id: string; // e.g., EXP-20261108-4821
+  companyId?: string;
+  branchId?: string;
+  timestamp: string;
+  title: string;
+  category: ExpenseCategory;
+  amount: number;
+  currency: SupportedCurrency;
+  exchangeRateUsed?: number;
+  exchangeRatesSnapshot?: Record<string, number>;
+  paymentMethod: PaymentMethod;
+  transferReference?: string;
+  receiptImage?: string;
+  beneficiary?: string;
+  notes?: string;
+  recordedBy: string;
+  status: 'recorded' | 'voided';
+  syncStatus?: 'synced' | 'pending_sync' | 'failed';
+}
+
+export interface ExpenseInput {
+  title: string;
+  category: ExpenseCategory;
+  amount: number;
+  currency?: SupportedCurrency;
+  paymentMethod?: PaymentMethod;
+  transferReference?: string;
+  receiptImage?: string;
+  beneficiary?: string;
+  notes?: string;
+  timestamp?: string;
+  exchangeRateUsed?: number;
+}
+
 export type AppNavTab =
   | 'dashboard'
   | 'checkout'
@@ -421,5 +467,7 @@ export type AppNavTab =
   | 'inventory'
   | 'customers'
   | 'sales'
+  | 'expenses'
   | 'reports'
   | 'settings';
+
