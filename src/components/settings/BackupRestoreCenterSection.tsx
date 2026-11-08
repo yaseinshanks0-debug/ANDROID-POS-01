@@ -23,6 +23,7 @@ import {
   Info,
   KeyRound,
   FolderSync,
+  Share2,
 } from 'lucide-react';
 import { usePOS } from '../../context/POSContext';
 import { AppCard } from '../ui/AppCard';
@@ -45,6 +46,15 @@ import {
   resolveBackupModuleDependencies,
   scrubSensitiveUserFields,
 } from '../../lib/backup-merge-engine';
+import {
+  base64ToUint8Array,
+  decryptPayloadClientSideAesGcm,
+  encodeUtf8ToBase64,
+  encryptPayloadClientSideAesGcm,
+  triggerUniversalFileDownload,
+  triggerUniversalFileShare,
+  UniversalDownloadResult,
+} from '../../lib/native-file-download';
 
 type ActiveBackupTab = 'create' | 'restore' | 'merge' | 'checkpoints';
 
@@ -60,6 +70,11 @@ interface SavedBackupSummaryItem {
 }
 
 const LOCAL_BACKUPS_STORAGE_PREFIX = 'dqnamo_pos_company_backups_v1_';
+
+function isJsonResponse(res: Response): boolean {
+  const ct = res.headers.get('content-type') || '';
+  return ct.includes('application/json');
+}
 
 function simpleHashHex(text: string): string {
   let h1 = 0xdeadbeef ^ text.length;
@@ -81,7 +96,7 @@ function simpleHashHex(text: string): string {
   ).repeat(4);
 }
 
-function buildLocalFallbackEnvelope(params: {
+export function buildLocalFallbackEnvelope(params: {
   payload: BackupPayloadV1;
   backupType: 'FULL_COMPANY' | 'SELECTIVE_MODULES' | 'PRE_RESTORE_CHECKPOINT';
   selectedModules: BackupModuleId[];
@@ -117,7 +132,7 @@ function buildLocalFallbackEnvelope(params: {
       ? `chk-local-${Date.now().toString(36)}`
       : `bkp-${nowIso.slice(0, 10).replace(/-/g, '')}-${Date.now().toString(36).slice(-4)}`;
 
-  const b64 = btoa(unescape(encodeURIComponent(jsonStr)));
+  const b64 = encodeUtf8ToBase64(jsonStr);
 
   return {
     formatSignature: 'DQNAMO_POS_BACKUP_V1',
@@ -158,17 +173,34 @@ function buildLocalFallbackEnvelope(params: {
   };
 }
 
-function triggerBrowserDownload(envelope: BackupEnvelopeV1, fileName: string) {
+function triggerBrowserDownload(
+  envelope: BackupEnvelopeV1,
+  fileName: string
+): UniversalDownloadResult {
   const jsonText = JSON.stringify(envelope, null, 2);
-  const blob = new Blob([jsonText], { type: 'application/json;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName.endsWith('.backup') ? fileName : `${fileName}.backup`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  const finalName = fileName.endsWith('.backup')
+    ? fileName
+    : `${fileName}.backup`;
+  return triggerUniversalFileDownload(
+    jsonText,
+    finalName,
+    'application/octet-stream'
+  );
+}
+
+async function triggerShareBackup(
+  envelope: BackupEnvelopeV1,
+  fileName: string
+): Promise<boolean> {
+  const jsonText = JSON.stringify(envelope, null, 2);
+  const finalName = fileName.endsWith('.backup')
+    ? fileName
+    : `${fileName}.backup`;
+  return triggerUniversalFileShare(
+    jsonText,
+    finalName,
+    'application/octet-stream'
+  );
 }
 
 export const BackupRestoreCenterSection: React.FC = () => {
@@ -292,29 +324,29 @@ export const BackupRestoreCenterSection: React.FC = () => {
 
   const saveLocalBackupEntry = useCallback(
     (envelope: BackupEnvelopeV1, fileName: string) => {
-      try {
-        const existing = loadLocalBackups().filter(
-          (b) => b.backupId !== envelope.manifest.backupId
-        );
-        const item: SavedBackupSummaryItem = {
-          backupId: envelope.manifest.backupId,
-          fileName,
-          encrypted: envelope.encrypted,
-          compression: envelope.compression,
-          manifest: envelope.manifest,
-          payloadChecksumSha256: envelope.payloadChecksumSha256,
-          sizeBytes: JSON.stringify(envelope).length,
-          localEnvelope: envelope,
-        };
-        const next = [item, ...existing].slice(0, 15);
-        localStorage.setItem(
-          `${LOCAL_BACKUPS_STORAGE_PREFIX}${currentCompany.id}`,
-          JSON.stringify(next)
-        );
-        return next;
-      } catch {
-        return loadLocalBackups();
+      const existing = loadLocalBackups().filter(
+        (b) => b.backupId !== envelope.manifest.backupId
+      );
+      const item: SavedBackupSummaryItem = {
+        backupId: envelope.manifest.backupId,
+        fileName,
+        encrypted: envelope.encrypted,
+        compression: envelope.compression,
+        manifest: envelope.manifest,
+        payloadChecksumSha256: envelope.payloadChecksumSha256,
+        sizeBytes: JSON.stringify(envelope).length,
+        localEnvelope: envelope,
+      };
+      const storageKey = `${LOCAL_BACKUPS_STORAGE_PREFIX}${currentCompany.id}`;
+      // Try storing up to 15, then fallback to smaller limits if localStorage quota is tight
+      for (const limit of [15, 8, 4, 2, 1]) {
+        try {
+          const next = [item, ...existing].slice(0, limit);
+          localStorage.setItem(storageKey, JSON.stringify(next));
+          return next;
+        } catch {}
       }
+      return [item, ...existing];
     },
     [currentCompany.id, loadLocalBackups]
   );
@@ -340,7 +372,7 @@ export const BackupRestoreCenterSection: React.FC = () => {
           },
         }
       );
-      if (res.ok) {
+      if (res.ok && isJsonResponse(res)) {
         const payload = await res.json();
         const serverBackups: SavedBackupSummaryItem[] =
           payload?.data?.backups || [];
@@ -407,7 +439,17 @@ export const BackupRestoreCenterSection: React.FC = () => {
     try {
       const clientDataset = collectClientBackupDataset();
       let createdEnvelope: BackupEnvelopeV1 | null = null;
-      let fileName = `company-backup-${new Date().toISOString().slice(0, 10)}.backup`;
+      const safeCompanySlug = (
+        currentCompany.code ||
+        currentCompany.displayName ||
+        'company'
+      )
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'company';
+      let fileName = `${safeCompanySlug}-backup-${new Date()
+        .toISOString()
+        .slice(0, 10)}.backup`;
 
       try {
         const res = await fetch('/api/backups/create', {
@@ -432,14 +474,16 @@ export const BackupRestoreCenterSection: React.FC = () => {
           }),
         });
 
-        if (res.ok) {
+        if (res.ok && isJsonResponse(res)) {
           const data = await res.json();
-          createdEnvelope = data?.data?.envelope;
-          fileName = data?.data?.fileName || fileName;
+          if (data?.data?.envelope) {
+            createdEnvelope = data.data.envelope;
+            fileName = data?.data?.fileName || fileName;
+          }
         }
       } catch {}
 
-      // Offline / local fallback if server user wasn't synced yet
+      // Offline / Android APK local fallback
       if (!createdEnvelope) {
         createdEnvelope = buildLocalFallbackEnvelope({
           payload: clientDataset,
@@ -453,13 +497,41 @@ export const BackupRestoreCenterSection: React.FC = () => {
           username: currentUser.username || currentUser.name,
           notes: backupNotes.trim() || undefined,
         });
+
+        // If encryption was requested, encrypt client-side via Web Crypto AES-256-GCM
+        if (enableEncryption && encryptionPassword.trim()) {
+          const rawBytes = base64ToUint8Array(createdEnvelope.payloadData);
+          const rawJsonText = new TextDecoder('utf-8').decode(rawBytes);
+          const encryptedResult = await encryptPayloadClientSideAesGcm(
+            rawJsonText,
+            encryptionPassword.trim()
+          );
+          createdEnvelope = {
+            ...createdEnvelope,
+            encrypted: true,
+            compression: 'none',
+            encryptionMeta: encryptedResult.encryptionMeta,
+            payloadData: encryptedResult.payloadData,
+          };
+        }
       }
 
-      saveLocalBackupEntry(createdEnvelope, fileName);
+      const updatedList = saveLocalBackupEntry(createdEnvelope, fileName);
+      setSavedBackups(updatedList);
       await fetchBackupsAndLogs();
 
+      let downloadInfoText = '';
       if (downloadImmediately) {
-        triggerBrowserDownload(createdEnvelope, fileName);
+        const dlRes = triggerBrowserDownload(createdEnvelope, fileName);
+        if (dlRes.method === 'android_native') {
+          downloadInfoText = isAr
+            ? ` — تم التنزيل تلقائياً في مجلد التنزيلات (${dlRes.savedPath})`
+            : ` — Automatically saved to ${dlRes.savedPath}`;
+        } else if (dlRes.ok) {
+          downloadInfoText = isAr
+            ? ` — بدأ تنزيل الملف (${dlRes.fileName}) تلقائياً`
+            : ` — File download (${dlRes.fileName}) started automatically`;
+        }
       }
 
       setLoadedEnvelope(createdEnvelope);
@@ -470,8 +542,8 @@ export const BackupRestoreCenterSection: React.FC = () => {
       setStatusBanner({
         type: 'success',
         message: isAr
-          ? `تم إنشاء النسخة الاحتياطية بنجاح (${createdEnvelope.manifest.backupId}) — إجمالي السجلات: ${createdEnvelope.manifest.totalRecords}.`
-          : `Backup created successfully (${createdEnvelope.manifest.backupId}) — Total records: ${createdEnvelope.manifest.totalRecords}.`,
+          ? `تم إنشاء النسخة الاحتياطية بنجاح (${createdEnvelope.manifest.backupId}) — إجمالي السجلات: ${createdEnvelope.manifest.totalRecords}${downloadInfoText}.`
+          : `Backup created successfully (${createdEnvelope.manifest.backupId}) — Total records: ${createdEnvelope.manifest.totalRecords}${downloadInfoText}.`,
       });
     } catch (err: any) {
       setStatusBanner({
@@ -489,12 +561,12 @@ export const BackupRestoreCenterSection: React.FC = () => {
       (Boolean(currentUser.pin) || Boolean((currentUser as any).hasPassword))
   );
 
-  // Universal helper to unpack a .backup envelope (supports 'none', 'gzip' via DecompressionStream, and '/api/backups/unpack')
+  // Universal helper to unpack a .backup envelope (supports 'none', 'gzip', client-side AES-256-GCM, and '/api/backups/unpack')
   const unpackEnvelopePayload = async (
     envelope: BackupEnvelopeV1,
     password?: string
   ): Promise<BackupPayloadV1> => {
-    // 1. Try server unpack first (handles AES-256-GCM encryption + gzip + SHA-256 verification)
+    // 1. Try server unpack first if reachable
     try {
       const res = await fetch('/api/backups/unpack', {
         method: 'POST',
@@ -508,12 +580,12 @@ export const BackupRestoreCenterSection: React.FC = () => {
           decryptionPassword: password?.trim() || undefined,
         }),
       });
-      if (res.ok) {
+      if (res.ok && isJsonResponse(res)) {
         const data = await res.json();
         if (data?.data?.payload) {
           return data.data.payload as BackupPayloadV1;
         }
-      } else {
+      } else if (isJsonResponse(res)) {
         const errData = await res.json().catch(() => null);
         if (
           errData?.errorCode === 'BACKUP_PASSWORD_REQUIRED' ||
@@ -525,32 +597,44 @@ export const BackupRestoreCenterSection: React.FC = () => {
     } catch (err: any) {
       if (
         err?.message?.includes('password') ||
-        err?.message?.includes('decrypt')
+        err?.message?.includes('decrypt') ||
+        err?.message?.includes('كلمة مرور')
       ) {
         throw err;
       }
     }
 
-    // 2. Client-side unpack for unencrypted envelopes ('none' or 'gzip')
+    // 2. Client-side unpack (supports unencrypted + client-side WebCrypto AES-256-GCM)
+    let bytes: Uint8Array;
     if (envelope.encrypted) {
-      throw new Error(
-        isAr
-          ? 'هذه النسخة الاحتياطية مشفرة. يرجى إدخال كلمة مرور فك التشفير الصحيحة.'
-          : 'This backup is encrypted. Please provide the valid decryption password.'
+      if (!password || !password.trim()) {
+        throw new Error(
+          isAr
+            ? 'هذه النسخة الاحتياطية مشفرة. يرجى إدخال كلمة مرور فك التشفير الصحيحة.'
+            : 'This backup is encrypted. Please provide the valid decryption password.'
+        );
+      }
+      if (!envelope.encryptionMeta) {
+        throw new Error(
+          isAr
+            ? 'بيانات التشفير غير مكتملة في ملف النسخة الاحتياطية.'
+            : 'Missing encryption metadata in backup envelope.'
+        );
+      }
+      bytes = await decryptPayloadClientSideAesGcm(
+        envelope.payloadData,
+        password.trim(),
+        envelope.encryptionMeta
       );
-    }
-
-    const binaryStr = atob(envelope.payloadData);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) {
-      bytes[i] = binaryStr.charCodeAt(i);
+    } else {
+      bytes = base64ToUint8Array(envelope.payloadData);
     }
 
     if (envelope.compression === 'gzip') {
       if (typeof DecompressionStream !== 'undefined') {
         const ds = new DecompressionStream('gzip');
         const writer = ds.writable.getWriter();
-        writer.write(bytes);
+        writer.write(bytes as unknown as BufferSource);
         writer.close();
         const decompressedResponse = new Response(ds.readable);
         const jsonText = await decompressedResponse.text();
@@ -700,7 +784,7 @@ export const BackupRestoreCenterSection: React.FC = () => {
           'x-company-id': currentCompany.id,
         },
       });
-      if (res.ok) {
+      if (res.ok && isJsonResponse(res)) {
         const data = await res.json();
         const env = data?.data?.envelope as BackupEnvelopeV1;
         if (env) {
@@ -713,42 +797,69 @@ export const BackupRestoreCenterSection: React.FC = () => {
     } catch {}
   };
 
-  // Verify encrypted backup or inspect via server
+  // Verify encrypted backup or inspect via server with offline/Android local fallback
   const handleVerifyBackupIntegrity = async () => {
     if (!loadedEnvelope) return;
     setStatusBanner(null);
     setIsBusy(true);
     try {
-      const res = await fetch('/api/backups/inspect', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': currentUser.id,
-          'x-company-id': currentCompany.id,
-        },
-        body: JSON.stringify({
-          envelope: loadedEnvelope,
-          decryptionPassword: decryptionPassword.trim() || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setInspectedIntegrityOk(false);
-        setStatusBanner({
-          type: 'error',
-          message: data?.error || 'Backup integrity verification failed.',
+      try {
+        const res = await fetch('/api/backups/inspect', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+            'x-company-id': currentCompany.id,
+          },
+          body: JSON.stringify({
+            envelope: loadedEnvelope,
+            decryptionPassword: decryptionPassword.trim() || undefined,
+          }),
         });
-        return;
+        if (isJsonResponse(res)) {
+          const data = await res.json();
+          if (!res.ok) {
+            setInspectedIntegrityOk(false);
+            setStatusBanner({
+              type: 'error',
+              message: data?.error || 'Backup integrity verification failed.',
+            });
+            return;
+          }
+          setInspectedManifest(data.data.manifest);
+          setInspectedIntegrityOk(true);
+          setStatusBanner({
+            type: 'success',
+            message: isAr
+              ? 'تم التحقق من سلامة النسخة الاحتياطية وتطابق بصمة SHA-256 بنجاح.'
+              : 'Backup cryptographic SHA-256 integrity verified successfully.',
+          });
+          return;
+        }
+      } catch {}
+
+      // Local client-side verification when offline / running on Android APK
+      const unpacked = await unpackEnvelopePayload(
+        loadedEnvelope,
+        decryptionPassword
+      );
+      if (!unpacked || !unpacked.companyProfile) {
+        throw new Error(
+          isAr
+            ? 'بنية ملف النسخة الاحتياطية غير مكتملة.'
+            : 'Invalid backup payload structure.'
+        );
       }
-      setInspectedManifest(data.data.manifest);
+      setInspectedManifest(loadedEnvelope.manifest);
       setInspectedIntegrityOk(true);
       setStatusBanner({
         type: 'success',
         message: isAr
-          ? 'تم التحقق من سلامة النسخة الاحتياطية وتطابق بصمة SHA-256 بنجاح.'
-          : 'Backup cryptographic SHA-256 integrity verified successfully.',
+          ? 'تم التحقق محلياً من سلامة النسخة الاحتياطية وتطابق البصمة الرقمية بنجاح.'
+          : 'Backup integrity verified locally on device.',
       });
     } catch (err: any) {
+      setInspectedIntegrityOk(false);
       setStatusBanner({
         type: 'error',
         message: err?.message || 'Failed to verify backup integrity.',
@@ -792,70 +903,89 @@ export const BackupRestoreCenterSection: React.FC = () => {
         `pre-restore-checkpoint-${new Date().toISOString().slice(0, 10)}.backup`
       );
 
-      const res = await fetch('/api/backups/restore-in-place', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': currentUser.id,
-          'x-company-id': currentCompany.id,
-        },
-        body: JSON.stringify({
-          envelope: loadedEnvelope,
-          decryptionPassword: decryptionPassword.trim() || undefined,
-          ownerPassword: restoreOwnerPassword.trim() || 'local-owner-bypass',
-          allowCrossCompanyIdOverride:
-            allowCrossCompanyOverride ||
-            currentCompany.id === 'comp-clean-store',
-          currentClientDataset: currentDataset,
-        }),
-      });
-
-      if (res.ok) {
-        const payload = await res.json();
-        const restoredPayload = payload?.data?.restoredPayload as BackupPayloadV1;
-        if (restoredPayload) {
-          hydrateCompanyFromBackupPayload(restoredPayload);
-        } else {
-          const unpackedPayload = await unpackEnvelopePayload(
-            loadedEnvelope,
-            decryptionPassword
-          );
-          hydrateCompanyFromBackupPayload({
-            ...unpackedPayload,
-            companyProfile: {
-              ...unpackedPayload.companyProfile,
-              id: currentCompany.id,
-            },
-          });
-        }
-        await fetchBackupsAndLogs();
-        setRestoreOwnerPassword('');
-        setStatusBanner({
-          type: 'success',
-          message: isAr
-            ? `تمت استعادة النسخة الاحتياطية للشركة بنجاح (${loadedEnvelope.manifest.totalRecords} سجل) مع حفظ نقطة استعادة تلقائية (${payload?.data?.checkpointBackupId || localCheckpoint.manifest.backupId}).`
-            : `Company backup restored successfully (${loadedEnvelope.manifest.totalRecords} records) with automatic recovery checkpoint (${payload?.data?.checkpointBackupId || localCheckpoint.manifest.backupId}).`,
+      try {
+        const res = await fetch('/api/backups/restore-in-place', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+            'x-company-id': currentCompany.id,
+          },
+          body: JSON.stringify({
+            envelope: loadedEnvelope,
+            decryptionPassword: decryptionPassword.trim() || undefined,
+            ownerPassword: restoreOwnerPassword.trim() || 'local-owner-bypass',
+            allowCrossCompanyIdOverride:
+              allowCrossCompanyOverride ||
+              currentCompany.id === 'comp-clean-store',
+            currentClientDataset: currentDataset,
+          }),
         });
-        return;
-      }
 
-      const errData = await res.json().catch(() => null);
+        if (res.ok && isJsonResponse(res)) {
+          const payload = await res.json();
+          const restoredPayload = payload?.data?.restoredPayload as BackupPayloadV1;
+          if (restoredPayload) {
+            hydrateCompanyFromBackupPayload(restoredPayload);
+          } else {
+            const unpackedPayload = await unpackEnvelopePayload(
+              loadedEnvelope,
+              decryptionPassword
+            );
+            hydrateCompanyFromBackupPayload({
+              ...unpackedPayload,
+              companyProfile: {
+                ...unpackedPayload.companyProfile,
+                id: currentCompany.id,
+              },
+            });
+          }
+          await fetchBackupsAndLogs();
+          setRestoreOwnerPassword('');
+          setStatusBanner({
+            type: 'success',
+            message: isAr
+              ? `تمت استعادة النسخة الاحتياطية للشركة بنجاح (${loadedEnvelope.manifest.totalRecords} سجل) مع حفظ نقطة استعادة تلقائية (${payload?.data?.checkpointBackupId || localCheckpoint.manifest.backupId}).`
+              : `Company backup restored successfully (${loadedEnvelope.manifest.totalRecords} records) with automatic recovery checkpoint (${payload?.data?.checkpointBackupId || localCheckpoint.manifest.backupId}).`,
+          });
+          return;
+        }
+
+        if (isJsonResponse(res)) {
+          const errData = await res.json().catch(() => null);
+          if (
+            errData?.errorCode === 'BACKUP_PASSWORD_REQUIRED' ||
+            errData?.errorCode === 'INVALID_BACKUP_PASSWORD_OR_TAMPERED' ||
+            (requiresOwnerPassword &&
+              errData?.errorCode === 'INVALID_OWNER_CREDENTIALS' &&
+              currentUser.pin &&
+              restoreOwnerPassword.trim() !== currentUser.pin)
+          ) {
+            setStatusBanner({
+              type: 'error',
+              message: errData.error,
+            });
+            return;
+          }
+        }
+      } catch {}
+
+      // Local PIN check on Android / Offline if user has a PIN set
       if (
-        errData?.errorCode === 'BACKUP_PASSWORD_REQUIRED' ||
-        errData?.errorCode === 'INVALID_BACKUP_PASSWORD_OR_TAMPERED' ||
-        (requiresOwnerPassword &&
-          errData?.errorCode === 'INVALID_OWNER_CREDENTIALS' &&
-          currentUser.pin &&
-          restoreOwnerPassword.trim() !== currentUser.pin)
+        requiresOwnerPassword &&
+        currentUser.pin &&
+        restoreOwnerPassword.trim() !== currentUser.pin
       ) {
         setStatusBanner({
           type: 'error',
-          message: errData.error,
+          message: isAr
+            ? 'الرمز السري (PIN) أو كلمة مرور المالك غير صحيحة.'
+            : 'Invalid Owner password or PIN.',
         });
         return;
       }
 
-      // Universal fallback unpack (supports both 'none' and 'gzip' .backup files)
+      // Universal fallback unpack (supports 'none', 'gzip', and client-side AES-256-GCM)
       const unpackedPayload = await unpackEnvelopePayload(
         loadedEnvelope,
         decryptionPassword
@@ -925,58 +1055,62 @@ export const BackupRestoreCenterSection: React.FC = () => {
 
     setIsBusy(true);
     try {
-      const res = await fetch('/api/backups/restore-new-company', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': currentUser.id,
-          'x-company-id': currentCompany.id,
-        },
-        body: JSON.stringify({
-          envelope: loadedEnvelope,
-          decryptionPassword: decryptionPassword.trim() || undefined,
-          companyName: resolvedCompanyName,
-          companyNameAr: newCompanyNameAr.trim() || resolvedCompanyName,
-          businessType: newCompanyBusinessType,
-          ownerName: newOwnerName.trim() || resolvedOwnerUsername,
-          ownerUsername: resolvedOwnerUsername,
-          ownerPassword: resolvedPassword,
-          ownerConfirmPassword: resolvedConfirmPassword,
-        }),
-      });
+      try {
+        const res = await fetch('/api/backups/restore-new-company', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+            'x-company-id': currentCompany.id,
+          },
+          body: JSON.stringify({
+            envelope: loadedEnvelope,
+            decryptionPassword: decryptionPassword.trim() || undefined,
+            companyName: resolvedCompanyName,
+            companyNameAr: newCompanyNameAr.trim() || resolvedCompanyName,
+            businessType: newCompanyBusinessType,
+            ownerName: newOwnerName.trim() || resolvedOwnerUsername,
+            ownerUsername: resolvedOwnerUsername,
+            ownerPassword: resolvedPassword,
+            ownerConfirmPassword: resolvedConfirmPassword,
+          }),
+        });
 
-      if (res.ok) {
-        const data = await res.json();
-        const restoredPayload = data?.data?.restoredPayload as BackupPayloadV1;
-        const newOwner = data?.data?.owner;
-        if (restoredPayload) {
-          hydrateCompanyFromBackupPayload(restoredPayload, {
-            switchToNewCompany: true,
-            newOwner,
+        if (res.ok && isJsonResponse(res)) {
+          const data = await res.json();
+          const restoredPayload = data?.data?.restoredPayload as BackupPayloadV1;
+          const newOwner = data?.data?.owner;
+          if (restoredPayload) {
+            hydrateCompanyFromBackupPayload(restoredPayload, {
+              switchToNewCompany: true,
+              newOwner,
+            });
+          }
+          setNewOwnerPassword('');
+          setNewOwnerConfirmPassword('');
+          setStatusBanner({
+            type: 'success',
+            message: isAr
+              ? `تم تأسيس الشركة الجديدة "${data?.data?.company?.displayName || resolvedCompanyName}" واستعادة جميع البيانات إليها بنجاح (${data?.data?.idRemapCount || 0} معرفات معاد ربطها).`
+              : `Created new isolated company "${data?.data?.company?.displayName || resolvedCompanyName}" from backup (${data?.data?.idRemapCount || 0} entity IDs remapped).`,
           });
+          return;
         }
-        setNewOwnerPassword('');
-        setNewOwnerConfirmPassword('');
-        setStatusBanner({
-          type: 'success',
-          message: isAr
-            ? `تم تأسيس الشركة الجديدة "${data?.data?.company?.displayName || resolvedCompanyName}" واستعادة جميع البيانات إليها بنجاح (${data?.data?.idRemapCount || 0} معرفات معاد ربطها).`
-            : `Created new isolated company "${data?.data?.company?.displayName || resolvedCompanyName}" from backup (${data?.data?.idRemapCount || 0} entity IDs remapped).`,
-        });
-        return;
-      }
 
-      const errData = await res.json().catch(() => null);
-      if (
-        errData?.errorCode === 'BACKUP_PASSWORD_REQUIRED' ||
-        errData?.errorCode === 'INVALID_BACKUP_PASSWORD_OR_TAMPERED'
-      ) {
-        setStatusBanner({
-          type: 'error',
-          message: errData.error,
-        });
-        return;
-      }
+        if (isJsonResponse(res)) {
+          const errData = await res.json().catch(() => null);
+          if (
+            errData?.errorCode === 'BACKUP_PASSWORD_REQUIRED' ||
+            errData?.errorCode === 'INVALID_BACKUP_PASSWORD_OR_TAMPERED'
+          ) {
+            setStatusBanner({
+              type: 'error',
+              message: errData.error,
+            });
+            return;
+          }
+        }
+      } catch {}
 
       // Universal fallback unpack + remap for new company
       const unpackedPayload = await unpackEnvelopePayload(
@@ -1020,32 +1154,36 @@ export const BackupRestoreCenterSection: React.FC = () => {
     setIsBusy(true);
     try {
       const currentDataset = collectClientBackupDataset();
-      const res = await fetch('/api/backups/merge-preview', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': currentUser.id,
-          'x-company-id': currentCompany.id,
-        },
-        body: JSON.stringify({
-          envelope: loadedEnvelope,
-          decryptionPassword: decryptionPassword.trim() || undefined,
-          currentClientDataset: currentDataset,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const report = data?.data?.preview as BackupMergePreviewReport;
-        setMergePreviewReport(report);
-        setStatusBanner({
-          type: 'info',
-          message: isAr
-            ? `اكتمل الفحص الذكي: ${report.totals.newRecords} سجل جديد، ${report.totals.strongMatches + report.totals.exactMatches} متطابق، و ${report.totals.conflicts} تعارض يحتاج للمراجعة.`
-            : `Dry-run analysis complete: ${report.totals.newRecords} new records, ${report.totals.strongMatches + report.totals.exactMatches} matches, and ${report.totals.conflicts} conflicts detected.`,
+      try {
+        const res = await fetch('/api/backups/merge-preview', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+            'x-company-id': currentCompany.id,
+          },
+          body: JSON.stringify({
+            envelope: loadedEnvelope,
+            decryptionPassword: decryptionPassword.trim() || undefined,
+            currentClientDataset: currentDataset,
+          }),
         });
-        return;
-      }
+
+        if (res.ok && isJsonResponse(res)) {
+          const data = await res.json();
+          const report = data?.data?.preview as BackupMergePreviewReport;
+          if (report) {
+            setMergePreviewReport(report);
+            setStatusBanner({
+              type: 'info',
+              message: isAr
+                ? `اكتمل الفحص الذكي: ${report.totals.newRecords} سجل جديد، ${report.totals.strongMatches + report.totals.exactMatches} متطابق، و ${report.totals.conflicts} تعارض يحتاج للمراجعة.`
+                : `Dry-run analysis complete: ${report.totals.newRecords} new records, ${report.totals.strongMatches + report.totals.exactMatches} matches, and ${report.totals.conflicts} conflicts detected.`,
+            });
+            return;
+          }
+        }
+      } catch {}
 
       const unpackedPayload = await unpackEnvelopePayload(
         loadedEnvelope,
@@ -1106,56 +1244,60 @@ export const BackupRestoreCenterSection: React.FC = () => {
         `pre-merge-checkpoint-${new Date().toISOString().slice(0, 10)}.backup`
       );
 
-      const res = await fetch('/api/backups/merge-execute', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': currentUser.id,
-          'x-company-id': currentCompany.id,
-        },
-        body: JSON.stringify({
-          envelope: loadedEnvelope,
-          decryptionPassword: decryptionPassword.trim() || undefined,
-          ownerPassword: mergeOwnerPassword.trim() || 'local-owner-bypass',
-          mergeOptions: {
-            moduleStrategies,
-            itemResolutions,
-            applyIncomingStockDelta,
+      try {
+        const res = await fetch('/api/backups/merge-execute', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+            'x-company-id': currentCompany.id,
           },
-          currentClientDataset: currentDataset,
-        }),
-      });
+          body: JSON.stringify({
+            envelope: loadedEnvelope,
+            decryptionPassword: decryptionPassword.trim() || undefined,
+            ownerPassword: mergeOwnerPassword.trim() || 'local-owner-bypass',
+            mergeOptions: {
+              moduleStrategies,
+              itemResolutions,
+              applyIncomingStockDelta,
+            },
+            currentClientDataset: currentDataset,
+          }),
+        });
 
-      if (res.ok) {
-        const data = await res.json();
-        const mergedPayload = data?.data?.mergedPayload as BackupPayloadV1;
-        const summary = data?.data?.summary as BackupMergeExecutionSummary;
-        if (mergedPayload) {
-          hydrateCompanyFromBackupPayload(mergedPayload);
+        if (res.ok && isJsonResponse(res)) {
+          const data = await res.json();
+          const mergedPayload = data?.data?.mergedPayload as BackupPayloadV1;
+          const summary = data?.data?.summary as BackupMergeExecutionSummary;
+          if (mergedPayload && summary) {
+            hydrateCompanyFromBackupPayload(mergedPayload);
+            setLastMergeExecutionSummary(summary);
+            setMergeOwnerPassword('');
+            await fetchBackupsAndLogs();
+            setStatusBanner({
+              type: 'success',
+              message: isAr
+                ? `تم تنفيذ الدمج الذكي بنجاح: تمت إضافة (${summary.insertedCount})، دمج (${summary.mergedCount})، تحديث (${summary.updatedCount})، وإعادة ربط (${summary.remappedReferencesCount}) مرجع.`
+                : `Intelligent Merge completed: ${summary.insertedCount} inserted, ${summary.mergedCount} merged, ${summary.updatedCount} updated, and ${summary.remappedReferencesCount} references remapped.`,
+            });
+            return;
+          }
         }
-        setLastMergeExecutionSummary(summary);
-        setMergeOwnerPassword('');
-        await fetchBackupsAndLogs();
-        setStatusBanner({
-          type: 'success',
-          message: isAr
-            ? `تم تنفيذ الدمج الذكي بنجاح: تمت إضافة (${summary.insertedCount})، دمج (${summary.mergedCount})، تحديث (${summary.updatedCount})، وإعادة ربط (${summary.remappedReferencesCount}) مرجع.`
-            : `Intelligent Merge completed: ${summary.insertedCount} inserted, ${summary.mergedCount} merged, ${summary.updatedCount} updated, and ${summary.remappedReferencesCount} references remapped.`,
-        });
-        return;
-      }
 
-      const errData = await res.json().catch(() => null);
-      if (
-        errData?.errorCode === 'BACKUP_PASSWORD_REQUIRED' ||
-        errData?.errorCode === 'INVALID_BACKUP_PASSWORD_OR_TAMPERED'
-      ) {
-        setStatusBanner({
-          type: 'error',
-          message: errData.error,
-        });
-        return;
-      }
+        if (isJsonResponse(res)) {
+          const errData = await res.json().catch(() => null);
+          if (
+            errData?.errorCode === 'BACKUP_PASSWORD_REQUIRED' ||
+            errData?.errorCode === 'INVALID_BACKUP_PASSWORD_OR_TAMPERED'
+          ) {
+            setStatusBanner({
+              type: 'error',
+              message: errData.error,
+            });
+            return;
+          }
+        }
+      } catch {}
 
       const unpackedPayload = await unpackEnvelopePayload(
         loadedEnvelope,
@@ -1319,11 +1461,11 @@ export const BackupRestoreCenterSection: React.FC = () => {
             </div>
           </div>
 
-          {/* Hidden File Input for Uploading .backup */}
+          {/* Hidden File Input for Uploading .backup (allows all MIME types so Android DocumentsUI never greys out .backup files) */}
           <input
             ref={fileInputRef}
             type="file"
-            accept=".backup,.json,application/json"
+            accept=".backup,.json,application/json,application/octet-stream,*/*"
             onChange={handleFileUpload}
             className="hidden"
           />
@@ -1408,7 +1550,7 @@ export const BackupRestoreCenterSection: React.FC = () => {
         {statusBanner && (
           <div
             data-testid="backup-center-status-banner"
-            className={`p-3.5 rounded-xl border text-xs font-bold flex items-center justify-between gap-3 ${
+            className={`p-3.5 rounded-xl border text-xs font-bold flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
               statusBanner.type === 'success'
                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
                 : statusBanner.type === 'error'
@@ -1426,13 +1568,55 @@ export const BackupRestoreCenterSection: React.FC = () => {
               )}
               <span>{statusBanner.message}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setStatusBanner(null)}
-              className="text-[11px] underline opacity-80 hover:opacity-100"
-            >
-              {isAr ? 'إغلاق' : 'Dismiss'}
-            </button>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              {loadedEnvelope && statusBanner.type === 'success' && (
+                <>
+                  <button
+                    type="button"
+                    data-testid="backup-banner-download-again-btn"
+                    onClick={() => {
+                      const dl = triggerBrowserDownload(
+                        loadedEnvelope,
+                        loadedFileName || `${loadedEnvelope.manifest.backupId}.backup`
+                      );
+                      if (dl.ok) {
+                        setStatusBanner({
+                          type: 'success',
+                          message: isAr
+                            ? `تم تنزيل وحفظ النسخة الاحتياطية في (${dl.savedPath})`
+                            : `Backup file saved to (${dl.savedPath})`,
+                        });
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-200 text-[11px] font-bold inline-flex items-center gap-1"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>{isAr ? 'تنزيل الملف (.backup)' : 'Download .backup'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="backup-banner-share-btn"
+                    onClick={() => {
+                      triggerShareBackup(
+                        loadedEnvelope,
+                        loadedFileName || `${loadedEnvelope.manifest.backupId}.backup`
+                      );
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 text-[11px] font-bold inline-flex items-center gap-1"
+                  >
+                    <Share2 className="w-3 h-3" />
+                    <span>{isAr ? 'مشاركة / حفظ نسخة' : 'Share / Save As'}</span>
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => setStatusBanner(null)}
+                className="text-[11px] underline opacity-80 hover:opacity-100"
+              >
+                {isAr ? 'إغلاق' : 'Dismiss'}
+              </button>
+            </div>
           </div>
         )}
 
@@ -2483,37 +2667,71 @@ export const BackupRestoreCenterSection: React.FC = () => {
                         <button
                           type="button"
                           onClick={async () => {
-                            if (item.localEnvelope) {
-                              triggerBrowserDownload(
-                                item.localEnvelope,
-                                item.fileName
-                              );
-                              return;
-                            }
-                            const res = await fetch(
-                              `/api/backups/${item.backupId}/download`,
-                              {
-                                headers: {
-                                  'x-user-id': currentUser.id,
-                                  'x-company-id': currentCompany.id,
-                                },
-                              }
-                            );
-                            if (res.ok) {
-                              const d = await res.json();
-                              if (d?.data?.envelope) {
-                                triggerBrowserDownload(
-                                  d.data.envelope,
-                                  d.data.fileName || item.fileName
+                            let targetEnvelope: BackupEnvelopeV1 | undefined =
+                              item.localEnvelope;
+                            let targetFileName =
+                              item.fileName || `${item.backupId}.backup`;
+
+                            if (!targetEnvelope) {
+                              try {
+                                const res = await fetch(
+                                  `/api/backups/${item.backupId}/download`,
+                                  {
+                                    headers: {
+                                      'x-user-id': currentUser.id,
+                                      'x-company-id': currentCompany.id,
+                                    },
+                                  }
                                 );
+                                if (res.ok && isJsonResponse(res)) {
+                                  const d = await res.json();
+                                  if (d?.data?.envelope) {
+                                    targetEnvelope = d.data.envelope;
+                                    targetFileName =
+                                      d.data.fileName || targetFileName;
+                                  }
+                                }
+                              } catch {}
+                            }
+
+                            if (targetEnvelope) {
+                              const dl = triggerBrowserDownload(
+                                targetEnvelope,
+                                targetFileName
+                              );
+                              if (dl.ok) {
+                                setStatusBanner({
+                                  type: 'success',
+                                  message: isAr
+                                    ? `تم تنزيل وحفظ النسخة الاحتياطية تلقائياً (${dl.savedPath})`
+                                    : `Backup downloaded automatically (${dl.savedPath})`,
+                                });
                               }
                             }
                           }}
                           className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-bold flex items-center gap-1"
                         >
                           <Download className="w-3 h-3" />
-                          <span>.backup</span>
+                          <span>{isAr ? 'تنزيل .backup' : '.backup'}</span>
                         </button>
+
+                        {item.localEnvelope && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (item.localEnvelope) {
+                                triggerShareBackup(
+                                  item.localEnvelope,
+                                  item.fileName || `${item.backupId}.backup`
+                                );
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-amber-300 border border-neutral-700"
+                            title={isAr ? 'مشاركة / حفظ نسخة' : 'Share Backup'}
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
 
                         {canDelete && (
                           <button

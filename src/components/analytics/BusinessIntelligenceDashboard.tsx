@@ -43,6 +43,7 @@ import {
 import { usePOS } from '../../context/POSContext';
 import { formatCurrency } from '../../lib/pos-calculations';
 import { PaymentMethod, SalesRateValuationMode } from '../../lib/types';
+import { triggerUniversalFileDownload } from '../../lib/native-file-download';
 import {
   ABCClassificationBasis,
   AnalyticsDatePreset,
@@ -503,19 +504,13 @@ export function BusinessIntelligenceDashboard() {
       d.unitsSold,
       sales.currency,
     ]);
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute(
-      'download',
-      `pos-bi-analytics-${sales.currency}-${new Date().toISOString().slice(0, 10)}.csv`
+    const csvBody =
+      '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    triggerUniversalFileDownload(
+      csvBody,
+      `pos-bi-analytics-${sales.currency}-${new Date().toISOString().slice(0, 10)}.csv`,
+      'text/csv;charset=utf-8'
     );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   const primarySections: {

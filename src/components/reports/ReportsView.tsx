@@ -20,6 +20,7 @@ import {
   buildUnavailableProductsKnowledgeBase,
   searchUnavailableProductsKnowledgeBase,
 } from '../../analytics/unmet-demand.validation';
+import { triggerUniversalFileDownload } from '../../lib/native-file-download';
 import {
   BarChart3,
   Download,
@@ -209,19 +210,13 @@ export const ReportsView: React.FC = () => {
       tx.status,
     ]);
 
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute(
-      'download',
-      `dqnamo_pos_sales_${new Date().toISOString().slice(0, 10)}.csv`
+    const csvBody =
+      '\uFEFF' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    triggerUniversalFileDownload(
+      csvBody,
+      `dqnamo_pos_sales_${new Date().toISOString().slice(0, 10)}.csv`,
+      'text/csv;charset=utf-8'
     );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   // Export Inventory to CSV
@@ -247,19 +242,13 @@ export const ReportsView: React.FC = () => {
       (p.costPrice * p.stock).toFixed(2),
     ]);
 
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute(
-      'download',
-      `dqnamo_pos_inventory_${new Date().toISOString().slice(0, 10)}.csv`
+    const csvBody =
+      '\uFEFF' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    triggerUniversalFileDownload(
+      csvBody,
+      `dqnamo_pos_inventory_${new Date().toISOString().slice(0, 10)}.csv`,
+      'text/csv;charset=utf-8'
     );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   // Store Financial Bar Chart Data
