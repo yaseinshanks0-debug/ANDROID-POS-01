@@ -57,13 +57,30 @@ jobs:
         working-directory: ./android
         run: |
           if [ ! -s "gradle/wrapper/gradle-wrapper.jar" ]; then
-            gradle wrapper --gradle-version 8.14.3
+            gradle wrapper --gradle-version 8.14.3 --distribution-type bin
           fi
+          sed -i 's/networkTimeout=.*/networkTimeout=120000/g' gradle/wrapper/gradle-wrapper.properties
+          sed -i 's/-all\.zip/-bin.zip/g' gradle/wrapper/gradle-wrapper.properties
           chmod +x gradlew
 
-      - name: Build Debug APK
+      - name: Build Debug APK (with Automatic Network Retry)
         working-directory: ./android
-        run: ./gradlew assembleDebug --no-daemon
+        run: |
+          GRADLE_OPTS="-Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000"
+          export GRADLE_OPTS
+          for attempt in 1 2 3; do
+            echo "Building Android APK (Attempt $attempt)..."
+            if ./gradlew assembleDebug --no-daemon; then
+              echo "Android APK built successfully on attempt $attempt."
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Gradle build failed after 3 attempts."
+              exit 1
+            fi
+            echo "Transient network timeout detected, retrying in 5 seconds..."
+            sleep 5
+          done
 
       - name: Rename APK for Direct Download
         run: cp android/app/build/outputs/apk/debug/app-debug.apk Dqnamo-POS.apk
