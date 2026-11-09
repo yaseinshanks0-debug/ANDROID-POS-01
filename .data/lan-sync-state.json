@@ -2,8 +2,8 @@
   "companies": {
     "comp-mw21xg78-fbe4": {
       "companyId": "comp-mw21xg78-fbe4",
-      "revision": 3,
-      "updatedAt": "2026-11-08T11:05:14.086Z",
+      "revision": 4,
+      "updatedAt": "2026-11-09T09:12:33.579Z",
       "lastUpdatedByDeviceId": "windows-ucphu2",
       "lastUpdatedByDeviceName": "كمبيوتر الويندوز (Windows POS)",
       "deletedProductIds": [],
@@ -361,10 +361,10 @@
     },
     "comp-clean-store": {
       "companyId": "comp-clean-store",
-      "revision": 5,
-      "updatedAt": "2026-11-08T11:17:18.057Z",
-      "lastUpdatedByDeviceId": "android-test-peer-01",
-      "lastUpdatedByDeviceName": "هاتف أندرويد الكاشير (Android POS)",
+      "revision": 6,
+      "updatedAt": "2026-11-09T09:28:29.199Z",
+      "lastUpdatedByDeviceId": "web-3g1iny",
+      "lastUpdatedByDeviceName": "نقطة بيع المتصفح (Web POS)",
       "deletedProductIds": [],
       "deletedCustomerIds": [],
       "companyProfile": {
@@ -455,7 +455,7 @@
         "soundEnabled": true,
         "hapticsEnabled": true,
         "theme": "dark",
-        "language": "ar",
+        "language": "en",
         "storeAddress": "",
         "storePhone": ""
       },
@@ -548,7 +548,7 @@
           "soundEnabled": true,
           "hapticsEnabled": true,
           "theme": "dark",
-          "language": "ar",
+          "language": "en",
           "storeAddress": "",
           "storePhone": ""
         }
@@ -556,6 +556,30 @@
     }
   },
   "recentEvents": [
+    {
+      "id": "evt-mw926mtr-tsbd",
+      "timestamp": "2026-11-09T09:28:29.199Z",
+      "deviceId": "web-3g1iny",
+      "deviceName": "نقطة بيع المتصفح (Web POS)",
+      "platform": "web",
+      "companyId": "comp-clean-store",
+      "operationType": "STATE_SYNC",
+      "summaryAr": "مزامنة حية للعمليات عبر الواي فاي",
+      "summaryEn": "Live Wi-Fi LAN operational sync",
+      "revision": 6
+    },
+    {
+      "id": "evt-mw91m5gs-amb7",
+      "timestamp": "2026-11-09T09:12:33.579Z",
+      "deviceId": "windows-ucphu2",
+      "deviceName": "كمبيوتر الويندوز (Windows POS)",
+      "platform": "windows",
+      "companyId": "comp-mw21xg78-fbe4",
+      "operationType": "STATE_SYNC",
+      "summaryAr": "ربط ومزامنة أولية عبر الواي فاي",
+      "summaryEn": "Initial Wi-Fi LAN handshake sync",
+      "revision": 4
+    },
     {
       "id": "evt-mw7qmpux-ak46",
       "timestamp": "2026-11-08T11:17:18.057Z",

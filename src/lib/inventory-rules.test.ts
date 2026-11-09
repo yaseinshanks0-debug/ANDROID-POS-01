@@ -47,10 +47,22 @@ test('isLowStock identifies items at or below threshold', () => {
   assert.equal(isLowStock(6, 5), false);
 });
 
-test('generateTransactionId creates consistent format with TXN prefix', () => {
+test('generateTransactionId creates consistent TXN prefix with high-entropy crypto.randomUUID suffix and zero collisions across 10,000 concurrent IDs', () => {
   const d = new Date(2026, 9, 29);
   const txnId = generateTransactionId(d);
   assert.ok(txnId.startsWith('TXN-20261029-'));
+  assert.match(txnId, /^TXN-20261029-[0-9A-F]{12}$/);
+
+  const seen = new Set<string>();
+  const sampleCount = 10_000;
+  for (let i = 0; i < sampleCount; i++) {
+    seen.add(generateTransactionId(d));
+  }
+  assert.equal(
+    seen.size,
+    sampleCount,
+    '10,000 transaction IDs generated on the exact same date/second must have 0 collisions (previously capped at 9,000 possibilities)'
+  );
 });
 
 test('generateBarcode produces 12 character numeric code', () => {

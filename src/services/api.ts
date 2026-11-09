@@ -38,9 +38,26 @@ export async function fetchWithTimeout(
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   const startMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
+  let mergedHeaders: HeadersInit | undefined = options.headers;
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const sessionToken = window.localStorage.getItem('dqnamo_pos_session_token_v1');
+      if (sessionToken) {
+        const headersObj = new Headers(options.headers || {});
+        if (!headersObj.has('Authorization') && !headersObj.has('x-session-token')) {
+          headersObj.set('Authorization', `Bearer ${sessionToken}`);
+        }
+        mergedHeaders = headersObj;
+      }
+    }
+  } catch {
+    // Ignore storage access errors in restricted environments
+  }
+
   try {
     const res = await fetch(url, {
       ...options,
+      headers: mergedHeaders,
       signal: options.signal || controller.signal,
     });
     const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startMs;

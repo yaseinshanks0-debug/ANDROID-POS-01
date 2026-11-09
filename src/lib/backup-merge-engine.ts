@@ -498,13 +498,15 @@ export function scrubSensitiveUserFields(user: any): ScrubbedBackupUserRecord {
     };
   }
   const clone: Record<string, any> = { ...user };
-  // Strictly strip all password hashes, salts, PIN codes, and session tokens
+  // Strictly strip all password hashes, salts, PIN codes/hashes, and session tokens
   delete clone.passwordHash;
   delete clone.passwordSalt;
   delete clone.password;
   delete clone.confirmPassword;
   delete clone.pin;
   delete clone.pinCode;
+  delete clone.pinHash;
+  delete clone.pinSalt;
   delete clone.sessionToken;
   delete clone.tokenHash;
   clone.hasPassword = false;

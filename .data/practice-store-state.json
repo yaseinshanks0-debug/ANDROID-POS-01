@@ -2,8 +2,8 @@
   "companyId": "comp-demo-practice",
   "workspaceMode": "PRACTICE",
   "storeCode": "DQ-DEMO-PRACTICE",
-  "updatedAt": "2026-11-04T14:26:14.375Z",
-  "resetCount": 6,
+  "updatedAt": "2026-11-09T11:20:58.671Z",
+  "resetCount": 7,
   "products": [
     {
       "id": "prod-1",
@@ -95,7 +95,7 @@
       "emoji": "🥛",
       "colorHex": "#b45309",
       "createdAt": "2026-09-12T09:30:00.000Z",
-      "updatedAt": "2026-11-04T14:26:13.960Z",
+      "updatedAt": "2026-11-09T11:20:57.960Z",
       "companyId": "comp-demo-practice"
     },
     {
@@ -116,7 +116,7 @@
       "emoji": "🧊",
       "colorHex": "#78350f",
       "createdAt": "2026-09-14T11:00:00.000Z",
-      "updatedAt": "2026-11-04T14:26:13.960Z",
+      "updatedAt": "2026-11-09T11:20:57.960Z",
       "companyId": "comp-demo-practice"
     },
     {
@@ -137,7 +137,7 @@
       "emoji": "🥐",
       "colorHex": "#ea580c",
       "createdAt": "2026-09-15T07:45:00.000Z",
-      "updatedAt": "2026-11-04T14:26:13.960Z",
+      "updatedAt": "2026-11-09T11:20:57.960Z",
       "companyId": "comp-demo-practice"
     },
     {
@@ -158,7 +158,7 @@
       "emoji": "🧁",
       "colorHex": "#10b981",
       "createdAt": "2026-09-18T10:20:00.000Z",
-      "updatedAt": "2026-11-04T14:26:13.960Z",
+      "updatedAt": "2026-11-09T11:20:57.960Z",
       "companyId": "comp-demo-practice"
     },
     {
@@ -179,7 +179,7 @@
       "emoji": "🥯",
       "colorHex": "#f43f5e",
       "createdAt": "2026-09-20T12:00:00.000Z",
-      "updatedAt": "2026-11-04T14:26:13.960Z",
+      "updatedAt": "2026-11-09T11:20:57.960Z",
       "companyId": "comp-demo-practice"
     },
     {
@@ -200,7 +200,7 @@
       "emoji": "🥪",
       "colorHex": "#eab308",
       "createdAt": "2026-09-22T13:15:00.000Z",
-      "updatedAt": "2026-11-04T14:26:13.960Z",
+      "updatedAt": "2026-11-09T11:20:57.960Z",
       "companyId": "comp-demo-practice"
     },
     {
@@ -271,7 +271,7 @@
       "emoji": "🏺",
       "colorHex": "#64748b",
       "createdAt": "2026-09-28T11:30:00.000Z",
-      "updatedAt": "2026-11-04T14:26:13.960Z",
+      "updatedAt": "2026-11-09T11:20:57.960Z",
       "companyId": "comp-demo-practice"
     },
     {
@@ -384,7 +384,7 @@
     {
       "id": "TXN-20261029-9182",
       "idempotencyKey": "init_tx_1",
-      "timestamp": "2026-11-04T13:51:13.960Z",
+      "timestamp": "2026-11-09T10:45:57.960Z",
       "currency": "SDG",
       "exchangeRateUsed": 2700,
       "exchangeRatesSnapshot": {
@@ -439,7 +439,7 @@
     {
       "id": "TXN-20261029-8421",
       "idempotencyKey": "init_tx_2",
-      "timestamp": "2026-11-04T12:36:13.960Z",
+      "timestamp": "2026-11-09T09:30:57.960Z",
       "currency": "SDG",
       "exchangeRateUsed": 2500,
       "exchangeRatesSnapshot": {
@@ -493,7 +493,7 @@
     {
       "id": "TXN-20261029-7150",
       "idempotencyKey": "init_tx_3",
-      "timestamp": "2026-11-04T10:26:13.960Z",
+      "timestamp": "2026-11-09T07:20:57.960Z",
       "currency": "SDG",
       "exchangeRateUsed": 2500,
       "exchangeRatesSnapshot": {
@@ -537,7 +537,7 @@
     {
       "id": "TXN-20261028-6410",
       "idempotencyKey": "init_tx_day1",
-      "timestamp": "2026-11-03T14:26:13.960Z",
+      "timestamp": "2026-11-08T11:20:57.960Z",
       "currency": "SDG",
       "exchangeRateUsed": 2600,
       "exchangeRatesSnapshot": {
@@ -592,7 +592,7 @@
     {
       "id": "TXN-20261027-5390",
       "idempotencyKey": "init_tx_day2_peak",
-      "timestamp": "2026-11-02T14:26:13.960Z",
+      "timestamp": "2026-11-07T11:20:57.960Z",
       "currency": "SDG",
       "exchangeRateUsed": 2600,
       "exchangeRatesSnapshot": {
@@ -651,7 +651,7 @@
     {
       "id": "TXN-20261026-4120",
       "idempotencyKey": "init_tx_day3",
-      "timestamp": "2026-11-01T14:26:13.960Z",
+      "timestamp": "2026-11-06T11:20:57.960Z",
       "currency": "SDG",
       "exchangeRateUsed": 2500,
       "exchangeRatesSnapshot": {
@@ -705,7 +705,7 @@
     {
       "id": "TXN-20261025-3085",
       "idempotencyKey": "init_tx_day4",
-      "timestamp": "2026-10-31T14:26:13.960Z",
+      "timestamp": "2026-11-05T11:20:57.960Z",
       "currency": "SDG",
       "exchangeRateUsed": 2500,
       "exchangeRatesSnapshot": {
@@ -749,7 +749,7 @@
     {
       "id": "TXN-20261024-2190",
       "idempotencyKey": "init_tx_day5",
-      "timestamp": "2026-10-30T14:26:13.960Z",
+      "timestamp": "2026-11-04T11:20:57.960Z",
       "currency": "SDG",
       "exchangeRateUsed": 2450,
       "exchangeRatesSnapshot": {
@@ -803,7 +803,7 @@
     {
       "id": "TXN-20261023-1104",
       "idempotencyKey": "init_tx_day6",
-      "timestamp": "2026-10-29T14:26:13.960Z",
+      "timestamp": "2026-11-03T11:20:57.960Z",
       "currency": "SDG",
       "exchangeRateUsed": 2400,
       "exchangeRatesSnapshot": {
@@ -897,7 +897,7 @@
   "stockMovements": [
     {
       "id": "mov-1",
-      "timestamp": "2026-11-04T09:26:13.960Z",
+      "timestamp": "2026-11-09T06:20:57.960Z",
       "productId": "prod-1",
       "productName": "Espresso Double Shot",
       "type": "restock",
@@ -914,7 +914,7 @@
     },
     {
       "id": "mov-2",
-      "timestamp": "2026-11-04T10:26:13.960Z",
+      "timestamp": "2026-11-09T07:20:57.960Z",
       "productId": "prod-5",
       "productName": "Pistachio Cardamom Bun",
       "type": "damage",
@@ -931,7 +931,6 @@
       "name": "Practice Trainer (Demo Owner)",
       "nameAr": "مدرب النظام (مالك المتجر التجريبي)",
       "role": "admin",
-      "pin": "1111",
       "terminalName": "Practice Terminal 01",
       "terminalNameAr": "جهاز التدريب 1",
       "avatarColor": "#10b981",
@@ -1012,14 +1011,14 @@
       ],
       "hasPassword": false,
       "mustChangePassword": false,
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "hasPin": true
     },
     {
       "id": "demo-user-cashier",
       "name": "Practice Cashier",
       "nameAr": "كاشير متدرب (وضع التدريب)",
       "role": "cashier",
-      "pin": "2222",
       "terminalName": "Practice Terminal 02",
       "terminalNameAr": "جهاز التدريب 2",
       "avatarColor": "#3b82f6",
@@ -1062,7 +1061,8 @@
       ],
       "hasPassword": false,
       "mustChangePassword": false,
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "hasPin": true
     }
   ],
   "activeSessions": [],
@@ -1079,7 +1079,7 @@
       "skuSnapshot": "BAK-002",
       "barcode": "200201002025",
       "categorySnapshot": "Bakery",
-      "requestedTimestamp": "2026-11-03T20:26:13.960Z",
+      "requestedTimestamp": "2026-11-08T17:20:57.960Z",
       "requestedQuantity": 6,
       "saleUnitMode": "unit",
       "requestedBaseUnits": 6,
@@ -1099,7 +1099,7 @@
       "recordedByUserName": "Ahmed Al-Amin",
       "recordedByRole": "admin",
       "sourceScreen": "checkout",
-      "createdAt": "2026-11-03T20:26:13.960Z",
+      "createdAt": "2026-11-08T17:20:57.960Z",
       "companyId": "comp-demo-practice"
     },
     {
@@ -1114,7 +1114,7 @@
       "skuSnapshot": "BAK-002",
       "barcode": "200201002025",
       "categorySnapshot": "Bakery",
-      "requestedTimestamp": "2026-11-04T08:26:13.960Z",
+      "requestedTimestamp": "2026-11-09T05:20:57.960Z",
       "requestedQuantity": 4,
       "saleUnitMode": "unit",
       "requestedBaseUnits": 4,
@@ -1134,7 +1134,7 @@
       "recordedByUserName": "Sara Khalid",
       "recordedByRole": "manager",
       "sourceScreen": "checkout",
-      "createdAt": "2026-11-04T08:26:13.960Z",
+      "createdAt": "2026-11-09T05:20:57.960Z",
       "companyId": "comp-demo-practice"
     },
     {
@@ -1149,7 +1149,7 @@
       "skuSnapshot": "BEV-003",
       "barcode": "200101001035",
       "categorySnapshot": "Coffee & Drinks",
-      "requestedTimestamp": "2026-11-03T08:26:13.960Z",
+      "requestedTimestamp": "2026-11-08T05:20:57.960Z",
       "requestedQuantity": 5,
       "saleUnitMode": "unit",
       "requestedBaseUnits": 5,
@@ -1169,7 +1169,7 @@
       "recordedByUserName": "Sara Khalid",
       "recordedByRole": "manager",
       "sourceScreen": "checkout",
-      "createdAt": "2026-11-03T08:26:13.960Z",
+      "createdAt": "2026-11-08T05:20:57.960Z",
       "companyId": "comp-demo-practice"
     },
     {
@@ -1184,7 +1184,7 @@
       "skuSnapshot": "RET-001",
       "barcode": "200401004012",
       "categorySnapshot": "Packaged Retail",
-      "requestedTimestamp": "2026-11-04T02:26:13.960Z",
+      "requestedTimestamp": "2026-11-08T23:20:57.960Z",
       "requestedQuantity": 6,
       "saleUnitMode": "unit",
       "requestedBaseUnits": 6,
@@ -1204,7 +1204,7 @@
       "recordedByUserName": "Ahmed Al-Amin",
       "recordedByRole": "admin",
       "sourceScreen": "products",
-      "createdAt": "2026-11-04T02:26:13.960Z",
+      "createdAt": "2026-11-08T23:20:57.960Z",
       "companyId": "comp-demo-practice"
     },
     {
@@ -1219,7 +1219,7 @@
       "skuSnapshot": "BAK-001",
       "barcode": "200201002018",
       "categorySnapshot": "Bakery",
-      "requestedTimestamp": "2026-11-02T20:26:13.960Z",
+      "requestedTimestamp": "2026-11-07T17:20:57.960Z",
       "requestedQuantity": 2,
       "saleUnitMode": "unit",
       "requestedBaseUnits": 2,
@@ -1239,7 +1239,7 @@
       "recordedByUserName": "Omer Hassan",
       "recordedByRole": "cashier",
       "sourceScreen": "checkout",
-      "createdAt": "2026-11-02T20:26:13.960Z",
+      "createdAt": "2026-11-07T17:20:57.960Z",
       "companyId": "comp-demo-practice"
     },
     {
@@ -1254,7 +1254,7 @@
       "skuSnapshot": null,
       "barcode": "490101099281",
       "categorySnapshot": "Coffee & Drinks",
-      "requestedTimestamp": "2026-11-04T10:26:13.960Z",
+      "requestedTimestamp": "2026-11-09T07:20:57.960Z",
       "requestedQuantity": 3,
       "saleUnitMode": "unit",
       "requestedBaseUnits": 3,
@@ -1274,7 +1274,7 @@
       "recordedByUserName": "Omer Hassan",
       "recordedByRole": "cashier",
       "sourceScreen": "checkout",
-      "createdAt": "2026-11-04T10:26:13.960Z",
+      "createdAt": "2026-11-09T07:20:57.960Z",
       "companyId": "comp-demo-practice"
     }
   ]

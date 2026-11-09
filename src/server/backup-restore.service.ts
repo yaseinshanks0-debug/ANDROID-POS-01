@@ -32,15 +32,18 @@ import {
   assertActorHasCapability,
   AuthenticatedActorContext,
   hashPasswordScrypt,
+  hashPinScrypt,
   issueSessionForUser,
   loadPlatformState,
   PRACTICE_COMPANY_ID,
   ReleasePlatformError,
   resolveAuthenticatedActorFromRequest,
+  sanitizeStoredUser,
   savePlatformState,
   StoredUserRecord,
   validatePasswordStrength,
   verifyPasswordScrypt,
+  verifyPinScrypt,
 } from './release-onboarding.service.ts';
 import {
   ALL_CAPABILITY_CODES,
@@ -742,6 +745,7 @@ export function persistServerCompanyPayload(
           ? emp.capabilities
           : [...ALL_CAPABILITY_CODES];
 
+      const fallbackPinHashed = hashPinScrypt('0000');
       mergedCompanyUsers.push({
         ...(emp as any),
         id: existingMatch?.id || emp.id,
@@ -751,10 +755,12 @@ export function persistServerCompanyPayload(
         capabilities: caps,
         branchId: emp.branchId || platformState.branches.find((b) => b.companyId === companyId)?.id || 'branch-main',
         assignedBranchIds: emp.assignedBranchIds || [emp.branchId || 'branch-main'],
-        // Preserve existing passwordHash/passwordSalt if user already existed on server; never import credentials from backup
+        // Preserve existing passwordHash/passwordSalt/pinHash/pinSalt if user already existed on server; never import credentials from backup
         passwordHash: existingMatch?.passwordHash || null,
         passwordSalt: existingMatch?.passwordSalt || null,
-        pin: existingMatch?.pin || '0000',
+        pin: existingMatch?.pin || fallbackPinHashed.formatted,
+        pinHash: existingMatch?.pinHash || fallbackPinHashed.hash,
+        pinSalt: existingMatch?.pinSalt || fallbackPinHashed.salt,
         hasPassword: Boolean(existingMatch?.passwordHash),
         mustChangePassword: !existingMatch?.passwordHash,
         isActive: emp.isActive ?? true,
@@ -1012,7 +1018,7 @@ export function verifyCompanyOwnerReauth(
     (c) =>
       c.id !== 'unassigned-operator' &&
       (Boolean(c.passwordHash && c.passwordSalt) ||
-        (Boolean(c.pin) && c.pin !== '0000'))
+        ((Boolean(c.pin) || Boolean(c.pinHash)) && !verifyPinScrypt('0000', c)))
   );
 
   // If the store is a fresh/local unconfigured store with no owner password or PIN set yet,
@@ -1048,7 +1054,7 @@ export function verifyCompanyOwnerReauth(
         return candidate;
       }
     }
-    if (candidate.pin && candidate.pin === pwd) {
+    if (verifyPinScrypt(pwd, candidate)) {
       return candidate;
     }
   }
@@ -1375,8 +1381,9 @@ export function restoreBackupAsNewCompany(
     ownerPin: input.ownerPin || '1111',
   });
 
-  // Hash new Owner password securely with scrypt
+  // Hash new Owner password and PIN securely with scrypt
   const { hash: passwordHash, salt: passwordSalt } = hashPasswordScrypt(password);
+  const ownerPinHashed = hashPinScrypt(input.ownerPin || '1111');
 
   // Save new company, branches, and owner in platform state
   const freshState = loadPlatformState();
@@ -1393,6 +1400,9 @@ export function restoreBackupAsNewCompany(
     capabilities: [...ALL_CAPABILITY_CODES],
     branchId: newMainBranch.id,
     assignedBranchIds: remappedPayload.branches.map((b) => b.id),
+    pin: ownerPinHashed.formatted,
+    pinHash: ownerPinHashed.hash,
+    pinSalt: ownerPinHashed.salt,
     passwordHash,
     passwordSalt,
     hasPassword: true,
@@ -1403,6 +1413,7 @@ export function restoreBackupAsNewCompany(
   // Also add non-owner employees with scrubbed credentials
   for (const emp of remappedPayload.employees) {
     if (emp.id === storedOwner.id || emp.systemRole === 'COMPANY_OWNER') continue;
+    const empFallbackPin = hashPinScrypt('0000');
     freshState.users.push({
       ...(emp as any),
       companyId: newCompany.id,
@@ -1413,7 +1424,9 @@ export function restoreBackupAsNewCompany(
       assignedBranchIds: emp.assignedBranchIds || [newMainBranch.id],
       passwordHash: null,
       passwordSalt: null,
-      pin: '0000',
+      pin: empFallbackPin.formatted,
+      pinHash: empFallbackPin.hash,
+      pinSalt: empFallbackPin.salt,
       hasPassword: false,
       mustChangePassword: true,
       isActive: emp.isActive ?? true,
@@ -1452,7 +1465,7 @@ export function restoreBackupAsNewCompany(
   // Also save a copy of the envelope in the new company's backup directory
   saveBackupEnvelopeToDisk(newCompany.id, unpacked.envelope);
 
-  const { passwordHash: _ph, passwordSalt: _ps, ...safeOwner } = storedOwner;
+  const safeOwner = sanitizeStoredUser(storedOwner);
 
   return {
     ok: true,

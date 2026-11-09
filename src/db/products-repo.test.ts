@@ -184,3 +184,48 @@ test('Product Persistence: Products persist across reload', async () => {
   assert.ok(found, 'Product must persist and be returned in catalog');
   assert.equal(found?.name, `Persistent Pastry ${timestamp}`);
 });
+
+test('Problem #16: Multiple products created without barcodes (empty string or null) store NULL in DB without unique constraint collision', async () => {
+  const { normalizeDbProductBarcode } = await import('../lib/inventory-rules.ts');
+  assert.equal(normalizeDbProductBarcode(''), null);
+  assert.equal(normalizeDbProductBarcode('   '), null);
+  assert.equal(normalizeDbProductBarcode(null), null);
+  assert.equal(normalizeDbProductBarcode(undefined), null);
+  assert.equal(normalizeDbProductBarcode(' 62810099 '), '62810099');
+
+  const ts = Date.now();
+  const prodNoBarcode1 = await createProduct({
+    name: `No Barcode Item 1 (${ts})`,
+    sku: `SKU-NOBC-1-${ts}`,
+    barcode: '',
+    category: 'General',
+    costPrice: 10,
+    sellingPrice: 15,
+    stock: 5,
+    minStockAlert: 1,
+  });
+
+  const prodNoBarcode2 = await createProduct({
+    name: `No Barcode Item 2 (${ts})`,
+    sku: `SKU-NOBC-2-${ts}`,
+    barcode: '   ',
+    category: 'General',
+    costPrice: 20,
+    sellingPrice: 30,
+    stock: 8,
+    minStockAlert: 2,
+  });
+
+  try {
+    const retrieved1 = await getProductById(prodNoBarcode1.id);
+    const retrieved2 = await getProductById(prodNoBarcode2.id);
+
+    assert.ok(retrieved1, 'First product without barcode should be retrievable from DB');
+    assert.ok(retrieved2, 'Second product without barcode should be retrievable from DB');
+    assert.equal(retrieved1?.barcode, '');
+    assert.equal(retrieved2?.barcode, '');
+  } finally {
+    await deleteProduct(prodNoBarcode1.id);
+    await deleteProduct(prodNoBarcode2.id);
+  }
+});

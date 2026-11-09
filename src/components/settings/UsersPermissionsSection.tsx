@@ -200,7 +200,7 @@ export const UsersPermissionsSection: React.FC = () => {
     );
     setNewTerminalAr(u.terminalNameAr || '');
     setNewTerminalEn(u.terminalName || '');
-    setNewPin(u.pin || '');
+    setNewPin(u.pin && !u.pin.startsWith('scrypt$') ? u.pin : '');
     setNewAvatarColor(u.avatarColor || '#f59e0b');
     setIsAccountFormOpen(true);
   };
@@ -1057,10 +1057,10 @@ export const UsersPermissionsSection: React.FC = () => {
                             </span>
                           </span>
                         )}
-                        {u.pin && (
+                        {(u.pin || (u as any).hasPin) && (
                           <span className="flex items-center gap-1 font-mono">
                             <KeyRound className="w-3 h-3 text-neutral-500" />
-                            <span>PIN: {u.pin}</span>
+                            <span>PIN: ••••</span>
                           </span>
                         )}
                         {u.phone && (

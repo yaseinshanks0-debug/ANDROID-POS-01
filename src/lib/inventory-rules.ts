@@ -58,14 +58,27 @@ export function isLowStock(stock: number, minStockAlert: number = 5): boolean {
 }
 
 /**
- * Generates an audit-safe transaction reference ID.
+ * Generates a collision-resistant, audit-safe transaction reference ID using `crypto.randomUUID()`.
  */
 export function generateTransactionId(date: Date = new Date()): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
-  const rand = Math.floor(1000 + Math.random() * 9000);
-  return `TXN-${y}${m}${d}-${rand}`;
+
+  let uniqueSuffix: string;
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    uniqueSuffix = globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase();
+  } else if (typeof globalThis.crypto?.getRandomValues === 'function') {
+    const bytes = new Uint8Array(6);
+    globalThis.crypto.getRandomValues(bytes);
+    uniqueSuffix = Array.from(bytes, (b) => b.toString(16).padStart(2, '0'))
+      .join('')
+      .toUpperCase();
+  } else {
+    uniqueSuffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`.toUpperCase();
+  }
+
+  return `TXN-${y}${m}${d}-${uniqueSuffix}`;
 }
 
 /**
@@ -80,10 +93,13 @@ export function generateBarcode(): string {
 }
 
 /**
- * Generates an idempotency key to prevent duplicate checkout requests.
+ * Generates a collision-resistant idempotency key to prevent duplicate checkout requests.
  */
 export function generateIdempotencyKey(): string {
-  return `idemp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return `idemp_${Date.now()}_${globalThis.crypto.randomUUID()}`;
+  }
+  return `idemp_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 }
 
 /**
@@ -114,6 +130,17 @@ export function normalizeProductBarcodes(
     }
   }
   return result;
+}
+
+/**
+ * Normalizes a product barcode for database persistence:
+ * trims whitespace and returns `null` instead of `''` so multiple products without barcodes
+ * do not collide on the PostgreSQL `UNIQUE` constraint on `products.barcode`.
+ */
+export function normalizeDbProductBarcode(barcode?: string | null): string | null {
+  if (typeof barcode !== 'string') return null;
+  const trimmed = barcode.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 /**

@@ -97,6 +97,81 @@ export function verifyPasswordScrypt(
   }
 }
 
+export function isScryptHashedPin(value?: string | null): boolean {
+  if (!value || typeof value !== 'string') return false;
+  if (!value.startsWith('scrypt$')) return false;
+  const parts = value.split('$');
+  return parts.length === 3 && parts[1].length >= 16 && parts[2].length >= 64;
+}
+
+export function hashPinScrypt(
+  pin: string,
+  existingSalt?: string
+): {
+  hash: string;
+  salt: string;
+  formatted: string;
+} {
+  const cleanPin = String(pin || '').trim();
+  const { hash, salt } = hashPasswordScrypt(cleanPin, existingSalt);
+  return {
+    hash,
+    salt,
+    formatted: `scrypt$${salt}$${hash}`,
+  };
+}
+
+export function verifyPinScrypt(
+  candidatePin: string,
+  target:
+    | {
+        pin?: string | null;
+        pinHash?: string | null;
+        pinSalt?: string | null;
+      }
+    | string
+    | null
+    | undefined
+): boolean {
+  const cleanCandidate = String(candidatePin || '').trim();
+  if (!cleanCandidate || !target) return false;
+
+  if (typeof target === 'string') {
+    if (isScryptHashedPin(target)) {
+      const [, salt, hash] = target.split('$');
+      return verifyPasswordScrypt(cleanCandidate, hash, salt);
+    }
+    try {
+      const a = Buffer.from(cleanCandidate, 'utf-8');
+      const b = Buffer.from(target.trim(), 'utf-8');
+      return a.length === b.length && crypto.timingSafeEqual(a, b);
+    } catch {
+      return false;
+    }
+  }
+
+  if (target.pinHash && target.pinSalt) {
+    return verifyPasswordScrypt(cleanCandidate, target.pinHash, target.pinSalt);
+  }
+
+  if (target.pin && isScryptHashedPin(target.pin)) {
+    const [, salt, hash] = target.pin.split('$');
+    return verifyPasswordScrypt(cleanCandidate, hash, salt);
+  }
+
+  if (target.pin) {
+    try {
+      const a = Buffer.from(cleanCandidate, 'utf-8');
+      const b = Buffer.from(target.pin.trim(), 'utf-8');
+      return a.length === b.length && crypto.timingSafeEqual(a, b);
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
+
 export function validatePasswordStrength(password: string): {
   valid: boolean;
   messageEn?: string;
@@ -129,10 +204,32 @@ export interface StoredUserRecord extends POSUser {
   capabilities: CapabilityCode[];
   branchId: string;
   assignedBranchIds: string[];
+  pinHash?: string | null;
+  pinSalt?: string | null;
   passwordHash?: string | null;
   passwordSalt?: string | null;
   mustChangePassword?: boolean;
   tourProgressJson?: Record<string, any>;
+}
+
+export function sanitizeStoredUser<T extends Partial<StoredUserRecord>>(
+  user: T
+): Omit<T, 'passwordHash' | 'passwordSalt' | 'pinHash' | 'pinSalt'> {
+  const hasConfiguredPin = Boolean(
+    user.pinHash || (user.pin && user.pin !== '0000' && !verifyPinScrypt('0000', user))
+  );
+  const {
+    passwordHash: _ph,
+    passwordSalt: _ps,
+    pinHash: _pnh,
+    pinSalt: _pns,
+    ...rest
+  } = user;
+  if (typeof rest.pin === 'string' && isScryptHashedPin(rest.pin)) {
+    delete (rest as any).pin;
+  }
+  (rest as any).hasPin = hasConfiguredPin;
+  return rest;
 }
 
 export interface StoredSessionRecord {
@@ -277,6 +374,28 @@ function enrichSeedUserToStoredUser(
       ? (u.capabilities as CapabilityCode[])
       : getDefaultCapabilitiesForRole(sysRole);
 
+  let pinFormatted = u.pin;
+  let pinHash: string | null = (u as any).pinHash || null;
+  let pinSalt: string | null = (u as any).pinSalt || null;
+
+  if (pinHash && pinSalt) {
+    if (!pinFormatted || !isScryptHashedPin(pinFormatted)) {
+      pinFormatted = `scrypt$${pinSalt}$${pinHash}`;
+    }
+  } else if (typeof u.pin === 'string' && u.pin.trim()) {
+    if (isScryptHashedPin(u.pin.trim())) {
+      const [, parsedSalt, parsedHash] = u.pin.trim().split('$');
+      pinFormatted = u.pin.trim();
+      pinSalt = parsedSalt;
+      pinHash = parsedHash;
+    } else {
+      const hashedPin = hashPinScrypt(u.pin.trim());
+      pinFormatted = hashedPin.formatted;
+      pinHash = hashedPin.hash;
+      pinSalt = hashedPin.salt;
+    }
+  }
+
   return {
     ...u,
     companyId,
@@ -288,6 +407,9 @@ function enrichSeedUserToStoredUser(
     capabilities,
     branchId,
     assignedBranchIds,
+    pin: pinFormatted,
+    pinHash,
+    pinSalt,
     permissions: deriveLegacyPermissionsFromCapabilities(capabilities),
     hasPassword: Boolean((u as any).passwordHash || u.hasPassword),
     mustChangePassword: false,
@@ -379,12 +501,21 @@ export function loadPlatformState(): PlatformOnboardingState {
                 u.companyId !== 'comp-default' &&
                 !LEGACY_DEMO_USER_IDS.has(String(u.id))
             )
-            .map((u: any) => ({
-              ...enrichSeedUserToStoredUser(u, u.companyId || 'comp-demo-practice', u.systemRole),
-              passwordHash: u.passwordHash || null,
-              passwordSalt: u.passwordSalt || null,
-              hasPassword: Boolean(u.passwordHash || u.hasPassword),
-            }))
+            .map((u: any) => {
+              const enriched = enrichSeedUserToStoredUser(
+                u,
+                u.companyId || 'comp-demo-practice',
+                u.systemRole
+              );
+              return {
+                ...enriched,
+                pinHash: u.pinHash || enriched.pinHash || null,
+                pinSalt: u.pinSalt || enriched.pinSalt || null,
+                passwordHash: u.passwordHash || null,
+                passwordSalt: u.passwordSalt || null,
+                hasPassword: Boolean(u.passwordHash || u.hasPassword),
+              };
+            })
         : [...defaultUsers];
 
       for (const du of defaultUsers) {
@@ -440,7 +571,7 @@ export function savePlatformState(state: PlatformOnboardingState): void {
         const prodRaw = JSON.parse(fs.readFileSync(PROD_STORE_FILE, 'utf-8'));
         const prodUsers = state.users
           .filter((u) => u.companyId !== 'comp-demo-practice')
-          .map(({ passwordHash, passwordSalt, ...safeUser }) => safeUser);
+          .map((u) => sanitizeStoredUser(u));
         prodRaw.users = prodUsers;
         fs.writeFileSync(PROD_STORE_FILE, JSON.stringify(prodRaw, null, 2), 'utf-8');
       } catch {}
@@ -504,7 +635,7 @@ export function buildFreshPracticeSandboxState(resetCount = 0): PracticeSandboxS
   const state = loadPlatformState();
   const demoUsers = state.users
     .filter((u) => u.companyId === 'comp-demo-practice')
-    .map(({ passwordHash, passwordSalt, ...safe }) => safe);
+    .map((u) => sanitizeStoredUser(u));
 
   return {
     companyId: 'comp-demo-practice',
@@ -694,7 +825,7 @@ export async function createCompanyAndInitialOwner(
         state.users.find(
           (u) => u.companyId === existingCompany.id && u.systemRole === 'COMPANY_OWNER'
         ) || state.users[0];
-      const { passwordHash, passwordSalt, ...safeOwner } = existingOwner;
+      const safeOwner = sanitizeStoredUser(existingOwner);
       return {
         ok: true,
         idempotentReplay: true,
@@ -776,7 +907,7 @@ export async function createCompanyAndInitialOwner(
     const existingOwner = state.users.find(
       (u) => u.companyId === duplicateCompany.id && u.systemRole === 'COMPANY_OWNER'
     )!;
-    const { passwordHash, passwordSalt, ...safeOwner } = existingOwner;
+    const safeOwner = sanitizeStoredUser(existingOwner);
     return {
       ok: true,
       idempotentReplay: true,
@@ -790,11 +921,12 @@ export async function createCompanyAndInitialOwner(
 
   const nowIso = new Date().toISOString();
   const suffix = Date.now().toString(36).toUpperCase();
-  const companyId = `comp-${Date.now().toString(36)}-${ crypto.randomBytes(2).toString('hex') }`;
-  const companyCode = `CMP-${suffix}`;
-  const branchId = `br-${Date.now().toString(36)}-main`;
+  const randHex = crypto.randomBytes(2).toString('hex');
+  const companyId = `comp-${Date.now().toString(36)}-${randHex}`;
+  const companyCode = `CMP-${suffix}-${randHex.toUpperCase()}`;
+  const branchId = `br-${Date.now().toString(36)}-${randHex}-main`;
   const branchCode = (input.mainBranch?.code || '').trim().toUpperCase() || `BR-${suffix}-01`;
-  const ownerId = `usr-owner-${Date.now().toString(36)}`;
+  const ownerId = `usr-owner-${Date.now().toString(36)}-${randHex}`;
   const resolvedUsername = state.users.some(
     (u) => u.username.toLowerCase() === usernameOrEmail
   )
@@ -847,6 +979,7 @@ export async function createCompanyAndInitialOwner(
   };
 
   const ownerCapabilities = [...ALL_CAPABILITY_CODES];
+  const ownerPinHashed = hashPinScrypt((input.owner.pin || '1111').trim());
   const newOwner: StoredUserRecord = {
     id: ownerId,
     companyId,
@@ -860,7 +993,9 @@ export async function createCompanyAndInitialOwner(
     capabilities: ownerCapabilities,
     branchId,
     assignedBranchIds: [branchId],
-    pin: (input.owner.pin || '1111').trim(),
+    pin: ownerPinHashed.formatted,
+    pinHash: ownerPinHashed.hash,
+    pinSalt: ownerPinHashed.salt,
     passwordHash,
     passwordSalt,
     hasPassword: true,
@@ -992,6 +1127,8 @@ export async function createCompanyAndInitialOwner(
           assignedBranchIds: newOwner.assignedBranchIds,
           customPermissions: newOwner.capabilities,
           pinCode: newOwner.pin,
+          pinHash: newOwner.pinHash,
+          pinSalt: newOwner.pinSalt,
           passwordHash: newOwner.passwordHash,
           passwordSalt: newOwner.passwordSalt,
           isActive: true,
@@ -1002,7 +1139,7 @@ export async function createCompanyAndInitialOwner(
     }
   }
 
-  const { passwordHash: _ph, passwordSalt: _ps, ...safeOwner } = newOwner;
+  const safeOwner = sanitizeStoredUser(newOwner);
   return {
     ok: true,
     idempotentReplay: false,
@@ -1015,8 +1152,109 @@ export async function createCompanyAndInitialOwner(
 }
 
 // ============================================================================
-// 5. SESSION ISSUANCE, LOGIN & SERVER-SIDE AUTHORIZATION RESOLUTION
+// 5. SESSION ISSUANCE, JWT VERIFICATION & SERVER-SIDE AUTHORIZATION RESOLUTION
 // ============================================================================
+
+const SESSION_JWT_SECRET =
+  process.env.SESSION_JWT_SECRET || 'dqnamo-pos-enterprise-hmac-sha256-secret-v1';
+
+export interface SessionJwtPayload {
+  sub: string;
+  companyId: string;
+  role: string;
+  systemRole: SystemRoleCode;
+  workspaceMode: WorkspaceMode;
+  sid: string;
+  iat: number;
+  exp: number;
+}
+
+function base64UrlEncode(input: Buffer | string): string {
+  const buf = typeof input === 'string' ? Buffer.from(input, 'utf-8') : input;
+  return buf
+    .toString('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+}
+
+function base64UrlDecodeToString(input: string): string {
+  const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
+  const padLen = (4 - (normalized.length % 4)) % 4;
+  const padded = normalized + '='.repeat(padLen);
+  return Buffer.from(padded, 'base64').toString('utf-8');
+}
+
+export function signSessionJwt(
+  claims: Omit<SessionJwtPayload, 'iat' | 'exp'> & { expiresInSeconds?: number }
+): string {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const expSec = nowSec + (claims.expiresInSeconds ?? 7 * 24 * 60 * 60);
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const payload: SessionJwtPayload = {
+    sub: claims.sub,
+    companyId: claims.companyId,
+    role: claims.role,
+    systemRole: claims.systemRole,
+    workspaceMode: claims.workspaceMode,
+    sid: claims.sid,
+    iat: nowSec,
+    exp: expSec,
+  };
+  const encodedHeader = base64UrlEncode(JSON.stringify(header));
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+  const signature = crypto
+    .createHmac('sha256', SESSION_JWT_SECRET)
+    .update(signingInput)
+    .digest();
+  const encodedSignature = base64UrlEncode(signature);
+  return `${signingInput}.${encodedSignature}`;
+}
+
+export function verifySessionJwt(rawToken: string): SessionJwtPayload | null {
+  if (!rawToken || typeof rawToken !== 'string') return null;
+  const clean = rawToken.startsWith('dqsess_') ? rawToken.slice('dqsess_'.length) : rawToken;
+  const parts = clean.split('.');
+  if (parts.length !== 3) return null;
+
+  const [encodedHeader, encodedPayload, encodedSignature] = parts;
+  if (!encodedHeader || !encodedPayload || !encodedSignature) return null;
+
+  try {
+    const signingInput = `${encodedHeader}.${encodedPayload}`;
+    const expectedSig = base64UrlEncode(
+      crypto.createHmac('sha256', SESSION_JWT_SECRET).update(signingInput).digest()
+    );
+    const sigBufA = Buffer.from(encodedSignature, 'utf-8');
+    const sigBufB = Buffer.from(expectedSig, 'utf-8');
+    if (sigBufA.length !== sigBufB.length || !crypto.timingSafeEqual(sigBufA, sigBufB)) {
+      return null;
+    }
+
+    const headerObj = JSON.parse(base64UrlDecodeToString(encodedHeader));
+    if (headerObj?.alg !== 'HS256') return null;
+
+    const payloadObj = JSON.parse(base64UrlDecodeToString(encodedPayload)) as SessionJwtPayload;
+    if (
+      !payloadObj ||
+      typeof payloadObj.sub !== 'string' ||
+      typeof payloadObj.companyId !== 'string' ||
+      typeof payloadObj.exp !== 'number'
+    ) {
+      return null;
+    }
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (payloadObj.exp <= nowSec) {
+      return null;
+    }
+
+    return payloadObj;
+  } catch {
+    return null;
+  }
+}
 
 export function issueSessionForUser(
   state: PlatformOnboardingState,
@@ -1025,13 +1263,25 @@ export function issueSessionForUser(
 ): string {
   const mode: WorkspaceMode =
     workspaceMode || (user.companyId === 'comp-demo-practice' ? 'PRACTICE' : 'PRODUCTION');
-  const rawToken = `dqsess_${crypto.randomBytes(24).toString('hex')}`;
-  const tokenHash = hashSessionToken(rawToken);
   const now = new Date();
-  const expires = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const expiresInSeconds = 7 * 24 * 60 * 60;
+  const expires = new Date(now.getTime() + expiresInSeconds * 1000);
+  const sessionId = `sess-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+
+  const signedJwt = signSessionJwt({
+    sub: user.id,
+    companyId: user.companyId,
+    role: user.role,
+    systemRole: user.systemRole,
+    workspaceMode: mode,
+    sid: sessionId,
+    expiresInSeconds,
+  });
+  const rawToken = `dqsess_${signedJwt}`;
+  const tokenHash = hashSessionToken(rawToken);
 
   const sessionRecord: StoredSessionRecord = {
-    id: `sess-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
+    id: sessionId,
     tokenHash,
     userId: user.id,
     companyId: user.companyId,
@@ -1059,8 +1309,8 @@ export interface AuthenticatedActorContext {
 }
 
 /**
- * Resolves the authenticated user and company scope from Bearer token, `x-session-token`,
- * or `x-user-id` verified strictly against the server-side user store.
+ * Resolves the authenticated user and company scope from Bearer JWT / session token,
+ * `x-session-token`, or `x-user-id` verified strictly against the server-side user store.
  * NEVER trusts client-supplied `x-user-role`, `role`, or `companyId` to escalate privileges!
  */
 export function resolveAuthenticatedActorFromRequest(
@@ -1079,37 +1329,88 @@ export function resolveAuthenticatedActorFromRequest(
 
   if (rawToken) {
     const tokenHash = hashSessionToken(rawToken);
+    const prefixedTokenHash = rawToken.startsWith('dqsess_')
+      ? tokenHash
+      : hashSessionToken(`dqsess_${rawToken}`);
+    const jwtClaims = verifySessionJwt(rawToken);
+
     const matchedSession = state.sessions.find(
       (s) =>
-        s.tokenHash === tokenHash &&
-        !s.isRevoked &&
-        new Date(s.expiresAt).getTime() > Date.now()
+        s.tokenHash === tokenHash ||
+        s.tokenHash === prefixedTokenHash ||
+        (jwtClaims?.sid && s.id === jwtClaims.sid)
     );
-    if (!matchedSession) {
-      throw new ReleasePlatformError(
-        401,
-        'INVALID_OR_EXPIRED_SESSION',
-        'Authentication failed: session token is invalid, expired, or revoked.'
+
+    if (matchedSession) {
+      if (
+        matchedSession.isRevoked ||
+        new Date(matchedSession.expiresAt).getTime() <= Date.now()
+      ) {
+        throw new ReleasePlatformError(
+          401,
+          'INVALID_OR_EXPIRED_SESSION',
+          'Authentication failed: session token is invalid, expired, or revoked.'
+        );
+      }
+      // If the token has JWT structure (contains dots), verify its HMAC-SHA256 signature as well
+      const cleanTokenPart = rawToken.startsWith('dqsess_')
+        ? rawToken.slice('dqsess_'.length)
+        : rawToken;
+      if (cleanTokenPart.includes('.') && !jwtClaims) {
+        throw new ReleasePlatformError(
+          401,
+          'INVALID_OR_EXPIRED_SESSION',
+          'Authentication failed: session JWT signature verification failed.'
+        );
+      }
+
+      const matchedUser = state.users.find(
+        (u) => u.id === matchedSession.userId && u.companyId === matchedSession.companyId
       );
+      if (!matchedUser || !matchedUser.isActive) {
+        throw new ReleasePlatformError(
+          403,
+          'USER_ACCOUNT_DEACTIVATED',
+          'Access denied: user account is deactivated.'
+        );
+      }
+      const company =
+        state.companies.find((c) => c.id === matchedUser.companyId) || state.companies[0];
+      return {
+        user: matchedUser,
+        company,
+        workspaceMode: company.isDemo ? 'PRACTICE' : matchedSession.workspaceMode,
+        sessionId: matchedSession.id,
+      };
     }
-    const matchedUser = state.users.find(
-      (u) => u.id === matchedSession.userId && u.companyId === matchedSession.companyId
+
+    // Support stateless verified HMAC-SHA256 JWT tokens when session was not evicted/revoked
+    if (jwtClaims) {
+      const matchedUser = state.users.find(
+        (u) => u.id === jwtClaims.sub && u.companyId === jwtClaims.companyId
+      );
+      if (!matchedUser || !matchedUser.isActive) {
+        throw new ReleasePlatformError(
+          403,
+          'USER_ACCOUNT_DEACTIVATED',
+          'Access denied: user account is deactivated or not found.'
+        );
+      }
+      const company =
+        state.companies.find((c) => c.id === matchedUser.companyId) || state.companies[0];
+      return {
+        user: matchedUser,
+        company,
+        workspaceMode: company.isDemo ? 'PRACTICE' : jwtClaims.workspaceMode,
+        sessionId: jwtClaims.sid,
+      };
+    }
+
+    throw new ReleasePlatformError(
+      401,
+      'INVALID_OR_EXPIRED_SESSION',
+      'Authentication failed: session token is invalid, expired, or revoked.'
     );
-    if (!matchedUser || !matchedUser.isActive) {
-      throw new ReleasePlatformError(
-        403,
-        'USER_ACCOUNT_DEACTIVATED',
-        'Access denied: user account is deactivated.'
-      );
-    }
-    const company =
-      state.companies.find((c) => c.id === matchedUser.companyId) || state.companies[0];
-    return {
-      user: matchedUser,
-      company,
-      workspaceMode: company.isDemo ? 'PRACTICE' : matchedSession.workspaceMode,
-      sessionId: matchedSession.id,
-    };
   }
 
   // Fallback to verified `x-user-id` or `userId` in server store
@@ -1173,7 +1474,7 @@ export function assertActorHasCapability(
     throw new ReleasePlatformError(
       403,
       'FORBIDDEN_MISSING_CAPABILITY',
-      `Access denied: user "${actor.user.name}" (${actor.user.systemRole}) lacks required permission "${capability}".`
+      `Insufficient permissions: Access denied — user "${actor.user.name}" (${actor.user.systemRole}) lacks required permission "${capability}".`
     );
   }
 }
@@ -1320,6 +1621,7 @@ export function createEmployeeAccount(
 
   const id = `usr-${Date.now().toString(36)}-${crypto.randomBytes(2).toString('hex')}`;
   const nowIso = new Date().toISOString();
+  const empPinHashed = hashPinScrypt((input.pin || '5555').trim());
 
   const created: StoredUserRecord = {
     id,
@@ -1334,7 +1636,9 @@ export function createEmployeeAccount(
     capabilities,
     branchId: defaultBranchId,
     assignedBranchIds,
-    pin: (input.pin || '5555').trim(),
+    pin: empPinHashed.formatted,
+    pinHash: empPinHashed.hash,
+    pinSalt: empPinHashed.salt,
     passwordHash,
     passwordSalt,
     hasPassword: Boolean(passwordHash),
@@ -1366,8 +1670,7 @@ export function createEmployeeAccount(
   });
 
   savePlatformState(state);
-  const { passwordHash: _ph, passwordSalt: _ps, ...safe } = created;
-  return safe;
+  return sanitizeStoredUser(created);
 }
 
 export function updateEmployeeAccount(
@@ -1455,6 +1758,25 @@ export function updateEmployeeAccount(
   }
 
   const nowIso = new Date().toISOString();
+  let nextPin = target.pin;
+  let nextPinHash = target.pinHash || null;
+  let nextPinSalt = target.pinSalt || null;
+
+  if (updates.pin !== undefined && updates.pin.trim()) {
+    const cleanPinUpdate = updates.pin.trim();
+    if (isScryptHashedPin(cleanPinUpdate)) {
+      const [, parsedSalt, parsedHash] = cleanPinUpdate.split('$');
+      nextPin = cleanPinUpdate;
+      nextPinSalt = parsedSalt;
+      nextPinHash = parsedHash;
+    } else {
+      const hashedPinUpdate = hashPinScrypt(cleanPinUpdate);
+      nextPin = hashedPinUpdate.formatted;
+      nextPinHash = hashedPinUpdate.hash;
+      nextPinSalt = hashedPinUpdate.salt;
+    }
+  }
+
   const updated: StoredUserRecord = {
     ...target,
     name: updates.name !== undefined ? updates.name.trim() || target.name : target.name,
@@ -1469,7 +1791,9 @@ export function updateEmployeeAccount(
     assignedBranchIds: Array.isArray(updates.assignedBranchIds)
       ? updates.assignedBranchIds
       : target.assignedBranchIds,
-    pin: updates.pin !== undefined ? updates.pin.trim() : target.pin,
+    pin: nextPin,
+    pinHash: nextPinHash,
+    pinSalt: nextPinSalt,
     terminalName: updates.terminalName !== undefined ? updates.terminalName : target.terminalName,
     terminalNameAr:
       updates.terminalNameAr !== undefined ? updates.terminalNameAr : target.terminalNameAr,
@@ -1505,8 +1829,7 @@ export function updateEmployeeAccount(
   });
 
   savePlatformState(state);
-  const { passwordHash: _ph, passwordSalt: _ps, ...safe } = updated;
-  return safe;
+  return sanitizeStoredUser(updated);
 }
 
 // ============================================================================
@@ -1678,7 +2001,7 @@ export function executeCompanyFactoryReset(input: FactoryResetCompanyInput): {
       matchedOwner.passwordSalt
     );
   }
-  if (!isAuthenticated && matchedOwner.pin && matchedOwner.pin === password) {
+  if (!isAuthenticated && verifyPinScrypt(password, matchedOwner)) {
     isAuthenticated = true;
   }
 
@@ -1986,7 +2309,7 @@ releasePlatformRouter.post('/auth/login', (req: Request, res: Response) => {
           throw new ReleasePlatformError(401, 'INVALID_CREDENTIALS', 'Incorrect password.');
         }
       } else if (pin) {
-        if (matchedUser.pin !== String(pin).trim()) {
+        if (!verifyPinScrypt(String(pin), matchedUser)) {
           throw new ReleasePlatformError(401, 'INVALID_CREDENTIALS', 'Incorrect PIN code.');
         }
       } else {
@@ -1997,7 +2320,7 @@ releasePlatformRouter.post('/auth/login', (req: Request, res: Response) => {
         );
       }
     } else if (pin !== undefined && pin !== '') {
-      if (matchedUser.pin && matchedUser.pin !== String(pin).trim()) {
+      if ((matchedUser.pin || matchedUser.pinHash) && !verifyPinScrypt(String(pin), matchedUser)) {
         throw new ReleasePlatformError(401, 'INVALID_CREDENTIALS', 'Incorrect PIN code.');
       }
     }
@@ -2022,7 +2345,7 @@ releasePlatformRouter.post('/auth/login', (req: Request, res: Response) => {
 
     savePlatformState(state);
 
-    const { passwordHash: _ph, passwordSalt: _ps, ...safeUser } = matchedUser;
+    const safeUser = sanitizeStoredUser(matchedUser);
     res.json({
       success: true,
       data: {
@@ -2220,7 +2543,7 @@ releasePlatformRouter.get('/users', (req: Request, res: Response) => {
     const state = loadPlatformState();
     const companyUsers = state.users
       .filter((u) => u.companyId === actor.company.id)
-      .map(({ passwordHash, passwordSalt, ...safe }) => safe);
+      .map((u) => sanitizeStoredUser(u));
     const companyBranches = state.branches.filter((b) => b.companyId === actor.company.id);
     const companyAuditLogs = state.auditLogs
       .filter((a) => a.companyId === actor.company.id)
@@ -2333,18 +2656,18 @@ export function authenticateAccount(params: {
       matched.passwordHash,
       matched.passwordSalt
     );
-    const validPin = matched.pin === String(params.passwordOrPin).trim();
+    const validPin = verifyPinScrypt(String(params.passwordOrPin), matched);
     if (!validPwd && !validPin) {
       return { ok: false, code: 'INVALID_CREDENTIALS', error: 'Invalid password or PIN.' };
     }
-  } else if (matched.pin && matched.pin !== String(params.passwordOrPin).trim()) {
+  } else if ((matched.pin || matched.pinHash) && !verifyPinScrypt(String(params.passwordOrPin), matched)) {
     return { ok: false, code: 'INVALID_CREDENTIALS', error: 'Invalid PIN.' };
   }
 
   const sessionToken = issueSessionForUser(state, matched, params.workspaceMode);
   savePlatformState(state);
   const company = state.companies.find((c) => c.id === matched.companyId);
-  const { passwordHash: _ph, passwordSalt: _ps, ...safeUser } = matched;
+  const safeUser = sanitizeStoredUser(matched);
   return {
     ok: true,
     sessionToken,
@@ -2359,10 +2682,19 @@ releasePlatformRouter.post('/users/:id/reset-password', (req: Request, res: Resp
     const actor = resolveAuthenticatedActorFromRequest(req);
     assertActorHasCapability(actor, 'users.edit');
 
-    const { newPassword, mustChangePassword } = req.body || {};
-    const pwdCheck = validatePasswordStrength(String(newPassword || ''));
-    if (!pwdCheck.valid) {
-      throw new ReleasePlatformError(400, 'WEAK_PASSWORD', pwdCheck.messageEn!);
+    const { newPassword, newPin, mustChangePassword } = req.body || {};
+    if (!newPassword && !newPin) {
+      throw new ReleasePlatformError(
+        400,
+        'WEAK_PASSWORD',
+        'A new password or PIN must be provided.'
+      );
+    }
+    if (newPassword !== undefined) {
+      const pwdCheck = validatePasswordStrength(String(newPassword || ''));
+      if (!pwdCheck.valid) {
+        throw new ReleasePlatformError(400, 'WEAK_PASSWORD', pwdCheck.messageEn!);
+      }
     }
 
     const state = loadPlatformState();
@@ -2372,11 +2704,20 @@ releasePlatformRouter.post('/users/:id/reset-password', (req: Request, res: Resp
     }
     assertActorCompanyMatch(actor, state.users[idx].companyId);
 
-    const { hash, salt } = hashPasswordScrypt(String(newPassword));
-    state.users[idx].passwordHash = hash;
-    state.users[idx].passwordSalt = salt;
-    state.users[idx].hasPassword = true;
-    state.users[idx].mustChangePassword = Boolean(mustChangePassword);
+    if (newPassword !== undefined) {
+      const { hash, salt } = hashPasswordScrypt(String(newPassword));
+      state.users[idx].passwordHash = hash;
+      state.users[idx].passwordSalt = salt;
+      state.users[idx].hasPassword = true;
+      state.users[idx].mustChangePassword = Boolean(mustChangePassword);
+    }
+
+    if (newPin !== undefined && String(newPin).trim()) {
+      const hashedPin = hashPinScrypt(String(newPin).trim());
+      state.users[idx].pin = hashedPin.formatted;
+      state.users[idx].pinHash = hashedPin.hash;
+      state.users[idx].pinSalt = hashedPin.salt;
+    }
 
     appendPlatformAuditLog(state, {
       companyId: actor.company.id,
@@ -2428,21 +2769,51 @@ export function requireServerCapability(
         Boolean(req.query.userId) ||
         Boolean(req.body?.userId);
 
-      // Block SEC-P11-01: if a client sends `x-user-role` without a valid server-verified user, or with a cashier user, verify strictly!
+      // Block SEC-P11-01 & Problem #7: Never trust unauthenticated `x-user-role` headers (whether 'cashier' or spoofed 'admin'/'manager').
       if (!hasExplicitAuth && req.headers['x-user-role']) {
-        const roleHeader = String(req.headers['x-user-role']).toLowerCase();
-        if (roleHeader === 'cashier' || roleHeader === 'inventory_clerk' || roleHeader === 'report_viewer') {
-          return res.status(403).json({
-            success: false,
-            errorCode: 'FORBIDDEN_MISSING_CAPABILITY',
-            error: `Insufficient permissions: role "${roleHeader}" lacks "${capability}".`,
-          });
-        }
+        const roleHeader = String(req.headers['x-user-role']).trim().toLowerCase();
+        return res.status(403).json({
+          success: false,
+          code: 'FORBIDDEN_UNVERIFIED_ROLE_HEADER',
+          errorCode: 'FORBIDDEN_MISSING_CAPABILITY',
+          error: `Insufficient permissions: unverified x-user-role header ("${roleHeader}") cannot authorize "${capability}" without a valid session token or verified user identity.`,
+        });
+      }
+
+      const requestedCompanyId =
+        (typeof req.headers['x-company-id'] === 'string'
+          ? req.headers['x-company-id'].trim()
+          : '') ||
+        (typeof req.query.companyId === 'string' ? req.query.companyId.trim() : '');
+
+      // Block unauthenticated `x-company-id` tenant spoofing against non-default production companies
+      if (
+        !hasExplicitAuth &&
+        requestedCompanyId &&
+        requestedCompanyId !== DEFAULT_COMPANY_ID &&
+        requestedCompanyId !== PRACTICE_COMPANY_ID
+      ) {
+        return res.status(401).json({
+          success: false,
+          code: 'UNAUTHENTICATED_COMPANY_HEADER',
+          errorCode: 'UNAUTHENTICATED_REQUEST',
+          error: `Authentication required: cannot target company "${requestedCompanyId}" via x-company-id without a valid session token or verified user identity.`,
+        });
       }
 
       const actor = resolveAuthenticatedActorFromRequest(req, {
         allowUnauthenticatedDefaultRead: options?.allowInternalDefaultIfNoHeader && !hasExplicitAuth,
       });
+
+      if (
+        hasExplicitAuth &&
+        requestedCompanyId &&
+        requestedCompanyId !== DEFAULT_COMPANY_ID &&
+        !(actor.workspaceMode === 'PRACTICE' && requestedCompanyId === PRACTICE_COMPANY_ID)
+      ) {
+        assertActorCompanyMatch(actor, requestedCompanyId);
+      }
+
       assertActorHasCapability(actor, capability);
       (req as any).authenticatedActor = actor;
       next();

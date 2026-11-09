@@ -830,3 +830,119 @@ test('computeDailyRevenueTrends aggregates daily revenue, converts currencies, a
   assert.equal(summaryUsd.totalRevenue, 100);
   assert.equal(summaryUsd.peakPoint?.revenue, 50);
 });
+
+test('Problem #11: formatCurrency uses frozen module-level CURRENCY_SYMBOLS without re-allocating on every call', async () => {
+  const { CURRENCY_SYMBOLS, formatCurrency } = await import('./pos-calculations');
+  assert.equal(Object.isFrozen(CURRENCY_SYMBOLS), true);
+  assert.equal(formatCurrency(1500, 'SDG', 'ar'), '1,500.00 ج.س');
+  assert.equal(formatCurrency(1500, 'SDG', 'en'), 'SDG 1,500.00');
+  assert.equal(formatCurrency(25.5, 'USD', 'ar'), '$25.50');
+  assert.equal(formatCurrency(25.5, 'USD', 'en'), '$25.50');
+  assert.equal(formatCurrency(100, 'SAR', 'ar'), '100.00 ر.س');
+});
+
+test('Problem #14: validateCheckout uses dynamic currency symbol and supports bilingual Arabic/English messages', () => {
+  const arabicProduct: Product = {
+    ...mockProductA,
+    name: 'Paracetamol 500mg',
+    nameAr: 'باراسيتامول 500 ملغ',
+    stock: 3,
+  };
+  const cart: CartItem[] = [{ product: arabicProduct, quantity: 2, itemDiscountPercent: 0 }];
+
+  // 1. Under-tendered cash in SDG + Arabic
+  const underpaidSdgAr = validateCheckout(cart, 'cash', 1000, 2500, undefined, {
+    currency: 'SDG',
+    language: 'ar',
+  });
+  assert.equal(underpaidSdgAr.valid, false);
+  assert.equal(
+    underpaidSdgAr.error,
+    'المبلغ المدفوع (1,000.00 ج.س) أقل من الإجمالي المستحق (2,500.00 ج.س).'
+  );
+  assert.equal(underpaidSdgAr.errorAr, underpaidSdgAr.error);
+  assert.equal(underpaidSdgAr.error?.includes('$'), false);
+
+  // 2. Under-tendered cash in SAR + English
+  const underpaidSarEn = validateCheckout(cart, 'cash', 50, 120, undefined, {
+    currency: 'SAR',
+    language: 'en',
+  });
+  assert.equal(underpaidSarEn.valid, false);
+  assert.equal(
+    underpaidSarEn.error,
+    'Tendered amount (SAR 50.00) is less than total due (SAR 120.00).'
+  );
+  assert.equal(
+    underpaidSarEn.errorAr,
+    'المبلغ المدفوع (50.00 ر.س) أقل من الإجمالي المستحق (120.00 ر.س).'
+  );
+
+  // 3. Empty cart in Arabic
+  const emptyAr = validateCheckout([], 'cash', 0, 0, undefined, {
+    currency: 'SDG',
+    language: 'ar',
+  });
+  assert.equal(emptyAr.valid, false);
+  assert.equal(emptyAr.error, 'لا يمكن إتمام العملية والسلة فارغة.');
+
+  // 4. Insufficient stock in Arabic uses nameAr
+  const overStockAr = validateCheckout(
+    [{ product: arabicProduct, quantity: 5, itemDiscountPercent: 0 }],
+    'cash',
+    5000,
+    5000,
+    undefined,
+    { currency: 'SDG', language: 'ar' }
+  );
+  assert.equal(overStockAr.valid, false);
+  assert.equal(
+    overStockAr.error,
+    'المخزون غير كافٍ للصنف باراسيتامول 500 ملغ. المتوفر: 3، المطلوب: 5.'
+  );
+});
+
+test('Problem #15: getProductPackaging strictly respects enablePackaging when false or disabled even if unitsPerPack >= 2', () => {
+  // 1. User disabled packaging (enablePackaging: false) while unitsPerPack is still 8
+  const disabledPkg = getProductPackaging({
+    costPrice: 100,
+    sellingPrice: 150,
+    enablePackaging: false,
+    unitsPerPack: 8,
+    defaultSaleUnit: 'pack',
+  });
+  assert.equal(disabledPkg.enablePackaging, false);
+  assert.equal(disabledPkg.unitsPerPack, 1);
+  assert.equal(disabledPkg.defaultSaleUnit, 'unit');
+
+  // 2. Unset enablePackaging defaults to false even if unitsPerPack >= 2
+  const unsetPkg = getProductPackaging({
+    costPrice: 100,
+    sellingPrice: 150,
+    unitsPerPack: 12,
+  });
+  assert.equal(unsetPkg.enablePackaging, false);
+  assert.equal(unsetPkg.unitsPerPack, 1);
+
+  // 3. Enabled packaging with unitsPerPack >= 2 activates multi-unit packaging
+  const enabledPkg = getProductPackaging({
+    costPrice: 100,
+    sellingPrice: 150,
+    enablePackaging: true,
+    unitsPerPack: 8,
+    defaultSaleUnit: 'pack',
+  });
+  assert.equal(enabledPkg.enablePackaging, true);
+  assert.equal(enabledPkg.unitsPerPack, 8);
+  assert.equal(enabledPkg.defaultSaleUnit, 'pack');
+
+  // 4. Enabled packaging with unitsPerPack < 2 stays false
+  const singleUnitPkg = getProductPackaging({
+    costPrice: 100,
+    sellingPrice: 150,
+    enablePackaging: true,
+    unitsPerPack: 1,
+  });
+  assert.equal(singleUnitPkg.enablePackaging, false);
+  assert.equal(singleUnitPkg.unitsPerPack, 1);
+});

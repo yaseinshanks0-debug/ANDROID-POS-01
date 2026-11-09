@@ -6,6 +6,7 @@
 import {
   CartItem,
   CheckoutPaymentDetails,
+  Customer,
   DebtSettlementInput,
   DebtSettlementPayment,
   PaymentMethod,
@@ -109,7 +110,7 @@ export function getProductPackaging(
 
   const enablePackaging = Boolean(
     (product.enablePackaging ?? cf.enablePackaging ?? false) && unitsPerPack >= 2
-  ) || unitsPerPack >= 2;
+  );
 
   const unitName = String(product.unitName || cf.unitName || 'Piece').trim() || 'Piece';
   const unitNameAr = String(product.unitNameAr || cf.unitNameAr || 'قطعة').trim() || 'قطعة';
@@ -546,81 +547,236 @@ export function formatPaymentMethodLabel(
   }
 }
 
+export interface CheckoutValidationOptions {
+  currency?: string;
+  language?: 'en' | 'ar';
+}
+
 export interface CheckoutValidationResult {
   valid: boolean;
   error?: string;
+  errorAr?: string;
 }
 
 /**
  * Validates whether a checkout submission satisfies business criteria, including multi-unit stock (strip vs pack),
- * bank transfer reference, and debt rules.
+ * bank transfer reference, debt rules, dynamic currency formatting, and bilingual (Arabic/English) error messages.
  */
 export function validateCheckout(
   items: CartItem[],
   paymentMethod: PaymentMethod,
   amountTendered: number,
   grandTotal: number,
-  details?: CheckoutPaymentDetails
+  details?: CheckoutPaymentDetails,
+  options?: CheckoutValidationOptions
 ): CheckoutValidationResult {
+  const isAr = options?.language === 'ar';
+  const currencyCode = (options?.currency || 'USD').toUpperCase().trim() || 'USD';
+
+  const fail = (enMsg: string, arMsg: string): CheckoutValidationResult => ({
+    valid: false,
+    error: isAr ? arMsg : enMsg,
+    errorAr: arMsg,
+  });
+
   if (!items || items.length === 0) {
-    return { valid: false, error: 'Shopping cart cannot be empty.' };
+    return fail(
+      'Shopping cart cannot be empty.',
+      'لا يمكن إتمام العملية والسلة فارغة.'
+    );
   }
 
   if (grandTotal < 0) {
-    return { valid: false, error: 'Total amount cannot be negative.' };
+    return fail(
+      'Total amount cannot be negative.',
+      'لا يمكن أن يكون المبلغ الإجمالي بالسالب.'
+    );
   }
 
   for (const item of items) {
+    const prodNameEn = item.product.name;
+    const prodNameAr = item.product.nameAr || item.product.name;
+
     if (item.quantity <= 0) {
-      return { valid: false, error: `Invalid quantity for ${item.product.name}.` };
+      return fail(
+        `Invalid quantity for ${prodNameEn}.`,
+        `كمية غير صالحة للصنف ${prodNameAr}.`
+      );
     }
     const { totalStockUnitsRequired } = getCartItemUnitPricing(item);
     if (totalStockUnitsRequired > item.product.stock) {
-      return {
-        valid: false,
-        error: `Insufficient stock for ${item.product.name}. In stock: ${item.product.stock}, requested: ${totalStockUnitsRequired}.`,
-      };
+      return fail(
+        `Insufficient stock for ${prodNameEn}. In stock: ${item.product.stock}, requested: ${totalStockUnitsRequired}.`,
+        `المخزون غير كافٍ للصنف ${prodNameAr}. المتوفر: ${item.product.stock}، المطلوب: ${totalStockUnitsRequired}.`
+      );
     }
   }
 
   const paymentStatus: PaymentSettlementStatus = details?.paymentStatus || 'paid';
 
   // If bank_transfer is chosen and customer is paying (full or partial), require operation reference number
-  if (paymentMethod === 'bank_transfer' && paymentStatus !== 'unpaid') {
-    const ref = details?.transferReference?.trim() || '';
-    if (!ref) {
-      return {
-        valid: false,
-        error: 'Transaction reference number (رقم العملية) is required for Bank Transfer.',
-      };
-    }
+  const transferCheck = validateBankTransferTransaction({
+    paymentMethod,
+    paymentStatus,
+    transferReference: details?.transferReference,
+  });
+  if (!transferCheck.valid) {
+    return fail(
+      transferCheck.error ||
+        'Transaction reference number (رقم العملية) is required for Bank Transfer.',
+      transferCheck.errorAr ||
+        'رقم العملية مطلوب عند الدفع عبر التحويل البنكي.'
+    );
   }
 
   if (paymentStatus === 'partial') {
     const paid = details?.amountPaid !== undefined ? details.amountPaid : amountTendered;
     if (!Number.isFinite(paid) || paid <= 0) {
-      return {
-        valid: false,
-        error: 'Partial payment amount must be greater than zero, or choose Unpaid (Full Debt).',
-      };
+      return fail(
+        'Partial payment amount must be greater than zero, or choose Unpaid (Full Debt).',
+        'يجب أن يكون المبلغ المدفوع جزئياً أكبر من الصفر، أو اختر آجل بالكامل (غير مدفوع).'
+      );
     }
     if (paid > grandTotal + 0.0001) {
-      return {
-        valid: false,
-        error: 'Partial payment amount cannot exceed the grand total.',
-      };
+      return fail(
+        'Partial payment amount cannot exceed the grand total.',
+        'لا يمكن أن يتجاوز المبلغ المدفوع جزئياً إجمالي الفاتورة.'
+      );
     }
   } else if (paymentStatus === 'paid' && paymentMethod === 'cash') {
     if (amountTendered < grandTotal - 0.0001) {
+      const tenderedEn = formatCurrency(amountTendered, currencyCode, 'en');
+      const totalEn = formatCurrency(grandTotal, currencyCode, 'en');
+      const tenderedAr = formatCurrency(amountTendered, currencyCode, 'ar');
+      const totalAr = formatCurrency(grandTotal, currencyCode, 'ar');
+
+      return fail(
+        `Tendered amount (${tenderedEn}) is less than total due (${totalEn}).`,
+        `المبلغ المدفوع (${tenderedAr}) أقل من الإجمالي المستحق (${totalAr}).`
+      );
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validates that a transaction or payment using `bank_transfer` (when not unpaid/cancelled)
+ * includes a non-empty operation reference number (`transferReference`).
+ * Shared between client checkout validation and server API endpoints (`/api/store-sync`, `/api/transactions`, `/api/lan-sync/push`).
+ */
+export function validateBankTransferTransaction(
+  tx: Partial<Transaction> | Record<string, any> | null | undefined
+): {
+  valid: boolean;
+  errorCode?: string;
+  error?: string;
+  errorAr?: string;
+} {
+  if (!tx || typeof tx !== 'object') {
+    return {
+      valid: false,
+      errorCode: 'INVALID_TRANSACTION_PAYLOAD',
+      error: 'Invalid transaction payload.',
+      errorAr: 'بيانات العملية غير صالحة.',
+    };
+  }
+
+  if (tx.status === 'cancelled') {
+    return { valid: true };
+  }
+
+  const paymentMethod = String(tx.paymentMethod || 'cash').trim();
+  const paymentStatus: PaymentSettlementStatus = (tx.paymentStatus || 'paid') as PaymentSettlementStatus;
+  const topLevelRef =
+    typeof tx.transferReference === 'string' ? tx.transferReference.trim() : '';
+
+  const debtPayments = Array.isArray(tx.debtPayments) ? tx.debtPayments : [];
+
+  if (paymentMethod === 'bank_transfer' && paymentStatus !== 'unpaid') {
+    const hasDebtRef = debtPayments.some(
+      (dp: any) =>
+        dp &&
+        dp.paymentMethod === 'bank_transfer' &&
+        typeof dp.transferReference === 'string' &&
+        dp.transferReference.trim().length > 0
+    );
+    if (!topLevelRef && !hasDebtRef) {
       return {
         valid: false,
-        error: `Tendered amount ($${amountTendered.toFixed(2)}) is less than total due ($${grandTotal.toFixed(2)}).`,
+        errorCode: 'BANK_TRANSFER_REFERENCE_REQUIRED',
+        error: 'Transaction reference number (رقم العملية) is required for Bank Transfer.',
+        errorAr: 'رقم مرجع العملية مطلوب عند الدفع عبر التحويل البنكي.',
+      };
+    }
+  }
+
+  for (const dp of debtPayments) {
+    if (
+      dp &&
+      dp.paymentMethod === 'bank_transfer' &&
+      (dp.amountPaid === undefined || Number(dp.amountPaid) > 0)
+    ) {
+      const dpRef =
+        typeof dp.transferReference === 'string' ? dp.transferReference.trim() : '';
+      if (!dpRef && !topLevelRef) {
+        return {
+          valid: false,
+          errorCode: 'BANK_TRANSFER_REFERENCE_REQUIRED',
+          error: 'Transaction reference number (رقم العملية) is required for Bank Transfer debt settlement.',
+          errorAr: 'رقم مرجع العملية مطلوب عند سداد المديونية عبر التحويل البنكي.',
+        };
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validates a batch of transactions submitted to the server.
+ */
+export function validateServerTransactionsBatch(transactions: unknown): {
+  valid: boolean;
+  invalidTransactionId?: string;
+  errorCode?: string;
+  error?: string;
+  errorAr?: string;
+} {
+  if (!Array.isArray(transactions)) {
+    return { valid: true };
+  }
+
+  for (const tx of transactions) {
+    const check = validateBankTransferTransaction(tx);
+    if (!check.valid) {
+      return {
+        valid: false,
+        invalidTransactionId: tx && typeof tx === 'object' ? String((tx as any).id || '') : undefined,
+        errorCode: check.errorCode,
+        error: check.error,
+        errorAr: check.errorAr,
       };
     }
   }
 
   return { valid: true };
 }
+
+export const CURRENCY_SYMBOLS: Readonly<Record<string, { en: string; ar: string }>> = Object.freeze({
+  SDG: { en: 'SDG ', ar: ' ج.س' },
+  USD: { en: '$', ar: '$' },
+  SAR: { en: 'SAR ', ar: ' ر.س' },
+  AED: { en: 'AED ', ar: ' د.إ' },
+  EUR: { en: '€', ar: '€' },
+  GBP: { en: '£', ar: '£' },
+  EGP: { en: 'EGP ', ar: ' ج.م' },
+  QAR: { en: 'QAR ', ar: ' ر.ق' },
+  KWD: { en: 'KWD ', ar: ' د.ك' },
+  TRY: { en: '₺', ar: '₺' },
+});
+
+const ARABIC_SUFFIX_CURRENCIES = new Set(['SAR', 'AED', 'SDG', 'EGP', 'QAR', 'KWD']);
 
 /**
  * Currency formatter with symbol placement and localized numerals.
@@ -633,29 +789,16 @@ export function formatCurrency(
   const safeAmount = isNaN(amount) ? 0 : amount;
   const code = (currency || 'SDG').toUpperCase();
 
-  const currencySymbols: Record<string, { en: string; ar: string }> = {
-    SDG: { en: 'SDG ', ar: ' ج.س' },
-    USD: { en: '$', ar: '$' },
-    SAR: { en: 'SAR ', ar: ' ر.س' },
-    AED: { en: 'AED ', ar: ' د.إ' },
-    EUR: { en: '€', ar: '€' },
-    GBP: { en: '£', ar: '£' },
-    EGP: { en: 'EGP ', ar: ' ج.م' },
-    QAR: { en: 'QAR ', ar: ' ر.ق' },
-    KWD: { en: 'KWD ', ar: ' د.ك' },
-    TRY: { en: '₺', ar: '₺' },
-  };
-
   const isMicro = Math.abs(safeAmount) > 0 && Math.abs(safeAmount) < 0.05;
   const formattedNum = safeAmount.toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: isMicro ? 4 : 2,
   });
 
-  const sym = currencySymbols[code] || { en: `${code} `, ar: ` ${code}` };
+  const sym = CURRENCY_SYMBOLS[code] || { en: `${code} `, ar: ` ${code}` };
 
   if (locale === 'ar') {
-    if (['SAR', 'AED', 'SDG', 'EGP', 'QAR', 'KWD'].includes(code) || !currencySymbols[code]) {
+    if (ARABIC_SUFFIX_CURRENCIES.has(code) || !CURRENCY_SYMBOLS[code]) {
       return `${formattedNum}${sym.ar}`;
     }
     return `${sym.ar}${formattedNum}`;
@@ -1827,3 +1970,203 @@ export function computeDailyRevenueTrends(
     growthPercent,
   };
 }
+
+export interface OperationalLedgerState {
+  products: Product[];
+  transactions: Transaction[];
+  customers: Customer[];
+  stockMovements: StockMovement[];
+}
+
+export interface AtomicCheckoutCommitPayload {
+  cart: CartItem[];
+  newTransaction: Transaction;
+  selectedCustomerId?: string | null;
+  grandTotal: number;
+  debtAmount: number;
+  currency: SupportedCurrency;
+  exchangeRates: Record<string, number>;
+  language: AppLanguage;
+  nowIso?: string;
+}
+
+/**
+ * Pure, side-effect-free atomic state transition for POS Checkout.
+ * Computes updated products, stock movements, customer balances, and transactions
+ * in a single deterministic pass so all four slices transition atomically inside a reducer.
+ */
+export function computeAtomicCheckoutStateTransition(
+  state: OperationalLedgerState,
+  payload: AtomicCheckoutCommitPayload
+): OperationalLedgerState & { createdMovements: StockMovement[] } {
+  const {
+    cart,
+    newTransaction,
+    selectedCustomerId,
+    grandTotal,
+    debtAmount,
+    currency,
+    exchangeRates,
+    language,
+  } = payload;
+
+  // Idempotency guard: if this transaction ID was already committed, return state unchanged
+  if (state.transactions.some((t) => t.id === newTransaction.id)) {
+    return {
+      ...state,
+      createdMovements: [],
+    };
+  }
+
+  const timestampIso = payload.nowIso || newTransaction.timestamp || new Date().toISOString();
+  const createdMovements: StockMovement[] = [];
+
+  const nextProducts = state.products.map((prod) => {
+    const cartItem = cart.find((item) => item.product.id === prod.id);
+    if (!cartItem) {
+      return prod;
+    }
+
+    const { totalStockUnitsRequired, unitLabel } = getCartItemUnitPricing(
+      { ...cartItem, product: prod },
+      currency,
+      exchangeRates,
+      language
+    );
+    const updatedStock = Math.max(0, prod.stock - totalStockUnitsRequired);
+
+    createdMovements.push({
+      id: `mov_${Date.parse(timestampIso) || Date.now()}_${prod.id}_${newTransaction.id}`,
+      timestamp: timestampIso,
+      productId: prod.id,
+      productName: prod.name,
+      type: 'sale',
+      quantityChange: -totalStockUnitsRequired,
+      previousStock: prod.stock,
+      newStock: updatedStock,
+      reason: `POS Checkout (${newTransaction.id}) — ${cartItem.quantity} × ${unitLabel}`,
+      referenceId: newTransaction.id,
+    });
+
+    return {
+      ...prod,
+      stock: updatedStock,
+      updatedAt: timestampIso,
+    };
+  });
+
+  const nextStockMovements =
+    createdMovements.length > 0
+      ? [...createdMovements, ...state.stockMovements]
+      : state.stockMovements;
+
+  const nextCustomers = selectedCustomerId
+    ? state.customers.map((cust) => {
+        if (cust.id !== selectedCustomerId) {
+          return cust;
+        }
+        const addedPoints = Math.floor(grandTotal);
+        const prevDebt = cust.totalDebt || 0;
+        return {
+          ...cust,
+          totalSpent: Math.round((cust.totalSpent + grandTotal) * 100) / 100,
+          totalDebt: Math.round((prevDebt + debtAmount) * 100) / 100,
+          transactionCount: cust.transactionCount + 1,
+          loyaltyPoints: cust.loyaltyPoints + addedPoints,
+        };
+      })
+    : state.customers;
+
+  const nextTransactions = [newTransaction, ...state.transactions];
+
+  return {
+    products: nextProducts,
+    stockMovements: nextStockMovements,
+    customers: nextCustomers,
+    transactions: nextTransactions,
+    createdMovements,
+  };
+}
+
+/**
+ * Pure, side-effect-free atomic state transition for voiding a transaction.
+ * Restores product stock, records restock audit movements, marks the transaction voided,
+ * and reverses customer spent/debt/loyalty balances in one atomic pass.
+ */
+export function computeAtomicVoidTransactionStateTransition(
+  state: OperationalLedgerState,
+  payload: { transactionId: string; nowIso?: string }
+): OperationalLedgerState & { voided: boolean; returnMovements: StockMovement[] } {
+  const txn = state.transactions.find((t) => t.id === payload.transactionId);
+  if (!txn || txn.status === 'voided') {
+    return {
+      ...state,
+      voided: false,
+      returnMovements: [],
+    };
+  }
+
+  const timestampIso = payload.nowIso || new Date().toISOString();
+  const returnMovements: StockMovement[] = [];
+
+  const nextProducts = state.products.map((prod) => {
+    const item = txn.items.find((i) => i.productId === prod.id);
+    if (!item) {
+      return prod;
+    }
+    const unitsToRestore = item.stockDeducted ?? item.quantity;
+    const restoredStock = prod.stock + unitsToRestore;
+    returnMovements.push({
+      id: `mov_void_${Date.parse(timestampIso) || Date.now()}_${prod.id}_${txn.id}`,
+      timestamp: timestampIso,
+      productId: prod.id,
+      productName: prod.name,
+      type: 'restock',
+      quantityChange: unitsToRestore,
+      previousStock: prod.stock,
+      newStock: restoredStock,
+      reason: `Transaction Void/Refund (${txn.id})`,
+      referenceId: txn.id,
+    });
+    return {
+      ...prod,
+      stock: restoredStock,
+      updatedAt: timestampIso,
+    };
+  });
+
+  const nextStockMovements =
+    returnMovements.length > 0
+      ? [...returnMovements, ...state.stockMovements]
+      : state.stockMovements;
+
+  const nextTransactions = state.transactions.map((t) =>
+    t.id === payload.transactionId ? { ...t, status: 'voided' as const } : t
+  );
+
+  const nextCustomers = txn.customerId
+    ? state.customers.map((cust) => {
+        if (cust.id !== txn.customerId) {
+          return cust;
+        }
+        const prevDebt = cust.totalDebt || 0;
+        const txnDebt = txn.debtAmount || 0;
+        return {
+          ...cust,
+          totalSpent: Math.max(0, Math.round((cust.totalSpent - txn.grandTotal) * 100) / 100),
+          totalDebt: Math.max(0, Math.round((prevDebt - txnDebt) * 100) / 100),
+          loyaltyPoints: Math.max(0, cust.loyaltyPoints - Math.floor(txn.grandTotal)),
+        };
+      })
+    : state.customers;
+
+  return {
+    products: nextProducts,
+    stockMovements: nextStockMovements,
+    customers: nextCustomers,
+    transactions: nextTransactions,
+    voided: true,
+    returnMovements,
+  };
+}
+

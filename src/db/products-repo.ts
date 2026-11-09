@@ -12,6 +12,7 @@ import { getDataDir } from '../server/runtime-paths.ts';
 import { INITIAL_PRODUCTS } from '../lib/initial-data.ts';
 import {
   normalizeProductBarcodes,
+  normalizeDbProductBarcode,
   matchesProductBarcode,
   matchesProductSearchQuery,
   getProductSerialNumber,
@@ -143,9 +144,12 @@ function hydrateProductRecord(raw: any, fallbackIdx?: number): ProductRecord {
     nameAr: raw.nameAr ?? null,
     description,
     descriptionAr,
-    sku: barcodes.length > 0 && (!raw.sku || raw.sku.startsWith('SKU-') || raw.sku === raw.barcode)
-      ? barcodes.join(' | ')
-      : raw.sku,
+    sku:
+      typeof raw.sku === 'string' && raw.sku.trim().length > 0
+        ? raw.sku.trim()
+        : barcodes.length > 0
+        ? barcodes.join(' | ')
+        : '',
     barcode: raw.barcode ?? '',
     barcodes,
     categoryId: raw.categoryId ?? null,
@@ -212,7 +216,7 @@ export async function getAllProducts(query?: string, category?: string): Promise
               name: item.name,
               nameAr: item.nameAr || null,
               sku: item.sku,
-              barcode: item.barcode || '',
+              barcode: normalizeDbProductBarcode(item.barcode),
               categoryName: item.category,
               categoryNameAr: item.categoryAr || null,
               costPrice: item.costPrice.toFixed(2),
@@ -291,7 +295,9 @@ export async function getProductById(id: string): Promise<ProductRecord | null> 
  * Create a new product with uniqueness validation on SKU and all non-empty Barcodes.
  */
 export async function createProduct(
-  data: Omit<ProductRecord, 'id' | 'createdAt' | 'updatedAt' | 'isActive'>
+  data: Omit<ProductRecord, 'id' | 'createdAt' | 'updatedAt' | 'isActive' | 'barcode'> & {
+    barcode?: string | null;
+  }
 ): Promise<ProductRecord> {
   const currentItems = await getAllProducts();
   const normalizedBarcodes = normalizeProductBarcodes(data.barcode, data.barcodes);
@@ -313,7 +319,7 @@ export async function createProduct(
   }
 
   const now = new Date().toISOString();
-  const newId = `prod-${Date.now()}`;
+  const newId = `prod-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const serialNumber =
     data.serialNumber && Number(data.serialNumber) > 0
       ? Math.floor(Number(data.serialNumber))
@@ -401,7 +407,7 @@ export async function createProduct(
         name: record.name,
         nameAr: record.nameAr || null,
         sku: record.sku,
-        barcode: record.barcode,
+        barcode: normalizeDbProductBarcode(record.barcode),
         categoryName: record.category,
         categoryNameAr: record.categoryAr || null,
         costPrice: record.costPrice.toFixed(2),
@@ -447,7 +453,15 @@ export async function createProduct(
       items.unshift(record);
       writeDataFile(items);
       return record;
-    } catch (err) {
+    } catch (err: any) {
+      const causeCode = err?.code || err?.cause?.code;
+      const constraint = String(err?.constraint || err?.cause?.constraint || '');
+      if (causeCode === '23505') {
+        if (constraint.includes('barcode')) {
+          throw new Error(`Duplicate barcode: A product with barcode "${record.barcode}" already exists.`);
+        }
+        throw new Error(`Duplicate SKU: A product with SKU "${record.sku}" already exists.`);
+      }
       console.warn('PostgreSQL insert failed, persisting to file store:', err);
     }
   }
@@ -607,7 +621,7 @@ export async function updateProduct(
         name: updatedRecord.name,
         nameAr: updatedRecord.nameAr || null,
         sku: updatedRecord.sku,
-        barcode: updatedRecord.barcode,
+        barcode: normalizeDbProductBarcode(updatedRecord.barcode),
         categoryName: updatedRecord.category,
         categoryNameAr: updatedRecord.categoryAr || null,
         costPrice: Number(updatedRecord.costPrice).toFixed(2),

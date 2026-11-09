@@ -7,8 +7,8 @@ import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import zlib from 'zlib';
 import { getDataDir, getDistDir } from './src/server/runtime-paths.ts';
+import { nonBlockingJsonCompressionMiddleware } from './src/server/response-compression.ts';
 import { hasDatabaseCredentials } from './src/db/index.ts';
 import {
   getAllProducts,
@@ -44,6 +44,26 @@ import {
 } from './src/server/release-onboarding.service.ts';
 import { backupRestoreRouter } from './src/server/backup-restore.service.ts';
 import { lanSyncRouter } from './src/server/lan-sync.service.ts';
+import {
+  validateBankTransferTransaction,
+  validateServerTransactionsBatch,
+} from './src/lib/pos-calculations.ts';
+import {
+  type CompanyScoped,
+  type CompanyScopedProduct,
+  type SharedStoreState,
+  filterByCompanyScope,
+  mergeById,
+  tagWithCompanyScope,
+} from './src/server/shared-store-sync.ts';
+import type {
+  ActiveUserSession,
+  Customer,
+  POSUser,
+  StockMovement,
+  Transaction,
+} from './src/lib/types.ts';
+import type { UnmetDemandRequestRecord } from './src/analytics/analytics.types.ts';
 
 dotenv.config();
 
@@ -66,51 +86,8 @@ app.use((req: Request, res: Response, next: express.NextFunction) => {
 
 app.use(express.json({ limit: '50mb' }));
 
-// W3C Server-Timing Telemetry (#18) & Brotli / Gzip Response Compression (#9)
-app.use((req: Request, res: Response, next: express.NextFunction) => {
-  const startHr = process.hrtime.bigint();
-  const originalJson = res.json.bind(res);
-
-  res.json = function (body: any): Response {
-    const durationMs = Number(process.hrtime.bigint() - startHr) / 1_000_000;
-    if (!res.headersSent) {
-      res.setHeader('Server-Timing', `app;dur=${durationMs.toFixed(2)}`);
-    }
-
-    const acceptEncoding = String(req.headers['accept-encoding'] || '');
-    const jsonString = JSON.stringify(body);
-
-    // Compress JSON payloads larger than 1024 bytes using Brotli or Gzip
-    if (
-      !res.headersSent &&
-      Buffer.byteLength(jsonString, 'utf-8') > 1024 &&
-      (acceptEncoding.includes('br') || acceptEncoding.includes('gzip'))
-    ) {
-      try {
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.setHeader('Vary', 'Accept-Encoding');
-        if (acceptEncoding.includes('br')) {
-          const compressed = zlib.brotliCompressSync(Buffer.from(jsonString, 'utf-8'), {
-            params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 },
-          });
-          res.setHeader('Content-Encoding', 'br');
-          res.setHeader('Content-Length', String(compressed.length));
-          return res.send(compressed);
-        }
-        const compressed = zlib.gzipSync(Buffer.from(jsonString, 'utf-8'), { level: 6 });
-        res.setHeader('Content-Encoding', 'gzip');
-        res.setHeader('Content-Length', String(compressed.length));
-        return res.send(compressed);
-      } catch {
-        // Fallback to standard uncompressed json if compression fails
-      }
-    }
-
-    return originalJson(body);
-  };
-
-  next();
-});
+// W3C Server-Timing Telemetry (#18) & Non-Blocking Async Brotli / Gzip Response Compression (#9)
+app.use(nonBlockingJsonCompressionMiddleware);
 
 // API: Business Intelligence, Smart Store Operations & Customer Demand Intelligence Endpoints
 app.use('/api/analytics', analyticsRouter);
@@ -141,18 +118,10 @@ function isPracticeModeRequest(req: Request): boolean {
   );
 }
 
-// Authorization guard for settings & currency modifications
-const requireAdminOrManager = (req: Request, res: Response, next: express.NextFunction) => {
-  const role = (req.headers['x-user-role'] as string | undefined)?.toLowerCase();
-  if (role && (role === 'cashier' || role === 'inventory_clerk' || role === 'report_viewer')) {
-    return res.status(403).json({
-      error: 'Insufficient permissions: Current role is not authorized to modify exchange rates.',
-    });
-  }
-  return requireServerCapability('company.currency.manage', {
-    allowInternalDefaultIfNoHeader: true,
-  })(req, res, next);
-};
+// Authorization guard for settings & currency modifications — verified via server-side JWT/session & RBAC capability store
+const requireAdminOrManager = requireServerCapability('company.currency.manage', {
+  allowInternalDefaultIfNoHeader: true,
+});
 
 // API: Health & Database Connectivity status
 app.get('/api/health', (req: Request, res: Response) => {
@@ -489,6 +458,9 @@ app.post(
         return res.status(201).json(practiceProduct);
       }
 
+      const normalizedBarcode =
+        typeof barcode === 'string' && barcode.trim().length > 0 ? barcode.trim() : null;
+
       const created = await createProduct({
         serialNumber: serialNumber ? Number(serialNumber) : undefined,
         name,
@@ -496,7 +468,7 @@ app.post(
         description,
         descriptionAr,
         sku: resolvedSku,
-        barcode: typeof barcode === 'string' ? barcode.trim() : '',
+        barcode: normalizedBarcode,
         barcodes: Array.isArray(barcodes) ? barcodes : undefined,
         category: category || 'General',
         categoryAr,
@@ -595,22 +567,11 @@ app.delete(
 // Multi-Device Shared Store Synchronization (.data/store-state.json)
 const STORE_SYNC_FILE = path.resolve(getDataDir(), 'store-state.json');
 
-interface SharedStoreState {
-  storeCode: string;
-  updatedAt: string;
-  transactions: any[];
-  customers: any[];
-  stockMovements: any[];
-  users: any[];
-  activeSessions: any[];
-  unmetDemandRequests?: any[];
-}
-
 function readSharedStoreState(): SharedStoreState {
   try {
     if (fs.existsSync(STORE_SYNC_FILE)) {
       const raw = fs.readFileSync(STORE_SYNC_FILE, 'utf-8');
-      return JSON.parse(raw);
+      return JSON.parse(raw) as SharedStoreState;
     }
   } catch (e) {
     console.warn('Could not read store-state.json:', e);
@@ -639,47 +600,11 @@ function writeSharedStoreState(state: SharedStoreState) {
   }
 }
 
-function mergeById<T extends { id?: string; sessionId?: string }>(
-  serverList: T[],
-  incomingList: T[],
-  keyField: 'id' | 'sessionId' = 'id'
-): T[] {
-  const map = new Map<string, T>();
-  for (const item of serverList || []) {
-    const k = String((item as any)?.[keyField] || '');
-    if (k) map.set(k, item);
-  }
-  for (const item of incomingList || []) {
-    const k = String((item as any)?.[keyField] || '');
-    if (k) map.set(k, { ...(map.get(k) || {}), ...item });
-  }
-  return Array.from(map.values());
-}
-
 function resolveRequestCompanyScope(req: Request): string {
   const headerComp = String(req.headers['x-company-id'] || '').trim();
   const queryComp = String(req.query.companyId || '').trim();
   const bodyComp = String(req.body?.companyId || '').trim();
   return headerComp || queryComp || bodyComp || '';
-}
-
-function filterByCompanyScope<T extends { companyId?: string }>(
-  list: T[],
-  companyId: string
-): T[] {
-  if (!companyId) return list || [];
-  return (list || []).filter((item) => !item.companyId || item.companyId === companyId);
-}
-
-function tagWithCompanyScope<T extends Record<string, any>>(
-  list: T[],
-  companyId: string
-): T[] {
-  if (!companyId) return list || [];
-  return (list || []).map((item) => ({
-    ...item,
-    companyId: item.companyId || companyId,
-  }));
 }
 
 app.get('/api/store-sync', async (req: Request, res: Response) => {
@@ -695,8 +620,8 @@ app.get('/api/store-sync', async (req: Request, res: Response) => {
     }
     const companyId = resolveRequestCompanyScope(req);
     const state = readSharedStoreState();
-    const allProducts = await getAllProducts();
-    const products = filterByCompanyScope(allProducts as any[], companyId);
+    const allProducts = (await getAllProducts()) as CompanyScopedProduct[];
+    const products = filterByCompanyScope(allProducts, companyId);
     res.json({
       ...state,
       companyId: companyId || undefined,
@@ -713,6 +638,59 @@ app.get('/api/store-sync', async (req: Request, res: Response) => {
   }
 });
 
+app.post('/api/transactions', async (req: Request, res: Response) => {
+  try {
+    const rawTx = req.body?.transaction || req.body;
+    const txCheck = validateBankTransferTransaction(rawTx);
+    if (!txCheck.valid) {
+      return res.status(400).json({
+        success: false,
+        errorCode: txCheck.errorCode || 'BANK_TRANSFER_REFERENCE_REQUIRED',
+        error: txCheck.error,
+        errorAr: txCheck.errorAr,
+      });
+    }
+
+    if (isPracticeModeRequest(req)) {
+      const currentPractice = readPracticeSandboxState();
+      const taggedPracticeTx = {
+        ...rawTx,
+        companyId: PRACTICE_COMPANY_ID,
+      };
+      const nextPractice = {
+        ...currentPractice,
+        updatedAt: new Date().toISOString(),
+        transactions: mergeById(currentPractice.transactions, [taggedPracticeTx], 'id'),
+      };
+      writePracticeSandboxState(nextPractice);
+      return res.status(201).json({
+        success: true,
+        practiceModeIsolated: true,
+        transaction: taggedPracticeTx,
+      });
+    }
+
+    const companyId = resolveRequestCompanyScope(req);
+    const current = readSharedStoreState();
+    const taggedTx = companyId ? { ...rawTx, companyId: rawTx.companyId || companyId } : rawTx;
+    const nextState: SharedStoreState = {
+      ...current,
+      updatedAt: new Date().toISOString(),
+      transactions: mergeById(current.transactions, [taggedTx], 'id'),
+    };
+    writeSharedStoreState(nextState);
+    return res.status(201).json({
+      success: true,
+      transaction: taggedTx,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to record transaction',
+    });
+  }
+});
+
 app.post('/api/store-sync', async (req: Request, res: Response) => {
   try {
     const {
@@ -723,6 +701,19 @@ app.post('/api/store-sync', async (req: Request, res: Response) => {
       activeSessions,
       unmetDemandRequests,
     } = req.body || {};
+
+    if (Array.isArray(transactions)) {
+      const txBatchCheck = validateServerTransactionsBatch(transactions);
+      if (!txBatchCheck.valid) {
+        return res.status(400).json({
+          success: false,
+          errorCode: txBatchCheck.errorCode || 'BANK_TRANSFER_REFERENCE_REQUIRED',
+          error: txBatchCheck.error,
+          errorAr: txBatchCheck.errorAr,
+          invalidTransactionId: txBatchCheck.invalidTransactionId,
+        });
+      }
+    }
 
     if (isPracticeModeRequest(req)) {
       const currentPractice = readPracticeSandboxState();
@@ -763,31 +754,54 @@ app.post('/api/store-sync', async (req: Request, res: Response) => {
       storeCode: 'DQ-POS-MAIN',
       updatedAt: new Date().toISOString(),
       transactions: Array.isArray(transactions)
-        ? mergeById(current.transactions, tagWithCompanyScope(transactions, companyId), 'id')
+        ? mergeById(
+            current.transactions,
+            tagWithCompanyScope(transactions as CompanyScoped<Transaction>[], companyId),
+            'id'
+          )
         : current.transactions,
       customers: Array.isArray(customers)
-        ? mergeById(current.customers, tagWithCompanyScope(customers, companyId), 'id')
+        ? mergeById(
+            current.customers,
+            tagWithCompanyScope(customers as CompanyScoped<Customer>[], companyId),
+            'id'
+          )
         : current.customers,
       stockMovements: Array.isArray(stockMovements)
-        ? mergeById(current.stockMovements, tagWithCompanyScope(stockMovements, companyId), 'id')
+        ? mergeById(
+            current.stockMovements,
+            tagWithCompanyScope(stockMovements as CompanyScoped<StockMovement>[], companyId),
+            'id'
+          )
         : current.stockMovements,
       users: Array.isArray(users)
-        ? mergeById(current.users, tagWithCompanyScope(users, companyId), 'id')
+        ? mergeById(
+            current.users,
+            tagWithCompanyScope(users as CompanyScoped<POSUser>[], companyId),
+            'id'
+          )
         : current.users,
       activeSessions: Array.isArray(activeSessions)
-        ? mergeById(current.activeSessions, tagWithCompanyScope(activeSessions, companyId), 'sessionId')
+        ? mergeById(
+            current.activeSessions,
+            tagWithCompanyScope(activeSessions as CompanyScoped<ActiveUserSession>[], companyId),
+            'sessionId'
+          )
         : current.activeSessions,
       unmetDemandRequests: Array.isArray(unmetDemandRequests)
         ? mergeById(
             current.unmetDemandRequests || [],
-            tagWithCompanyScope(unmetDemandRequests, companyId),
+            tagWithCompanyScope(
+              unmetDemandRequests as CompanyScoped<UnmetDemandRequestRecord>[],
+              companyId
+            ),
             'id'
           )
         : current.unmetDemandRequests || [],
     };
 
     writeSharedStoreState(nextState);
-    const allProducts = await getAllProducts();
+    const allProducts = (await getAllProducts()) as CompanyScopedProduct[];
     res.json({
       ...nextState,
       companyId: companyId || undefined,
@@ -797,7 +811,7 @@ app.post('/api/store-sync', async (req: Request, res: Response) => {
       users: filterByCompanyScope(nextState.users, companyId),
       activeSessions: filterByCompanyScope(nextState.activeSessions, companyId),
       unmetDemandRequests: filterByCompanyScope(nextState.unmetDemandRequests || [], companyId),
-      products: filterByCompanyScope(allProducts as any[], companyId),
+      products: filterByCompanyScope(allProducts, companyId),
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to sync shared store state' });

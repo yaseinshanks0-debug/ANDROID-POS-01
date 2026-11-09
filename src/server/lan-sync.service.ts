@@ -8,6 +8,7 @@ import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import { getDataDir } from './runtime-paths.ts';
+import { validateServerTransactionsBatch } from '../lib/pos-calculations.ts';
 
 const LAN_SYNC_FILE = path.resolve(getDataDir(), 'lan-sync-state.json');
 
@@ -686,6 +687,19 @@ lanSyncRouter.post('/push', (req: Request, res: Response) => {
 
     if (!snapshot || typeof snapshot !== 'object') {
       return res.status(400).json({ ok: false, error: 'Missing snapshot payload' });
+    }
+
+    if (Array.isArray(snapshot.transactions)) {
+      const txCheck = validateServerTransactionsBatch(snapshot.transactions);
+      if (!txCheck.valid) {
+        return res.status(400).json({
+          ok: false,
+          errorCode: txCheck.errorCode || 'BANK_TRANSFER_REFERENCE_REQUIRED',
+          error: txCheck.error,
+          errorAr: txCheck.errorAr,
+          invalidTransactionId: txCheck.invalidTransactionId,
+        });
+      }
     }
 
     const prevDevice = heartbeatRegistry.get(deviceId);

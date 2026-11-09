@@ -107,8 +107,8 @@ export const ExpensesView: React.FC = () => {
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<ExpenseCategory | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'recorded' | 'voided'>('all');
 
-  // Form & Modal state
-  const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
+  // Form & Modal state (open by default so cashiers can immediately record expenses)
+  const [isFormOpen, setIsFormOpen] = useState<boolean>(true);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [titleInput, setTitleInput] = useState('');
   const [categoryInput, setCategoryInput] = useState<ExpenseCategory>('utilities');
@@ -223,6 +223,10 @@ export const ExpensesView: React.FC = () => {
   const handleOpenNewExpenseForm = () => {
     resetFormFields();
     setIsFormOpen(true);
+    setTimeout(() => {
+      const inputEl = document.getElementById('expense-title-input');
+      if (inputEl) inputEl.focus();
+    }, 50);
   };
 
   const handleOpenEditExpenseForm = (exp: ExpenseRecord) => {
@@ -431,7 +435,7 @@ export const ExpensesView: React.FC = () => {
             data-testid="open-add-expense-btn"
             variant="amber"
             size="md"
-            onClick={() => (isFormOpen && !editingExpenseId ? setIsFormOpen(false) : handleOpenNewExpenseForm())}
+            onClick={handleOpenNewExpenseForm}
             leftIcon={<Plus className="w-4 h-4" />}
           >
             {isAr ? 'إضافة منصرف جديد' : 'Add New Expense'}

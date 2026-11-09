@@ -27,11 +27,12 @@ export const createPool = (): Pool | null => {
   if (!global._postgresPool) {
     const sharedPoolOptions = {
       max: 12,
-      min: 1,
+      min: 0,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
       maxUses: 7500,
       keepAlive: true,
+      allowExitOnIdle: true,
     };
 
     if (process.env.SQL_HOST && (process.env.SQL_USER || process.env.SQL_ADMIN_USER)) {
