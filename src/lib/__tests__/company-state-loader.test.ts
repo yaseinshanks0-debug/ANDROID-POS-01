@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  DEFAULT_COMPANY_PROFILE,
+  PRACTICE_COMPANY_PROFILE,
   getCompanyStorageKey,
   loadCompanyOperationalState,
   STORAGE_KEYS,
@@ -122,5 +124,17 @@ test('Company operational state loader & currentCompanyId dependency (Problem #6
     const prodResult = loadCompanyOperationalState('comp-prod-heavy', 'PRODUCTION');
     assert.ok(getItemCalls > 0, 'Must read production localStorage when workspaceMode is PRODUCTION');
     assert.equal(prodResult.products.length, 1);
+  });
+
+  await t.test('Problem #21: DEFAULT_COMPANY_PROFILE contains clean blank contact and tax fields while PRACTICE_COMPANY_PROFILE remains isolated for sandbox training', () => {
+    assert.equal(DEFAULT_COMPANY_PROFILE.phone, '');
+    assert.equal(DEFAULT_COMPANY_PROFILE.email, '');
+    assert.equal(DEFAULT_COMPANY_PROFILE.taxNumber, '');
+    assert.equal(DEFAULT_COMPANY_PROFILE.address, '');
+    assert.equal(DEFAULT_COMPANY_PROFILE.legalName, '');
+    assert.equal(DEFAULT_COMPANY_PROFILE.onboardingCompleted, false);
+    assert.equal(DEFAULT_COMPANY_PROFILE.isDemoPractice, false);
+
+    assert.equal(PRACTICE_COMPANY_PROFILE.isDemoPractice, true);
   });
 });

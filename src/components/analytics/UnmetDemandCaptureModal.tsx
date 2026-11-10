@@ -36,8 +36,10 @@ import {
 import {
   UnavailableProductKnowledgeItem,
   buildUnavailableProductsKnowledgeBase,
+  computeProductSellableStock,
   matchesUnavailableProductQuery,
   normalizeUnavailableSearchText,
+  resolveProductCatalogLifecycleStatus,
   searchUnavailableProductsKnowledgeBase,
 } from '../../analytics/unmet-demand.validation';
 import { getProductPackaging } from '../../lib/pos-calculations';
@@ -59,6 +61,12 @@ const REASON_OPTIONS: Array<{
     labelEn: 'Expired Batch on Shelf',
     labelAr: 'المنتج منتهي الصلاحية على الرف',
     badgeClass: 'border-amber-500/40 bg-amber-500/15 text-amber-300',
+  },
+  {
+    value: 'DISCONTINUED',
+    labelEn: 'Discontinued Product (Permanently Stopped)',
+    labelAr: 'منتج موقوف نهائياً (توقف إنتاجه أو توريده)',
+    badgeClass: 'border-fuchsia-500/40 bg-fuchsia-500/15 text-fuchsia-300',
   },
   {
     value: 'NOT_STOCKED',
@@ -129,6 +137,9 @@ export const UnmetDemandCaptureModal: React.FC = () => {
   const [customerId, setCustomerId] = useState<string>('');
   const [customerReference, setCustomerReference] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+  const [expiredUnitsObserved, setExpiredUnitsObserved] = useState<string>('');
+  const [expiredBatchNumber, setExpiredBatchNumber] = useState<string>('');
+  const [substituteProductId, setSubstituteProductId] = useState<string>('');
   const [sourceScreen, setSourceScreen] = useState<
     'checkout' | 'products' | 'analytics' | 'other'
   >('checkout');
@@ -178,20 +189,32 @@ export const UnmetDemandCaptureModal: React.FC = () => {
       );
     } else {
       setMode('registered');
+      let resolvedId = '';
       if (hasInitialProduct) {
-        setSelectedProductId(initialProdId!);
+        resolvedId = initialProdId!;
       } else {
         const lowOrZero =
           products.find((p) => p.stock <= 0) ||
           products.find((p) => p.stock <= (p.minStockAlert || 5)) ||
           products[0];
-        setSelectedProductId(lowOrZero ? lowOrZero.id : '');
+        resolvedId = lowOrZero ? lowOrZero.id : '';
       }
+      setSelectedProductId(resolvedId);
       setUnregisteredName('');
       setUnregisteredNameAr('');
       setBarcode(init.barcode || '');
+      const matchedProd = products.find((p) => p.id === resolvedId);
+      const lifecycle = resolveProductCatalogLifecycleStatus(matchedProd);
       setUnavailabilityReason(
-        (init.unavailabilityReason as UnavailabilityReason) || 'OUT_OF_STOCK'
+        (init.unavailabilityReason as UnavailabilityReason) ||
+          (lifecycle === 'DISCONTINUED'
+            ? 'DISCONTINUED'
+            : lifecycle === 'TEMPORARILY_PAUSED'
+            ? 'TEMPORARILY_UNAVAILABLE'
+            : 'OUT_OF_STOCK')
+      );
+      setSubstituteProductId(
+        init.substituteProductId || matchedProd?.replacementProductId || ''
       );
     }
 
@@ -207,6 +230,12 @@ export const UnmetDemandCaptureModal: React.FC = () => {
     setCustomerId(init.customerId || selectedCustomer?.id || '');
     setCustomerReference(init.customerReference || selectedCustomer?.name || '');
     setNotes(init.notes || '');
+    setExpiredUnitsObserved(
+      init.expiredUnitsObserved !== undefined && init.expiredUnitsObserved !== null
+        ? String(init.expiredUnitsObserved)
+        : ''
+    );
+    setExpiredBatchNumber(init.expiredBatchNumber || '');
     setSourceScreen(
       (init.sourceScreen as 'checkout' | 'products' | 'analytics' | 'other') ||
         'checkout'
@@ -221,6 +250,16 @@ export const UnmetDemandCaptureModal: React.FC = () => {
   const activeProduct = useMemo(
     () => products.find((p) => p.id === selectedProductId) || null,
     [products, selectedProductId]
+  );
+
+  const activeSellableStock = useMemo(
+    () => (activeProduct ? computeProductSellableStock(activeProduct) : null),
+    [activeProduct]
+  );
+
+  const activeLifecycleStatus = useMemo(
+    () => resolveProductCatalogLifecycleStatus(activeProduct),
+    [activeProduct]
   );
 
   const activePackaging = useMemo(
@@ -364,6 +403,18 @@ export const UnmetDemandCaptureModal: React.FC = () => {
             ? 'NOT_STOCKED'
             : unavailabilityReason,
         confirmedPurchaseIntent,
+        expiredUnitsObserved:
+          unavailabilityReason === 'EXPIRED' && expiredUnitsObserved.trim()
+            ? Math.max(0, Number(expiredUnitsObserved) || 0)
+            : null,
+        expiredBatchNumber:
+          unavailabilityReason === 'EXPIRED' && expiredBatchNumber.trim()
+            ? expiredBatchNumber.trim()
+            : null,
+        substituteProductId:
+          unavailabilityReason === 'DISCONTINUED' && substituteProductId
+            ? substituteProductId
+            : null,
         customerId: customerId || null,
         customerReference:
           customerReference.trim() || selectedCust?.name || null,
@@ -519,26 +570,56 @@ export const UnmetDemandCaptureModal: React.FC = () => {
 
           {mode === 'registered' ? (
             <div className="space-y-3 rounded-xl border border-neutral-800/80 bg-neutral-950/50 p-3.5">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <label className="text-xs font-semibold text-neutral-300">
                   {isAr
                     ? 'ابحث في الكتالوج أو قاعدة المنتجات غير المتوفرة (بأي كلمة أو حرف)'
                     : 'Search Catalog or Unavailable Products DB (by any word or letter)'}
                 </label>
                 {activeProduct && (
-                  <span
-                    className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${
-                      activeProduct.stock <= 0
-                        ? 'border-rose-500/40 bg-rose-500/15 text-rose-300'
-                        : activeProduct.stock <= (activeProduct.minStockAlert || 5)
-                        ? 'border-amber-500/40 bg-amber-500/15 text-amber-300'
-                        : 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
-                    }`}
-                  >
-                    {isAr
-                      ? `الرصيد الحالي: ${activeProduct.stock}`
-                      : `Current Stock: ${activeProduct.stock}`}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {activeLifecycleStatus === 'DISCONTINUED' && (
+                      <span
+                        data-testid="unmet-lifecycle-discontinued-badge"
+                        className="rounded-md border border-fuchsia-500/40 bg-fuchsia-500/15 px-2 py-0.5 text-[11px] font-bold text-fuchsia-300"
+                      >
+                        {isAr ? 'موقوف نهائياً' : 'Discontinued'}
+                      </span>
+                    )}
+                    {activeLifecycleStatus === 'TEMPORARILY_PAUSED' && (
+                      <span
+                        data-testid="unmet-lifecycle-paused-badge"
+                        className="rounded-md border border-sky-500/40 bg-sky-500/15 px-2 py-0.5 text-[11px] font-bold text-sky-300"
+                      >
+                        {isAr ? 'موقوف مؤقتاً' : 'Temporarily Paused'}
+                      </span>
+                    )}
+                    {activeSellableStock && activeSellableStock.expiredStockUnits > 0 && (
+                      <span
+                        data-testid="unmet-expired-stock-badge"
+                        className="rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-300"
+                      >
+                        {isAr
+                          ? `دفعات منتهية: ${activeSellableStock.expiredStockUnits}`
+                          : `Expired Batch Units: ${activeSellableStock.expiredStockUnits}`}
+                      </span>
+                    )}
+                    <span
+                      data-testid="unmet-sellable-stock-badge"
+                      className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${
+                        (activeSellableStock?.sellableStockUnits ?? activeProduct.stock) <= 0
+                          ? 'border-rose-500/40 bg-rose-500/15 text-rose-300'
+                          : (activeSellableStock?.sellableStockUnits ?? activeProduct.stock) <=
+                            (activeProduct.minStockAlert || 5)
+                          ? 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+                          : 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                      }`}
+                    >
+                      {isAr
+                        ? `الصالح للبيع: ${activeSellableStock?.sellableStockUnits ?? activeProduct.stock} (الإجمالي: ${activeProduct.stock})`
+                        : `Sellable: ${activeSellableStock?.sellableStockUnits ?? activeProduct.stock} (Total: ${activeProduct.stock})`}
+                    </span>
+                  </div>
                 )}
               </div>
 
@@ -560,7 +641,20 @@ export const UnmetDemandCaptureModal: React.FC = () => {
 
               <select
                 value={selectedProductId}
-                onChange={(e) => setSelectedProductId(e.target.value)}
+                onChange={(e) => {
+                  const nextId = e.target.value;
+                  setSelectedProductId(nextId);
+                  const prod = products.find((p) => p.id === nextId);
+                  const lc = resolveProductCatalogLifecycleStatus(prod);
+                  if (lc === 'DISCONTINUED') {
+                    setUnavailabilityReason('DISCONTINUED');
+                    if (prod?.replacementProductId) {
+                      setSubstituteProductId(prod.replacementProductId);
+                    }
+                  } else if (lc === 'TEMPORARILY_PAUSED') {
+                    setUnavailabilityReason('TEMPORARILY_UNAVAILABLE');
+                  }
+                }}
                 data-testid="unmet-product-select"
                 className="w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-sm font-medium text-white focus:border-amber-500 focus:outline-none"
               >
@@ -964,6 +1058,86 @@ export const UnmetDemandCaptureModal: React.FC = () => {
               </label>
             </div>
           </div>
+
+          {/* Conditional Batch Expiry Details when Reason === EXPIRED */}
+          {unavailabilityReason === 'EXPIRED' && (
+            <div
+              data-testid="unmet-expired-batch-section"
+              className="grid grid-cols-1 gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 sm:grid-cols-2"
+            >
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-amber-300">
+                  {isAr
+                    ? 'عدد الوحدات المنتهية المرصودة (اختياري — لا يصفّر الدفعات السليمة)'
+                    : 'Observed Expired Batch Units (Optional — keeps valid batches intact)'}
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={10000}
+                  value={expiredUnitsObserved}
+                  onChange={(e) => setExpiredUnitsObserved(e.target.value)}
+                  data-testid="unmet-expired-units-input"
+                  placeholder={
+                    activeSellableStock && activeSellableStock.expiredStockUnits > 0
+                      ? String(activeSellableStock.expiredStockUnits)
+                      : '1'
+                  }
+                  className="w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-xs text-white placeholder-neutral-500 focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-amber-300">
+                  {isAr
+                    ? 'رقم التشغيلة / الدفعة المنتهية (اختياري)'
+                    : 'Expired Batch / Lot Number (Optional)'}
+                </label>
+                <input
+                  type="text"
+                  value={expiredBatchNumber}
+                  onChange={(e) => setExpiredBatchNumber(e.target.value)}
+                  data-testid="unmet-expired-batch-input"
+                  placeholder="LOT-2025-01"
+                  className="w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-xs text-white placeholder-neutral-500 focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Conditional Substitute Product Selector when Reason === DISCONTINUED */}
+          {unavailabilityReason === 'DISCONTINUED' && (
+            <div
+              data-testid="unmet-discontinued-substitute-section"
+              className="rounded-xl border border-fuchsia-500/30 bg-fuchsia-500/5 p-3"
+            >
+              <label className="mb-1 block text-xs font-semibold text-fuchsia-300">
+                {isAr
+                  ? 'المنتج البديل المقترح للعميل (اختياري — يُمنع طلب الشراء الآلي للمنتج الموقوف)'
+                  : 'Suggested Replacement / Substitute SKU (Optional — auto-PO disabled for discontinued item)'}
+              </label>
+              <select
+                value={substituteProductId}
+                onChange={(e) => setSubstituteProductId(e.target.value)}
+                data-testid="unmet-substitute-product-select"
+                className="w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-white focus:border-fuchsia-500 focus:outline-none"
+              >
+                <option value="">
+                  {isAr ? '— بدون منتج بديل محدد —' : '— No specific substitute SKU —'}
+                </option>
+                {products
+                  .filter(
+                    (p) =>
+                      p.id !== selectedProductId &&
+                      resolveProductCatalogLifecycleStatus(p) === 'ACTIVE'
+                  )
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {isAr && p.nameAr ? p.nameAr : p.name} ({p.sku})
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
 
           {/* Branch & Optional Customer / Notes */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

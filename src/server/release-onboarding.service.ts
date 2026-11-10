@@ -177,11 +177,21 @@ export function validatePasswordStrength(password: string): {
   messageEn?: string;
   messageAr?: string;
 } {
-  if (!password || password.trim().length < 4) {
+  const trimmed = typeof password === 'string' ? password.trim() : '';
+  if (trimmed.length < 8) {
     return {
       valid: false,
-      messageEn: 'Password must be at least 4 characters long.',
-      messageAr: 'يجب أن تتكون كلمة المرور من 4 أحرف أو أرقام على الأقل.',
+      messageEn: 'Password must be at least 8 characters long.',
+      messageAr: 'يجب أن تتكون كلمة المرور من 8 أحرف أو أرقام على الأقل.',
+    };
+  }
+  const hasLetter = /[A-Za-z\u0600-\u06FF]/.test(trimmed);
+  const hasDigit = /\d/.test(trimmed);
+  if (!hasLetter || !hasDigit) {
+    return {
+      valid: false,
+      messageEn: 'Password must contain both letters and numbers (at least 8 characters).',
+      messageAr: 'يجب أن تحتوي كلمة المرور على أحرف وأرقام معاً (8 خانات على الأقل).',
     };
   }
   return { valid: true };

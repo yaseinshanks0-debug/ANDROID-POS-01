@@ -26,6 +26,10 @@ import {
   resolveReturnsForTransaction,
   toDateKey,
 } from '../calculations/sales.metrics';
+import {
+  computeProductSellableStock,
+  resolveProductCatalogLifecycleStatus,
+} from '../unmet-demand.validation';
 
 const MODEL_LABELS: Record<ForecastingModelName, { en: string; ar: string }> = {
   naive_last_value: {
@@ -673,28 +677,68 @@ export function computeForecasts(
   const productUnmetDailyWeighted = new Map<string, Map<string, number>>();
   const productStockoutDaysSet = new Map<string, Set<string>>();
   const dailyUnmetWeightedRevenue = new Map<string, number>();
+  const customerLastSeenByProd = new Map<string, Map<string, number>>();
   let totalUnmetSignalsInScope = 0;
 
-  for (const req of rawUnmetRequests) {
+  const sortedUnmetRequests = [...rawUnmetRequests].sort(
+    (a, b) =>
+      new Date(a?.requestedTimestamp || 0).getTime() -
+      new Date(b?.requestedTimestamp || 0).getTime()
+  );
+
+  for (const req of sortedUnmetRequests) {
     if (!req || !req.id || req.fulfillmentStatus === 'cancelled') continue;
     if (branchFilter && req.branchId !== branchFilter) continue;
-    const dk = toDateKey(new Date(req.requestedTimestamp));
+    const reqMs = new Date(req.requestedTimestamp).getTime();
+    if (Number.isNaN(reqMs)) continue;
+    const dk = toDateKey(new Date(reqMs));
     if (!validDateKeysSet.has(dk)) continue;
 
     totalUnmetSignalsInScope += 1;
     const baseUnits = Math.max(1, Number(req.requestedBaseUnits || req.requestedQuantity || 1));
+    const fulfilledUnits =
+      req.fulfilledBaseUnits !== undefined && req.fulfilledBaseUnits !== null
+        ? Math.max(0, Math.min(baseUnits, Math.round(Number(req.fulfilledBaseUnits))))
+        : req.fulfillmentStatus === 'fulfilled_later'
+        ? baseUnits
+        : 0;
+    const unfulfilledBaseUnits =
+      req.remainingUnfulfilledBaseUnits !== undefined &&
+      req.remainingUnfulfilledBaseUnits !== null
+        ? Math.max(0, Math.min(baseUnits, Math.round(Number(req.remainingUnfulfilledBaseUnits))))
+        : Math.max(0, baseUnits - fulfilledUnits);
+
+    const custIdentity = (req.customerId || req.customerReference || '').trim().toLowerCase();
+    const prodDedupeKey = req.productId || (req.productNameSnapshot || '').trim().toLowerCase();
+    let isRepeatCustomerWithin24h = false;
+    if (custIdentity && prodDedupeKey) {
+      let custMap = customerLastSeenByProd.get(prodDedupeKey);
+      if (!custMap) {
+        custMap = new Map<string, number>();
+        customerLastSeenByProd.set(prodDedupeKey, custMap);
+      }
+      const prevSeen = custMap.get(custIdentity);
+      if (prevSeen !== undefined && Math.abs(reqMs - prevSeen) <= 24 * 3600 * 1000) {
+        isRepeatCustomerWithin24h = true;
+      }
+      custMap.set(custIdentity, reqMs);
+    }
+
     const weight =
-      req.fulfillmentStatus === 'fulfilled_later'
+      req.fulfillmentStatus === 'fulfilled_later' || unfulfilledBaseUnits <= 0
         ? 0
+        : isRepeatCustomerWithin24h
+        ? 0.15
         : req.confirmedPurchaseIntent
         ? 0.65
         : 0.35;
-    const weightedUnits = baseUnits * weight;
+    // Fulfilled units are already in completed sales; only remainingUnfulfilledBaseUnits contribute to latent unmet demand
+    const weightedUnits = unfulfilledBaseUnits * weight;
 
     if (req.productId) {
       productUnmetRawUnits.set(
         req.productId,
-        (productUnmetRawUnits.get(req.productId) || 0) + baseUnits
+        (productUnmetRawUnits.get(req.productId) || 0) + unfulfilledBaseUnits
       );
       productUnmetWeightedUnits.set(
         req.productId,
@@ -750,7 +794,10 @@ export function computeForecasts(
     .map((prod) => {
       const totalUnitsSold = productTotalNetUnits.get(prod.id) || 0;
       const prodDayMap = productDailyNetUnits.get(prod.id);
-      const currentStock = Math.max(0, prod.stock);
+      const sellableInfo = computeProductSellableStock(prod, referenceDate);
+      const currentStock = sellableInfo.sellableStockUnits;
+      const lifecycleStatus = resolveProductCatalogLifecycleStatus(prod);
+      const isDiscontinued = lifecycleStatus === 'DISCONTINUED';
       const pendingInboundUnits = pendingInboundByProduct.get(prod.id) || 0;
       const observedUnmetDemandUnits = productUnmetRawUnits.get(prod.id) || 0;
       const weightedUnmetUnits = productUnmetWeightedUnits.get(prod.id) || 0;
@@ -781,12 +828,14 @@ export function computeForecasts(
             ? Math.max(1, Math.round(estimatedLatentDailyDemand * horizonDays))
             : 0;
         const safetyBuffer = Math.max(prod.minStockAlert, 0);
-        const recommendedReorderUnits = Math.max(
-          0,
-          Math.ceil(
-            forecastedLatentTotalUnits + safetyBuffer - (currentStock + pendingInboundUnits)
-          )
-        );
+        const recommendedReorderUnits = isDiscontinued
+          ? 0
+          : Math.max(
+              0,
+              Math.ceil(
+                forecastedLatentTotalUnits + safetyBuffer - (currentStock + pendingInboundUnits)
+              )
+            );
         return {
           productId: prod.id,
           sku: prod.sku,
@@ -894,12 +943,14 @@ export function computeForecasts(
       const safetyBuffer = Math.max(prod.minStockAlert, Math.ceil(effectiveRate * 2));
       const targetUnitsForReplenishment =
         weightedUnmetUnits > 0 ? forecastedLatentTotalUnits : forecastedTotalUnits;
-      const recommendedReorderUnits = Math.max(
-        0,
-        Math.ceil(
-          targetUnitsForReplenishment + safetyBuffer - (currentStock + pendingInboundUnits)
-        )
-      );
+      const recommendedReorderUnits = isDiscontinued
+        ? 0
+        : Math.max(
+            0,
+            Math.ceil(
+              targetUnitsForReplenishment + safetyBuffer - (currentStock + pendingInboundUnits)
+            )
+          );
 
       const wape = prodEval.evaluations[0]?.wapePercent ?? 0;
       const forecastBias = prodEval.evaluations[0]?.forecastBias ?? 0;

@@ -28,6 +28,7 @@ import {
   SourceOfTruthDomainMeta,
   UnmetDemandRequestRecord,
 } from './analytics.types';
+import { computeUnmetDemandFulfillmentState } from './unmet-demand.validation';
 
 export const DEFAULT_ANALYTICS_BRANCHES: AnalyticsDatasetSnapshot['branches'] = [
   {
@@ -152,20 +153,89 @@ export function deduplicateCustomers(list: Customer[]): Customer[] {
 }
 
 /**
- * Deduplicates unmet demand requests by ID and idempotencyKey.
+ * Normalizes an unmet demand request record so legacy records without explicit
+ * `fulfilledBaseUnits` or `remainingUnfulfilledBaseUnits` always have consistent bounds,
+ * and records with `fulfillments` links derive their authoritative state via `computeUnmetDemandFulfillmentState`.
+ */
+export function normalizeUnmetDemandRequestFulfillment(
+  req: UnmetDemandRequestRecord
+): UnmetDemandRequestRecord {
+  const requestedBaseUnits = Math.max(1, Math.round(Number(req.requestedBaseUnits || req.requestedQuantity || 1)));
+  const isCancelled = req.fulfillmentStatus === 'cancelled';
+
+  if (Array.isArray(req.fulfillments) && req.fulfillments.length > 0) {
+    const computed = computeUnmetDemandFulfillmentState({
+      requestedBaseUnits,
+      fulfillments: req.fulfillments,
+      isCancelled,
+    });
+    return {
+      ...req,
+      companyId: req.companyId || 'comp-default',
+      requestedBaseUnits,
+      fulfilledBaseUnits: computed.fulfilledBaseUnits,
+      remainingUnfulfilledBaseUnits: computed.remainingUnfulfilledBaseUnits,
+      fulfillmentStatus: computed.fulfillmentStatus,
+      lastFulfilledAt: computed.lastFulfilledAt || req.lastFulfilledAt || null,
+    };
+  }
+
+  const rawFulfilled =
+    req.fulfilledBaseUnits !== undefined && req.fulfilledBaseUnits !== null
+      ? Math.max(0, Math.min(requestedBaseUnits, Math.round(Number(req.fulfilledBaseUnits))))
+      : req.fulfillmentStatus === 'fulfilled_later'
+        ? requestedBaseUnits
+        : 0;
+  const remainingUnfulfilledBaseUnits = requestedBaseUnits - rawFulfilled;
+  const fulfillmentStatus = isCancelled
+    ? 'cancelled'
+    : rawFulfilled >= requestedBaseUnits
+      ? 'fulfilled_later'
+      : rawFulfilled > 0
+        ? 'partially_fulfilled'
+        : 'unfulfilled';
+
+  return {
+    ...req,
+    companyId: req.companyId || 'comp-default',
+    requestedBaseUnits,
+    fulfilledBaseUnits: rawFulfilled,
+    remainingUnfulfilledBaseUnits,
+    fulfillmentStatus,
+  };
+}
+
+/**
+ * Deduplicates unmet demand requests by ID and idempotencyKey, preferring the record
+ * with the most complete fulfillment link history or cancellation state.
  */
 export function deduplicateUnmetDemandRequests(
   list: UnmetDemandRequestRecord[]
 ): UnmetDemandRequestRecord[] {
   const byId = new Map<string, UnmetDemandRequestRecord>();
-  const idemSet = new Set<string>();
-  for (const req of list || []) {
-    if (!req || !req.id) continue;
+  const idemToId = new Map<string, string>();
+  for (const rawReq of list || []) {
+    if (!rawReq || !rawReq.id) continue;
+    const req = normalizeUnmetDemandRequestFulfillment(rawReq);
     const idem = (req.idempotencyKey || '').trim();
-    if (idem && idemSet.has(idem)) continue;
-    if (byId.has(req.id)) continue;
-    byId.set(req.id, req);
-    if (idem) idemSet.add(idem);
+    const canonicalId = (idem && idemToId.get(idem)) || req.id;
+    const existing = byId.get(canonicalId);
+
+    if (!existing) {
+      byId.set(req.id, req);
+      if (idem) idemToId.set(idem, req.id);
+    } else {
+      const existingLinksCount = existing.fulfillments?.length || 0;
+      const incomingLinksCount = req.fulfillments?.length || 0;
+      const shouldReplace =
+        (req.fulfillmentStatus === 'cancelled' && existing.fulfillmentStatus !== 'cancelled') ||
+        incomingLinksCount > existingLinksCount ||
+        (req.fulfilledBaseUnits ?? 0) > (existing.fulfilledBaseUnits ?? 0);
+
+      if (shouldReplace) {
+        byId.set(canonicalId, { ...existing, ...req, id: canonicalId });
+      }
+    }
   }
   return Array.from(byId.values());
 }

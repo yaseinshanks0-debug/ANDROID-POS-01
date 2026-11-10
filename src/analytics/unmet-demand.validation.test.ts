@@ -9,7 +9,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  computeProductSellableStock,
+  computeUnmetDemandFulfillmentState,
   redactUnmetDemandRecordForRole,
+  resolveProductCatalogLifecycleStatus,
+  SUPPORTED_CATALOG_LIFECYCLE_STATUSES,
+  SUPPORTED_UNAVAILABILITY_REASONS,
   validateAndBuildUnmetDemandRequest,
   UnmetDemandRequestRecord,
 } from './unmet-demand.validation';
@@ -129,6 +134,8 @@ test('Phase B.1: Captures registered zero-stock product request and snapshots ca
   assert.equal(res.record.unavailabilityReason, 'OUT_OF_STOCK');
   assert.equal(res.record.confirmedPurchaseIntent, true);
   assert.equal(res.record.fulfillmentStatus, 'unfulfilled');
+  assert.equal(res.record.fulfilledBaseUnits, 0);
+  assert.equal(res.record.remainingUnfulfilledBaseUnits, 20);
   assert.equal(res.record.recordedByUserId, 'usr-cashier-2');
   assert.equal(res.record.terminalName, 'T2');
 });
@@ -318,4 +325,160 @@ test('Phase B.5: Enforces server-side authentication, branch isolation, invalid 
   assert.equal(validWithRef.valid, true);
   const redacted = redactUnmetDemandRecordForRole(validWithRef.record!, false);
   assert.equal(redacted.customerReference, '[REDACTED]');
+});
+
+test('Phase 1.1: Distinguishes TEMPORARILY_PAUSED (isActive=false) from permanently DISCONTINUED products', () => {
+  assert.deepEqual(SUPPORTED_CATALOG_LIFECYCLE_STATUSES, [
+    'ACTIVE',
+    'TEMPORARILY_PAUSED',
+    'DISCONTINUED',
+  ]);
+  assert.ok(SUPPORTED_UNAVAILABILITY_REASONS.includes('DISCONTINUED'));
+
+  const inactiveProduct: Product = {
+    ...TEST_PRODUCTS[0],
+    id: 'prod-inactive-temp',
+    isActive: false,
+    stock: 0,
+  };
+
+  const discontinuedProduct: Product = {
+    ...TEST_PRODUCTS[0],
+    id: 'prod-discontinued-perm',
+    isActive: false,
+    catalogLifecycleStatus: 'DISCONTINUED',
+    discontinuedAt: '2026-10-15T00:00:00.000Z',
+    discontinuedReason: 'Manufacturer stopped production',
+    replacementProductId: 'prod-low-stock',
+    stock: 0,
+  };
+
+  // CRITICAL INVARIANT: isActive === false alone MUST resolve to TEMPORARILY_PAUSED, NEVER DISCONTINUED
+  assert.equal(resolveProductCatalogLifecycleStatus(inactiveProduct), 'TEMPORARILY_PAUSED');
+  assert.equal(resolveProductCatalogLifecycleStatus(discontinuedProduct), 'DISCONTINUED');
+  assert.equal(resolveProductCatalogLifecycleStatus(TEST_PRODUCTS[0]), 'ACTIVE');
+
+  // Inquiry for temporarily inactive product -> availabilityStatus is TEMPORARILY_UNAVAILABLE (not DISCONTINUED)
+  const inactiveReq = validateAndBuildUnmetDemandRequest({
+    input: {
+      productId: 'prod-inactive-temp',
+      requestedQuantity: 1,
+    },
+    claimingUserId: 'usr-admin-1',
+    serverUsers: TEST_USERS,
+    catalogProducts: [inactiveProduct, discontinuedProduct, ...TEST_PRODUCTS],
+    existingRequests: [],
+  });
+  assert.equal(inactiveReq.valid, true);
+  assert.equal(inactiveReq.record?.availabilityStatus, 'TEMPORARILY_UNAVAILABLE');
+  assert.notEqual(inactiveReq.record?.availabilityStatus, 'DISCONTINUED');
+
+  // Inquiry for explicitly discontinued product -> availabilityStatus & unavailabilityReason are DISCONTINUED, and replacementProductId is captured
+  const discReq = validateAndBuildUnmetDemandRequest({
+    input: {
+      productId: 'prod-discontinued-perm',
+      requestedQuantity: 3,
+    },
+    claimingUserId: 'usr-admin-1',
+    serverUsers: TEST_USERS,
+    catalogProducts: [inactiveProduct, discontinuedProduct, ...TEST_PRODUCTS],
+    existingRequests: [],
+  });
+  assert.equal(discReq.valid, true);
+  assert.equal(discReq.record?.availabilityStatus, 'DISCONTINUED');
+  assert.equal(discReq.record?.unavailabilityReason, 'DISCONTINUED');
+  assert.equal(discReq.record?.substituteProductId, 'prod-low-stock');
+});
+
+test('Phase 1.2: Batch-aware sellable inventory deducts only expired batches without zeroing entire product stock', () => {
+  const now = new Date('2026-11-10T12:00:00.000Z');
+  const multiBatchProduct: Product = {
+    ...TEST_PRODUCTS[1],
+    id: 'prod-multi-batch',
+    stock: 20,
+    batches: [
+      {
+        id: 'batch-expired-1',
+        batchNumber: 'LOT-2025-A',
+        expiryDate: '2026-10-01T00:00:00.000Z', // Expired before `now`
+        quantityOnHand: 4,
+        status: 'ACTIVE',
+      },
+      {
+        id: 'batch-valid-2',
+        batchNumber: 'LOT-2026-B',
+        expiryDate: '2027-06-01T00:00:00.000Z', // Valid
+        quantityOnHand: 16,
+        status: 'ACTIVE',
+      },
+    ],
+  };
+
+  const stockCalc = computeProductSellableStock(multiBatchProduct, now);
+  assert.equal(stockCalc.totalPhysicalStock, 20);
+  assert.equal(stockCalc.expiredStockUnits, 4);
+  assert.equal(stockCalc.sellableStockUnits, 16); // NEVER zeroed to 0!
+
+  // When an EXPIRED inquiry is logged against multiBatchProduct, availableStockAtRequest reflects the 16 sellable units
+  const expReq = validateAndBuildUnmetDemandRequest({
+    input: {
+      productId: 'prod-multi-batch',
+      requestedQuantity: 2,
+      unavailabilityReason: 'EXPIRED',
+      expiredBatchNumber: 'LOT-2025-A',
+      expiredBatchDate: '2026-10-01',
+    },
+    claimingUserId: 'usr-admin-1',
+    serverUsers: TEST_USERS,
+    catalogProducts: [multiBatchProduct],
+    existingRequests: [],
+    now,
+  });
+  assert.equal(expReq.valid, true);
+  assert.equal(expReq.record?.availableStockAtRequest, 16);
+  assert.equal(expReq.record?.expiredBatchNumber, 'LOT-2025-A');
+});
+
+test('Phase 1.3: Partial fulfillment state calculator tracks active sale links and reverses voided/returned links accurately', () => {
+  // 1. Unfulfilled (0 of 10 base units)
+  const unfulfilled = computeUnmetDemandFulfillmentState({
+    requestedBaseUnits: 10,
+    fulfillments: [],
+  });
+  assert.equal(unfulfilled.fulfilledBaseUnits, 0);
+  assert.equal(unfulfilled.remainingUnfulfilledBaseUnits, 10);
+  assert.equal(unfulfilled.fulfillmentStatus, 'unfulfilled');
+
+  // 2. Partially fulfilled (4 of 10 base units via Sale 1)
+  const partial = computeUnmetDemandFulfillmentState({
+    requestedBaseUnits: 10,
+    fulfillments: [{ fulfilledBaseUnits: 4, status: 'active' }],
+  });
+  assert.equal(partial.fulfilledBaseUnits, 4);
+  assert.equal(partial.remainingUnfulfilledBaseUnits, 6);
+  assert.equal(partial.fulfillmentStatus, 'partially_fulfilled');
+
+  // 3. Fully fulfilled across two sales (4 + 6 = 10 base units)
+  const full = computeUnmetDemandFulfillmentState({
+    requestedBaseUnits: 10,
+    fulfillments: [
+      { fulfilledBaseUnits: 4, status: 'active' },
+      { fulfilledBaseUnits: 6, status: 'active' },
+    ],
+  });
+  assert.equal(full.fulfilledBaseUnits, 10);
+  assert.equal(full.remainingUnfulfilledBaseUnits, 0);
+  assert.equal(full.fulfillmentStatus, 'fulfilled_later');
+
+  // 4. Voided second sale reverses its 6 units -> reverts to partially_fulfilled (4 fulfilled, 6 remaining)
+  const afterVoid = computeUnmetDemandFulfillmentState({
+    requestedBaseUnits: 10,
+    fulfillments: [
+      { fulfilledBaseUnits: 4, status: 'active' },
+      { fulfilledBaseUnits: 6, status: 'reversed_by_void' },
+    ],
+  });
+  assert.equal(afterVoid.fulfilledBaseUnits, 4);
+  assert.equal(afterVoid.remainingUnfulfilledBaseUnits, 6);
+  assert.equal(afterVoid.fulfillmentStatus, 'partially_fulfilled');
 });

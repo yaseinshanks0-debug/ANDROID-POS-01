@@ -27,6 +27,11 @@ import {
   TechnicalIndicatorsResult,
   UnmetDemandAnalyticsResult,
 } from '../analytics.types';
+import {
+  computeProductSellableStock,
+  resolveProductCatalogLifecycleStatus,
+} from '../unmet-demand.validation';
+
 function round2(val: number): number {
   if (!Number.isFinite(val)) return 0;
   return Math.round((val + Number.EPSILON) * 100) / 100;
@@ -93,6 +98,20 @@ export function computeSmartReplenishmentAndTransfers(params: {
     const fcItem = forecastByProdId.get(invProd.productId);
     const unmetItem = unmetByProdId.get(invProd.productId);
 
+    // Do not recommend automatic purchase orders for permanently discontinued SKUs
+    const lifecycleStatus = resolveProductCatalogLifecycleStatus(rawProd);
+    if (
+      lifecycleStatus === 'DISCONTINUED' ||
+      unmetItem?.primaryReason === 'DISCONTINUED'
+    ) {
+      continue;
+    }
+
+    const sellableInfo = rawProd ? computeProductSellableStock(rawProd, now) : null;
+    const effectiveSellableStock = sellableInfo
+      ? sellableInfo.sellableStockUnits
+      : invProd.currentStock;
+
     const observedSalesDailyVelocity = invProd.averageDailyDemand;
     const observedUnmetDemandUnits = unmetItem?.requestedBaseUnitsTotal ?? 0;
     const unmetDemandInquiriesCount = unmetItem?.inquiryCount ?? 0;
@@ -107,7 +126,8 @@ export function computeSmartReplenishmentAndTransfers(params: {
 
     const expiryDateSnapshot = extractExpiryDateFromProduct(rawProd);
     let isExpiringSoonOrExpired = Boolean(
-      unmetItem && unmetItem.reasonBreakdown.EXPIRED > 0
+      (unmetItem && unmetItem.reasonBreakdown.EXPIRED > 0) ||
+        (sellableInfo && sellableInfo.expiredStockUnits > 0)
     );
     if (expiryDateSnapshot) {
       const expMs = new Date(expiryDateSnapshot).getTime();
@@ -116,8 +136,9 @@ export function computeSmartReplenishmentAndTransfers(params: {
       }
     }
 
+    const minStockAlert = Math.max(0, Number(invProd.minStockAlert || 0));
     const safetyStockUnits = Math.max(
-      invProd.minStockAlert,
+      minStockAlert,
       Math.ceil(estimatedLatentDailyDemand * safetyStockDays)
     );
     const reorderPointUnits =
@@ -127,13 +148,13 @@ export function computeSmartReplenishmentAndTransfers(params: {
       safetyStockUnits;
 
     const availableAndInbound =
-      invProd.currentStock + invProd.pendingInboundPurchaseUnits;
+      effectiveSellableStock + invProd.pendingInboundPurchaseUnits;
     const rawRecommendedUnits = Math.max(0, targetCycleUnits - availableAndInbound);
 
     const needsReorder =
       invProd.reorderRecommendation.shouldReorder ||
       rawRecommendedUnits > 0 &&
-        (invProd.currentStock <= reorderPointUnits || observedUnmetDemandUnits > 0);
+        (effectiveSellableStock <= reorderPointUnits || observedUnmetDemandUnits > 0);
 
     if (!needsReorder) continue;
 
@@ -154,18 +175,18 @@ export function computeSmartReplenishmentAndTransfers(params: {
 
     const daysUntilStockout =
       estimatedLatentDailyDemand > 0
-        ? round2(invProd.currentStock / estimatedLatentDailyDemand)
+        ? round2(effectiveSellableStock / estimatedLatentDailyDemand)
         : invProd.daysOfInventoryOnHand;
 
     let urgency: SmartReplenishmentRecommendationItem['urgency'] = 'MEDIUM';
     if (
-      invProd.currentStock <= 0 ||
+      effectiveSellableStock <= 0 ||
       (daysUntilStockout !== null && daysUntilStockout <= leadTimeDays) ||
-      (observedUnmetDemandUnits >= 3 && invProd.currentStock <= invProd.minStockAlert)
+      (observedUnmetDemandUnits >= 3 && effectiveSellableStock <= minStockAlert)
     ) {
       urgency = 'CRITICAL';
     } else if (
-      invProd.currentStock <= invProd.minStockAlert ||
+      effectiveSellableStock <= minStockAlert ||
       observedUnmetDemandUnits > 0
     ) {
       urgency = 'HIGH';
@@ -196,9 +217,9 @@ export function computeSmartReplenishmentAndTransfers(params: {
       productNameAr: invProd.nameAr || null,
       category: invProd.category,
       branchId: effectiveBranchId,
-      currentStock: invProd.currentStock,
+      currentStock: effectiveSellableStock,
       pendingInboundUnits: invProd.pendingInboundPurchaseUnits,
-      minStockAlert: invProd.minStockAlert,
+      minStockAlert,
       observedSalesDailyVelocity,
       observedUnmetDemandUnits,
       unmetDemandInquiriesCount,
@@ -216,12 +237,12 @@ export function computeSmartReplenishmentAndTransfers(params: {
       confidenceLevel,
       explanationEn:
         observedUnmetDemandUnits > 0
-          ? `Combines actual sales velocity (${observedSalesDailyVelocity} units/day) with ${unmetDemandInquiriesCount} unmet customer inquiry(s) (${observedUnmetDemandUnits} units requested). Current stock (${invProd.currentStock}) + pending inbound (${invProd.pendingInboundPurchaseUnits}) is below the ${reorderPointUnits}-unit reorder point.`
-          : `Current stock (${invProd.currentStock} units) and pending inbound (${invProd.pendingInboundPurchaseUnits} units) are below the safety-adjusted reorder point (${reorderPointUnits} units for a ${leadTimeDays}-day lead time).`,
+          ? `Combines actual sales velocity (${observedSalesDailyVelocity} units/day) with ${unmetDemandInquiriesCount} unmet customer inquiry(s) (${observedUnmetDemandUnits} units requested). Sellable stock (${effectiveSellableStock}) + pending inbound (${invProd.pendingInboundPurchaseUnits}) is below the ${reorderPointUnits}-unit reorder point.`
+          : `Sellable stock (${effectiveSellableStock} units) and pending inbound (${invProd.pendingInboundPurchaseUnits} units) are below the safety-adjusted reorder point (${reorderPointUnits} units for a ${leadTimeDays}-day lead time).`,
       explanationAr:
         observedUnmetDemandUnits > 0
-          ? `يجمع بين سرعة المبيعات الفعلية (${observedSalesDailyVelocity} وحدة/يوم) وعدد ${unmetDemandInquiriesCount} استفسارات عملاء غير ملباة (${observedUnmetDemandUnits} وحدات مطلوبة). الرصيد الحالي (${invProd.currentStock}) والوارد قيد التوريد (${invProd.pendingInboundPurchaseUnits}) أقل من نقطة إعادة الطلب (${reorderPointUnits} وحدة).`
-          : `الرصيد الحالي (${invProd.currentStock} وحدة) والكميات قيد التوريد (${invProd.pendingInboundPurchaseUnits} وحدة) أقل من نقطة إعادة الطلب الآمنة (${reorderPointUnits} وحدة لزمن توريد ${leadTimeDays} أيام).`,
+          ? `يجمع بين سرعة المبيعات الفعلية (${observedSalesDailyVelocity} وحدة/يوم) وعدد ${unmetDemandInquiriesCount} استفسارات عملاء غير ملباة (${observedUnmetDemandUnits} وحدات مطلوبة). الرصيد الصالح للبيع (${effectiveSellableStock}) والوارد قيد التوريد (${invProd.pendingInboundPurchaseUnits}) أقل من نقطة إعادة الطلب (${reorderPointUnits} وحدة).`
+          : `الرصيد الصالح للبيع (${effectiveSellableStock} وحدة) والكميات قيد التوريد (${invProd.pendingInboundPurchaseUnits} وحدة) أقل من نقطة إعادة الطلب الآمنة (${reorderPointUnits} وحدة لزمن توريد ${leadTimeDays} أيام).`,
       suggestedActionEn: isExpiringSoonOrExpired
         ? `Inspect shelf batch expiration date first, then approve PO for ${recommendedOrderUnits} fresh units of ${invProd.name}${costNoteEn}.`
         : `Approve purchase order for ${recommendedOrderUnits} units of ${invProd.name}${costNoteEn}.`,

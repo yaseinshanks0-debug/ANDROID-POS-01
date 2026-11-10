@@ -32,7 +32,9 @@ import {
   UnmetDemandRequestRecord,
 } from '../../analytics/analytics.types';
 import {
+  UnmetDemandFulfillmentLinkRecord,
   UnmetDemandValidationResult,
+  computeUnmetDemandFulfillmentState,
   validateAndBuildUnmetDemandRequest,
 } from '../../analytics/unmet-demand.validation';
 import { playSuccessChime, triggerHaptic } from '../../lib/sound-fx';
@@ -288,6 +290,327 @@ export function useTrainingAndDemandDomain({
     ]
   );
 
+  const fulfillUnmetDemandFromSale = useCallback(
+    async (params: {
+      requestId: string;
+      saleId: string;
+      fulfilledBaseUnits?: number;
+    }): Promise<{
+      ok: boolean;
+      errorEn?: string;
+      errorAr?: string;
+      record?: UnmetDemandRequestRecord;
+    }> => {
+      const req = unmetDemandRequests.find((r) => r.id === params.requestId);
+      if (!req) {
+        return {
+          ok: false,
+          errorEn: 'Unmet demand request not found',
+          errorAr: 'طلب المنتج غير المتوفر غير موجود',
+        };
+      }
+      if (req.fulfillmentStatus === 'cancelled') {
+        return {
+          ok: false,
+          errorEn: 'Cannot fulfill a cancelled request',
+          errorAr: 'لا يمكن تلبية طلب ملغى',
+        };
+      }
+
+      const sale = transactions.find((t) => t.id === params.saleId);
+      if (!sale || sale.status !== 'completed') {
+        return {
+          ok: false,
+          errorEn: 'Verified completed sale not found',
+          errorAr: 'فاتورة البيع المكتملة غير موجودة أو ملغاة',
+        };
+      }
+
+      const matchingItemIdx = sale.items.findIndex((item) =>
+        req.productId
+          ? item.productId === req.productId
+          : item.productName.trim().toLowerCase() ===
+            req.productNameSnapshot.trim().toLowerCase()
+      );
+      if (matchingItemIdx < 0) {
+        return {
+          ok: false,
+          errorEn: 'Selected sale does not contain the requested product',
+          errorAr: 'فاتورة البيع المختارة لا تحتوي على المنتج المطلوب',
+        };
+      }
+
+      const existingFulfillments = req.fulfillments || [];
+      if (
+        existingFulfillments.some(
+          (f) => f.saleTransactionId === sale.id && f.status === 'active'
+        )
+      ) {
+        return {
+          ok: false,
+          errorEn: 'This sale is already linked to this request',
+          errorAr: 'تم ربط فاتورة البيع هذه بهذا الطلب مسبقاً',
+        };
+      }
+
+      const saleItem = sale.items[matchingItemIdx];
+      const saleItemBaseUnits = Math.max(
+        1,
+        Math.round(Number(saleItem.stockDeducted || saleItem.quantity || 1))
+      );
+      const requestedBase = Math.max(
+        1,
+        Math.round(Number(req.requestedBaseUnits || req.requestedQuantity || 1))
+      );
+      const currentState = computeUnmetDemandFulfillmentState({
+        requestedBaseUnits: requestedBase,
+        fulfillments: existingFulfillments,
+        isCancelled: false,
+      });
+
+      if (currentState.remainingUnfulfilledBaseUnits <= 0) {
+        return {
+          ok: false,
+          errorEn: 'Request is already 100% fulfilled',
+          errorAr: 'تمت تلبية هذا الطلب بالكامل مسبقاً',
+        };
+      }
+
+      const desiredUnits =
+        params.fulfilledBaseUnits && params.fulfilledBaseUnits > 0
+          ? Math.round(params.fulfilledBaseUnits)
+          : Math.min(saleItemBaseUnits, currentState.remainingUnfulfilledBaseUnits);
+      const unitsToFulfill = Math.max(
+        1,
+        Math.min(
+          desiredUnits,
+          saleItemBaseUnits,
+          currentState.remainingUnfulfilledBaseUnits
+        )
+      );
+
+      const nowIso = new Date().toISOString();
+      const newLink: UnmetDemandFulfillmentLinkRecord = {
+        id: `udfl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        companyId: req.companyId || currentCompany?.id || 'comp-default',
+        requestId: req.id,
+        saleId: sale.id,
+        saleTransactionId: sale.id,
+        saleLineIndex: matchingItemIdx,
+        branchId: req.branchId,
+        productId: req.productId || saleItem.productId,
+        fulfilledBaseUnits: unitsToFulfill,
+        status: 'active',
+        linkedByUserId: currentUser.id,
+        recordedByUserId: currentUser.id,
+        linkedAt: nowIso,
+        fulfilledAt: nowIso,
+      };
+
+      const nextFulfillments = [...existingFulfillments, newLink];
+      const nextState = computeUnmetDemandFulfillmentState({
+        requestedBaseUnits: requestedBase,
+        fulfillments: nextFulfillments,
+        isCancelled: false,
+      });
+
+      const updatedRecord: UnmetDemandRequestRecord = {
+        ...req,
+        fulfilledBaseUnits: nextState.fulfilledBaseUnits,
+        remainingUnfulfilledBaseUnits: nextState.remainingUnfulfilledBaseUnits,
+        fulfillmentStatus: nextState.fulfillmentStatus,
+        lastFulfilledAt: nextState.lastFulfilledAt,
+        fulfillments: nextFulfillments,
+      };
+
+      setUnmetDemandRequests((prev) =>
+        prev.map((r) => (r.id === req.id ? updatedRecord : r))
+      );
+
+      if (
+        workspaceMode === 'PRODUCTION' &&
+        currentUser.id &&
+        currentUser.id !== 'unassigned-operator'
+      ) {
+        fetch(`/api/unmet-demand/requests/${encodeURIComponent(req.id)}/fulfill-from-sale`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+          },
+          body: JSON.stringify({
+            saleId: sale.id,
+            fulfilledBaseUnits: unitsToFulfill,
+          }),
+        }).catch(() => {});
+      }
+
+      playSuccessChime(settings.soundEnabled);
+      triggerHaptic('success', settings.hapticsEnabled);
+      return { ok: true, record: updatedRecord };
+    },
+    [
+      unmetDemandRequests,
+      transactions,
+      currentCompany?.id,
+      currentUser.id,
+      workspaceMode,
+      settings.soundEnabled,
+      settings.hapticsEnabled,
+      setUnmetDemandRequests,
+    ]
+  );
+
+  const cancelUnmetDemandRequest = useCallback(
+    async (params: {
+      requestId: string;
+      reason: string;
+    }): Promise<{
+      ok: boolean;
+      errorEn?: string;
+      errorAr?: string;
+      record?: UnmetDemandRequestRecord;
+    }> => {
+      const cleanReason = (params.reason || '').trim();
+      if (cleanReason.length < 3) {
+        return {
+          ok: false,
+          errorEn: 'Cancellation reason is required (min 3 characters)',
+          errorAr: 'يرجى إدخال سبب واضح لإلغاء الطلب (3 أحرف على الأقل)',
+        };
+      }
+
+      const req = unmetDemandRequests.find((r) => r.id === params.requestId);
+      if (!req) {
+        return {
+          ok: false,
+          errorEn: 'Unmet demand request not found',
+          errorAr: 'طلب المنتج غير المتوفر غير موجود',
+        };
+      }
+
+      const requestedBase = Math.max(
+        1,
+        Math.round(Number(req.requestedBaseUnits || req.requestedQuantity || 1))
+      );
+      const nextState = computeUnmetDemandFulfillmentState({
+        requestedBaseUnits: requestedBase,
+        fulfillments: req.fulfillments || [],
+        isCancelled: true,
+      });
+
+      const updatedRecord: UnmetDemandRequestRecord = {
+        ...req,
+        fulfillmentStatus: nextState.fulfillmentStatus,
+        fulfilledBaseUnits: nextState.fulfilledBaseUnits,
+        remainingUnfulfilledBaseUnits: nextState.remainingUnfulfilledBaseUnits,
+        notes: req.notes
+          ? `${req.notes} | [CANCELLED: ${cleanReason}]`
+          : `[CANCELLED: ${cleanReason}]`,
+      };
+
+      setUnmetDemandRequests((prev) =>
+        prev.map((r) => (r.id === req.id ? updatedRecord : r))
+      );
+
+      if (
+        workspaceMode === 'PRODUCTION' &&
+        currentUser.id &&
+        currentUser.id !== 'unassigned-operator'
+      ) {
+        fetch(`/api/unmet-demand/requests/${encodeURIComponent(req.id)}/cancel`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+          },
+          body: JSON.stringify({
+            status: 'cancelled',
+            reason: cleanReason,
+          }),
+        }).catch(() => {});
+      }
+
+      triggerHaptic('light', settings.hapticsEnabled);
+      return { ok: true, record: updatedRecord };
+    },
+    [
+      unmetDemandRequests,
+      workspaceMode,
+      currentUser.id,
+      settings.hapticsEnabled,
+      setUnmetDemandRequests,
+    ]
+  );
+
+  const reverseUnmetDemandBySale = useCallback(
+    (saleId: string) => {
+      if (!saleId) return;
+      const nowIso = new Date().toISOString();
+      setUnmetDemandRequests((prev) =>
+        prev.map((req) => {
+          if (
+            !Array.isArray(req.fulfillments) ||
+            !req.fulfillments.some(
+              (f) =>
+                (f.saleTransactionId === saleId || f.saleId === saleId) &&
+                f.status === 'active'
+            )
+          ) {
+            return req;
+          }
+          const nextLinks = req.fulfillments.map((f) =>
+            (f.saleTransactionId === saleId || f.saleId === saleId) &&
+            f.status === 'active'
+              ? {
+                  ...f,
+                  status: 'reversed_by_void' as const,
+                  reversedAt: nowIso,
+                  reversalReferenceId: saleId,
+                }
+              : f
+          );
+          const requestedBase = Math.max(
+            1,
+            Math.round(Number(req.requestedBaseUnits || req.requestedQuantity || 1))
+          );
+          const nextState = computeUnmetDemandFulfillmentState({
+            requestedBaseUnits: requestedBase,
+            fulfillments: nextLinks,
+            isCancelled: req.fulfillmentStatus === 'cancelled',
+          });
+          return {
+            ...req,
+            fulfillments: nextLinks,
+            fulfilledBaseUnits: nextState.fulfilledBaseUnits,
+            remainingUnfulfilledBaseUnits: nextState.remainingUnfulfilledBaseUnits,
+            fulfillmentStatus: nextState.fulfillmentStatus,
+            lastFulfilledAt: nextState.lastFulfilledAt,
+          };
+        })
+      );
+
+      if (
+        workspaceMode === 'PRODUCTION' &&
+        currentUser.id &&
+        currentUser.id !== 'unassigned-operator'
+      ) {
+        fetch(
+          `/api/unmet-demand/sales/${encodeURIComponent(saleId)}/reverse-fulfillment`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': currentUser.id,
+            },
+            body: JSON.stringify({ reversalType: 'void', referenceId: saleId }),
+          }
+        ).catch(() => {});
+      }
+    },
+    [workspaceMode, currentUser.id, setUnmetDemandRequests]
+  );
+
   return {
     onboardingChecklist,
     isTrainingTourOpen,
@@ -305,5 +628,8 @@ export function useTrainingAndDemandDomain({
     openUnmetDemandModal,
     closeUnmetDemandModal,
     recordUnmetDemandRequest,
+    fulfillUnmetDemandFromSale,
+    cancelUnmetDemandRequest,
+    reverseUnmetDemandBySale,
   };
 }

@@ -19,7 +19,11 @@ import {
   getNextProductSerialNumber,
   buildProductAuditTrail,
 } from '../lib/inventory-rules.ts';
-import { ProductModificationEntry, ProductPriceHistoryEntry } from '../lib/types.ts';
+import {
+  ProductCustomFields,
+  ProductModificationEntry,
+  ProductPriceHistoryEntry,
+} from '../lib/types.ts';
 
 export interface ProductRecord {
   id: string;
@@ -51,7 +55,7 @@ export interface ProductRecord {
   baseUomId?: string | null;
   defaultSellingUomId?: string | null;
   imageUrl?: string | null;
-  customFields?: Record<string, any>;
+  customFields?: ProductCustomFields;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

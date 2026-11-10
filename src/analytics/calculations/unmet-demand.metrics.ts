@@ -26,6 +26,7 @@ import {
 import {
   normalizeUnavailableSearchText,
   redactUnmetDemandRecordForRole,
+  resolveProductCatalogLifecycleStatus,
 } from '../unmet-demand.validation';
 import { convertCurrencyAmount } from '../../lib/pos-calculations';
 import { resolveAnalyticsDateWindow, toDateKey } from './sales.metrics';
@@ -60,6 +61,10 @@ const REASON_LABELS: Record<UnavailabilityReason, { en: string; ar: string }> = 
   EXPIRED: {
     en: 'Expired Batch On Shelf',
     ar: 'المنتج منتهي الصلاحية',
+  },
+  DISCONTINUED: {
+    en: 'Permanently Discontinued Product',
+    ar: 'منتج موقوف نهائياً',
   },
   NOT_STOCKED: {
     en: 'Unregistered / Not Stocked in Store',
@@ -148,6 +153,9 @@ export function computeUnmetDemandAnalytics(
     : [];
 
   // Index catalog & inventory by productId for O(1) lookup
+  const catalogByProductId = new Map(
+    (dataset.products || []).map((p) => [p.id, p])
+  );
   const invByProductId = new Map<
     string,
     InventoryAnalyticsResult['products'][number]
@@ -454,6 +462,7 @@ export function computeUnmetDemandAnalytics(
         reasonBreakdown: {
           OUT_OF_STOCK: 0,
           EXPIRED: 0,
+          DISCONTINUED: 0,
           NOT_STOCKED: 0,
           TEMPORARILY_UNAVAILABLE: 0,
           OTHER: 0,
@@ -524,13 +533,26 @@ export function computeUnmetDemandAnalytics(
       prodAcc.customerLastSeenMs.set(custIdentity, reqMs);
     }
 
-    // Conservative Lost Sales Weighting (Part 4D):
-    // - fulfilled_later => 0.0 (not lost)
-    // - same-customer repeat within 24h => 0.15 (marginal incremental intent)
-    // - confirmed purchase intent => 0.65
-    // - standard unconfirmed inquiry => 0.35
+    // Conservative Lost Sales Weighting (Part 4D + Phase 4 Partial Fulfillment):
+    // - Fulfilled portion (fulfilledBaseUnits) is already captured in completed sales => weight 0.0
+    // - Only remainingUnfulfilledBaseUnits is subject to lost-sales realization weighting:
+    //   - same-customer repeat within 24h => 0.15 (marginal incremental intent)
+    //   - confirmed purchase intent => 0.65
+    //   - standard unconfirmed inquiry => 0.35
+    const fulfilledUnits =
+      req.fulfilledBaseUnits !== undefined && req.fulfilledBaseUnits !== null
+        ? Math.max(0, Math.min(baseUnits, Math.round(Number(req.fulfilledBaseUnits))))
+        : req.fulfillmentStatus === 'fulfilled_later'
+        ? baseUnits
+        : 0;
+    const unfulfilledBaseUnits =
+      req.remainingUnfulfilledBaseUnits !== undefined &&
+      req.remainingUnfulfilledBaseUnits !== null
+        ? Math.max(0, Math.min(baseUnits, Math.round(Number(req.remainingUnfulfilledBaseUnits))))
+        : Math.max(0, baseUnits - fulfilledUnits);
+
     const realizationWeight =
-      req.fulfillmentStatus === 'fulfilled_later'
+      req.fulfillmentStatus === 'fulfilled_later' || unfulfilledBaseUnits <= 0
         ? 0
         : isRepeatCustomerWithin24h
         ? 0.15
@@ -538,7 +560,7 @@ export function computeUnmetDemandAnalytics(
         ? 0.65
         : 0.35;
 
-    const weightedUnits = baseUnits * realizationWeight;
+    const weightedUnits = unfulfilledBaseUnits * realizationWeight;
     prodAcc.weightedLostUnits += weightedUnits;
     dedupedConfirmedWeightedUnitsTotal += weightedUnits;
 
@@ -789,11 +811,26 @@ export function computeUnmetDemandAnalytics(
       (a, b) => new Date(b).getTime() - new Date(a).getTime()
     );
 
+    const catalogProd = acc.productId ? catalogByProductId.get(acc.productId) : undefined;
+    const isDiscontinuedProduct =
+      primaryReason === 'DISCONTINUED' ||
+      resolveProductCatalogLifecycleStatus(catalogProd) === 'DISCONTINUED';
+
     let decisionPriority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' = 'LOW';
     let decisionRecommendationAr = '';
     let decisionRecommendationEn = '';
 
-    if (acc.inquiryCount >= 3 || acc.requestedBaseUnitsTotal >= 5) {
+    if (isDiscontinuedProduct) {
+      decisionPriority = acc.inquiryCount >= 3 ? 'HIGH' : 'MEDIUM';
+      const replacementHintAr = catalogProd?.replacementProductId
+        ? ` (البديل المعتمد: ${catalogProd.replacementProductId})`
+        : '';
+      const replacementHintEn = catalogProd?.replacementProductId
+        ? ` (replacement: ${catalogProd.replacementProductId})`
+        : '';
+      decisionRecommendationAr = `صنف موقوف نهائياً (${acc.inquiryCount} طلبات): وجّه العميل للصنف البديل${replacementHintAr} ولا تُصدر أمر شراء تلقائي`;
+      decisionRecommendationEn = `Discontinued SKU (${acc.inquiryCount}x): Offer replacement item${replacementHintEn}; do not auto-reorder`;
+    } else if (acc.inquiryCount >= 3 || acc.requestedBaseUnitsTotal >= 5) {
       decisionPriority = 'CRITICAL';
       decisionRecommendationAr = acc.isRegisteredProduct
         ? `أولوية قصوى (${acc.inquiryCount} مرات): توريد عاجل (${acc.requestedBaseUnitsTotal} وحدة)`

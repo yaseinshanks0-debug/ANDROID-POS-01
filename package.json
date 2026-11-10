@@ -3,12 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
     "build": "vite build",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "node -e \"const fs=require('node:fs');for(const p of ['dist','dist-server','electron/www','server.js'])fs.rmSync(p,{recursive:true,force:true});\"",
     "lint": "tsc --noEmit",
     "test": "tsx --test src/lib/*.test.ts src/db/*.test.ts",
     "db:generate": "drizzle-kit generate",
@@ -17,7 +18,8 @@
     "apk:sync": "vite build && cap sync android",
     "apk:build": "vite build && cap sync android && cd android && ./gradlew assembleDebug",
     "server:bundle": "esbuild server.ts --bundle --platform=node --format=cjs --outfile=dist-server/server.cjs --external:vite --external:pg-native",
-    "exe:build": "npm run build && npm run server:bundle && npx electron-builder --win --x64 --config electron-builder.json --publish never"
+    "exe:stage-ui": "node -e \"const fs=require('node:fs');fs.rmSync('electron/www',{recursive:true,force:true});fs.cpSync('dist','electron/www',{recursive:true});\"",
+    "exe:build": "npm run build && npm run server:bundle && npm run exe:stage-ui && npx electron-builder --win --x64 --config electron-builder.json --publish never"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",
@@ -43,6 +45,7 @@
     "pg": "^8.23.1",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "react-is": "^19.3.1",
     "react-router-dom": "^7.18.5",
     "recharts": "^3.10.1",
     "tsx": "^4.21.0",

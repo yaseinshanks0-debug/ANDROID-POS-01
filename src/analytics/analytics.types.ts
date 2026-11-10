@@ -16,17 +16,27 @@ import {
 } from '../lib/types';
 import {
   AvailabilityStatusAtRequest,
+  CatalogLifecycleStatus,
+  StockBatchEntry,
+  SUPPORTED_CATALOG_LIFECYCLE_STATUSES,
   SUPPORTED_UNAVAILABILITY_REASONS,
   UnavailabilityReason,
+  UnmetDemandFulfillmentLinkRecord,
+  UnmetDemandFulfillmentLinkStatus,
   UnmetDemandFulfillmentStatus,
   UnmetDemandRequestInput,
   UnmetDemandRequestRecord,
 } from './unmet-demand.validation';
 
 export {
+  SUPPORTED_CATALOG_LIFECYCLE_STATUSES,
   SUPPORTED_UNAVAILABILITY_REASONS,
   type AvailabilityStatusAtRequest,
+  type CatalogLifecycleStatus,
+  type StockBatchEntry,
   type UnavailabilityReason,
+  type UnmetDemandFulfillmentLinkRecord,
+  type UnmetDemandFulfillmentLinkStatus,
   type UnmetDemandFulfillmentStatus,
   type UnmetDemandRequestInput,
   type UnmetDemandRequestRecord,

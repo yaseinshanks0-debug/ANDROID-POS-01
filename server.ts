@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { getDataDir, getDistDir } from './src/server/runtime-paths.ts';
 import { nonBlockingJsonCompressionMiddleware } from './src/server/response-compression.ts';
+import { apiRateLimiter, authRateLimiter } from './src/server/rate-limiter.ts';
 import { hasDatabaseCredentials } from './src/db/index.ts';
 import {
   getAllProducts,
@@ -88,6 +89,10 @@ app.use(express.json({ limit: '50mb' }));
 
 // W3C Server-Timing Telemetry (#18) & Non-Blocking Async Brotli / Gzip Response Compression (#9)
 app.use(nonBlockingJsonCompressionMiddleware);
+
+// API Rate Limiting (#22): stricter limit on authentication routes + general limit across /api
+app.use('/api/auth', authRateLimiter);
+app.use('/api', apiRateLimiter);
 
 // API: Business Intelligence, Smart Store Operations & Customer Demand Intelligence Endpoints
 app.use('/api/analytics', analyticsRouter);
@@ -819,6 +824,8 @@ app.post('/api/store-sync', async (req: Request, res: Response) => {
 });
 
 async function startServer() {
+  const activePort = parseInt(process.env.PORT || String(PORT), 10);
+
   // Full-stack Vite development integration
   if (process.env.NODE_ENV !== 'production') {
     const vitePkg = 'vite';
@@ -852,16 +859,36 @@ async function startServer() {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
-      res.sendFile(path.resolve(distDir, 'index.html'));
+      const indexFile = path.resolve(distDir, 'index.html');
+      if (fs.existsSync(indexFile)) {
+        res.sendFile(indexFile);
+      } else {
+        res.status(404).send('Dqnamo POS UI bundle not found at: ' + indexFile);
+      }
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Dqnamo POS Backend Server listening on http://0.0.0.0:${PORT}`);
+  const httpServer = app.listen(activePort, '0.0.0.0', () => {
+    console.log(`Dqnamo POS Backend Server listening on http://0.0.0.0:${activePort}`);
+  });
+
+  httpServer.on('error', (err: any) => {
+    console.error(`Dqnamo POS Backend Server listen error on port ${activePort}:`, err);
+    if (err?.code === 'EADDRINUSE' || err?.code === 'EACCES') {
+      // Fallback to loopback-only binding if 0.0.0.0 is restricted by Windows policy
+      try {
+        app.listen(activePort, '127.0.0.1', () => {
+          console.log(`Dqnamo POS Backend Server listening on http://127.0.0.1:${activePort}`);
+        });
+      } catch (fallbackErr) {
+        console.error('Fallback loopback listen failed:', fallbackErr);
+      }
+    }
   });
 }
 
 startServer().catch((err) => {
   console.error('Failed to start Dqnamo POS server:', err);
 });
+
 

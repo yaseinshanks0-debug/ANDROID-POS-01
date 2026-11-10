@@ -102,11 +102,23 @@ export function BusinessIntelligenceDashboard() {
     exchangeRateHistory,
     unmetDemandRequests,
     openUnmetDemandModal,
+    fulfillUnmetDemandFromSale,
+    cancelUnmetDemandRequest,
     setActiveTab: setPosActiveTab,
   } = usePOS();
 
   const isAr = settings.language === 'ar';
   const isDark = settings.theme === 'dark';
+
+  const [activeLinkRequestId, setActiveLinkRequestId] = useState<string | null>(null);
+  const [selectedSaleIdForFulfill, setSelectedSaleIdForFulfill] = useState<string>('');
+  const [fulfillUnitsInput, setFulfillUnitsInput] = useState<number>(1);
+  const [activeCancelRequestId, setActiveCancelRequestId] = useState<string | null>(null);
+  const [cancelReasonInput, setCancelReasonInput] = useState<string>('');
+  const [fulfillmentFeedback, setFulfillmentFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   const [isBiNotificationsBellOpen, setIsBiNotificationsBellOpen] = useState(false);
   const [selectedBiNotificationId, setSelectedBiNotificationId] = useState<string | null>(null);
@@ -3529,11 +3541,25 @@ export function BusinessIntelligenceDashboard() {
 
           {/* Recent Customer Inquiries Log */}
           <AppCard className="p-4 overflow-x-auto">
-            <h4 className="text-sm font-bold mb-3">
-              {isAr
-                ? 'سجل استفسارات وطلبات العملاء الأخيرة (محمي حسب الصلاحيات)'
-                : 'Recent Recorded Customer Unmet Demand Inquiries (Role-Scoped & PII-Protected)'}
-            </h4>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <h4 className="text-sm font-bold">
+                {isAr
+                  ? 'سجل استفسارات وطلبات العملاء الأخيرة وتتبع التلبية الجزئية والكلية'
+                  : 'Recent Recorded Customer Unmet Demand Inquiries & Sale-Linked Fulfillment'}
+              </h4>
+              {fulfillmentFeedback && (
+                <div
+                  data-testid="bi-fulfillment-feedback"
+                  className={`px-3 py-1 rounded-lg border text-xs font-bold ${
+                    fulfillmentFeedback.type === 'success'
+                      ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                      : 'border-rose-500/40 bg-rose-500/15 text-rose-300'
+                  }`}
+                >
+                  {fulfillmentFeedback.message}
+                </div>
+              )}
+            </div>
             <table
               className="w-full text-xs text-left border-collapse"
               data-testid="unmet-recent-requests-table"
@@ -3542,44 +3568,316 @@ export function BusinessIntelligenceDashboard() {
                 <tr className="border-b border-slate-800 text-slate-400 text-[11px]">
                   <th className="py-2 px-2">{isAr ? 'الوقت' : 'Timestamp'}</th>
                   <th className="py-2 px-2">{isAr ? 'المنتج' : 'Requested Item'}</th>
-                  <th className="py-2 px-2">{isAr ? 'الكمية' : 'Qty'}</th>
+                  <th className="py-2 px-2">{isAr ? 'المطلوب / المتبقي' : 'Req / Rem'}</th>
+                  <th className="py-2 px-2">{isAr ? 'حالة التلبية' : 'Fulfillment Status'}</th>
                   <th className="py-2 px-2">{isAr ? 'السبب' : 'Reason'}</th>
                   <th className="py-2 px-2">{isAr ? 'الفرع' : 'Branch'}</th>
                   <th className="py-2 px-2">{isAr ? 'العميل / ملاحظات' : 'Customer / Notes'}</th>
+                  <th className="py-2 px-2">{isAr ? 'إجراء التلبية' : 'Fulfillment Action'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
-                {unmetDemand.recentRequests.map((req) => (
-                  <tr key={req.id}>
-                    <td className="py-2 px-2 text-[11px] text-slate-400">
-                      {new Date(req.requestedTimestamp).toLocaleString(
-                        isAr ? 'ar-SA' : 'en-US',
-                        { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
-                      )}
-                    </td>
-                    <td className="py-2 px-2 font-sans font-semibold">
-                      {isAr
-                        ? req.productNameArSnapshot || req.productNameSnapshot
-                        : req.productNameSnapshot}
-                      {!req.isRegisteredProduct && (
-                        <span className="ml-1.5 px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 text-[10px]">
-                          {isAr ? 'غير مسجل' : 'Unregistered'}
+                {unmetDemand.recentRequests.map((req) => {
+                  const reqBase = Math.max(1, Number(req.requestedBaseUnits || req.requestedQuantity || 1));
+                  const fulfilledUnits = Math.max(
+                    0,
+                    Number(
+                      req.fulfilledBaseUnits ??
+                        (req.fulfillmentStatus === 'fulfilled_later' ? reqBase : 0)
+                    )
+                  );
+                  const remainingUnits = Math.max(
+                    0,
+                    Number(req.remainingUnfulfilledBaseUnits ?? reqBase - fulfilledUnits)
+                  );
+                  const fStatus =
+                    req.fulfillmentStatus ||
+                    (fulfilledUnits >= reqBase
+                      ? 'fulfilled_later'
+                      : fulfilledUnits > 0
+                      ? 'partially_fulfilled'
+                      : 'unfulfilled');
+
+                  const eligibleSales = transactions.filter(
+                    (tx) =>
+                      tx.status === 'completed' &&
+                      tx.items.some((item) =>
+                        req.productId
+                          ? item.productId === req.productId
+                          : item.productName.trim().toLowerCase() ===
+                            req.productNameSnapshot.trim().toLowerCase()
+                      ) &&
+                      !(req.fulfillments || []).some(
+                        (f) => f.saleTransactionId === tx.id && f.status === 'active'
+                      )
+                  );
+
+                  return (
+                    <tr key={req.id}>
+                      <td className="py-2 px-2 text-[11px] text-slate-400">
+                        {new Date(req.requestedTimestamp).toLocaleString(
+                          isAr ? 'ar-SA' : 'en-US',
+                          { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+                        )}
+                      </td>
+                      <td className="py-2 px-2 font-sans font-semibold">
+                        <div>
+                          {isAr
+                            ? req.productNameArSnapshot || req.productNameSnapshot
+                            : req.productNameSnapshot}
+                          {!req.isRegisteredProduct && (
+                            <span className="ms-1.5 px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 text-[10px]">
+                              {isAr ? 'غير مسجل' : 'Unregistered'}
+                            </span>
+                          )}
+                        </div>
+                        {req.expiredBatchNumber && (
+                          <div className="text-[10px] font-mono text-amber-300">
+                            {isAr ? `دفعة منتهية: ${req.expiredBatchNumber}` : `Expired Lot: ${req.expiredBatchNumber}`}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 px-2 font-bold">
+                        <span className="text-amber-400">{reqBase}</span>
+                        <span className="text-slate-500"> / </span>
+                        <span
+                          className={
+                            remainingUnits === 0 ? 'text-emerald-400' : 'text-rose-300'
+                          }
+                        >
+                          {remainingUnits}
                         </span>
-                      )}
-                    </td>
-                    <td className="py-2 px-2 text-amber-400 font-bold">
-                      {req.requestedBaseUnits}
-                    </td>
-                    <td className="py-2 px-2 font-sans text-[11px]">
-                      {req.unavailabilityReason}
-                    </td>
-                    <td className="py-2 px-2 font-sans text-[11px]">{req.branchId}</td>
-                    <td className="py-2 px-2 font-sans text-[11px] text-slate-300">
-                      {req.customerReference ? `${req.customerReference} — ` : ''}
-                      {req.notes || '—'}
-                    </td>
-                  </tr>
-                ))}
+                        {fulfilledUnits > 0 && (
+                          <div className="text-[10px] text-emerald-400 font-sans">
+                            {isAr
+                              ? `تمت تلبية ${fulfilledUnits} بمبيعة`
+                              : `${fulfilledUnits} fulfilled via sale`}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 px-2 font-sans text-[11px]">
+                        {fStatus === 'fulfilled_later' ? (
+                          <span className="px-2 py-0.5 rounded border border-emerald-500/40 bg-emerald-500/15 text-emerald-300 text-[10px] font-bold">
+                            {isAr ? 'ملبى بالكامل' : 'Fulfilled via Sale'}
+                          </span>
+                        ) : fStatus === 'partially_fulfilled' ? (
+                          <span className="px-2 py-0.5 rounded border border-sky-500/40 bg-sky-500/15 text-sky-300 text-[10px] font-bold">
+                            {isAr
+                              ? `ملبى جزئياً (${fulfilledUnits}/${reqBase})`
+                              : `Partially Fulfilled (${fulfilledUnits}/${reqBase})`}
+                          </span>
+                        ) : fStatus === 'cancelled' ? (
+                          <span className="px-2 py-0.5 rounded border border-slate-600 bg-slate-800 text-slate-400 text-[10px] font-bold">
+                            {isAr ? 'ملغى' : 'Cancelled'}
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded border border-amber-500/40 bg-amber-500/15 text-amber-300 text-[10px] font-bold">
+                            {isAr ? 'غير ملبى (مفتوح)' : 'Unfulfilled (Open)'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 px-2 font-sans text-[11px]">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            req.unavailabilityReason === 'DISCONTINUED'
+                              ? 'bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40'
+                              : req.unavailabilityReason === 'EXPIRED'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                              : req.unavailabilityReason === 'OUT_OF_STOCK'
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                              : 'bg-slate-800 text-slate-300 border border-slate-700'
+                          }`}
+                        >
+                          {req.unavailabilityReason === 'DISCONTINUED'
+                            ? isAr
+                              ? 'موقوف نهائياً'
+                              : 'DISCONTINUED'
+                            : req.unavailabilityReason === 'EXPIRED'
+                            ? isAr
+                              ? 'منتهي الصلاحية'
+                              : 'EXPIRED'
+                            : req.unavailabilityReason === 'OUT_OF_STOCK'
+                            ? isAr
+                              ? 'نفاد المخزون'
+                              : 'OUT_OF_STOCK'
+                            : req.unavailabilityReason === 'TEMPORARILY_UNAVAILABLE'
+                            ? isAr
+                              ? 'موقوف مؤقتاً'
+                              : 'TEMPORARILY_UNAVAILABLE'
+                            : req.unavailabilityReason === 'NOT_STOCKED'
+                            ? isAr
+                              ? 'غير مسجل'
+                              : 'NOT_STOCKED'
+                            : req.unavailabilityReason}
+                        </span>
+                      </td>
+                      <td className="py-2 px-2 font-sans text-[11px]">{req.branchId}</td>
+                      <td className="py-2 px-2 font-sans text-[11px] text-slate-300">
+                        {req.customerReference ? `${req.customerReference} — ` : ''}
+                        {req.notes || '—'}
+                      </td>
+                      <td className="py-2 px-2 font-sans text-[11px]">
+                        {fStatus !== 'fulfilled_later' && fStatus !== 'cancelled' ? (
+                          activeLinkRequestId === req.id ? (
+                            <div className="flex flex-col gap-1.5 min-w-[200px] p-2 rounded-lg bg-slate-900 border border-sky-500/40">
+                              <select
+                                value={selectedSaleIdForFulfill}
+                                onChange={(e) => setSelectedSaleIdForFulfill(e.target.value)}
+                                data-testid={`select-sale-fulfill-${req.id}`}
+                                className="rounded bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-white"
+                              >
+                                <option value="">
+                                  {isAr ? 'اختر فاتورة بيع مكتملة...' : 'Select completed sale...'}
+                                </option>
+                                {eligibleSales.map((s) => (
+                                  <option key={s.id} value={s.id}>
+                                    #{s.id.slice(-8)} ({new Date(s.timestamp).toLocaleDateString()})
+                                  </option>
+                                ))}
+                              </select>
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={remainingUnits}
+                                  value={fulfillUnitsInput}
+                                  onChange={(e) =>
+                                    setFulfillUnitsInput(
+                                      Math.max(1, Math.min(remainingUnits, Number(e.target.value) || 1))
+                                    )
+                                  }
+                                  data-testid={`input-units-fulfill-${req.id}`}
+                                  className="w-16 rounded bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-white text-center font-mono"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (!selectedSaleIdForFulfill) return;
+                                    const res = await fulfillUnmetDemandFromSale({
+                                      requestId: req.id,
+                                      saleId: selectedSaleIdForFulfill,
+                                      fulfilledBaseUnits: fulfillUnitsInput,
+                                    });
+                                    if (res.ok) {
+                                      setFulfillmentFeedback({
+                                        type: 'success',
+                                        message: isAr
+                                          ? 'تم ربط الطلب بفاتورة البيع وتحديث الكمية المتبقية بنجاح'
+                                          : 'Linked request to sale and updated remaining unfulfilled units',
+                                      });
+                                      setActiveLinkRequestId(null);
+                                    } else {
+                                      setFulfillmentFeedback({
+                                        type: 'error',
+                                        message:
+                                          (isAr ? res.errorAr : res.errorEn) || 'Error',
+                                      });
+                                    }
+                                  }}
+                                  className="px-2 py-1 rounded bg-emerald-500 text-slate-950 font-bold text-[10px]"
+                                >
+                                  {isAr ? 'تأكيد الربط' : 'Confirm'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveLinkRequestId(null)}
+                                  className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-[10px]"
+                                >
+                                  {isAr ? 'إغلاق' : 'Close'}
+                                </button>
+                              </div>
+                            </div>
+                          ) : activeCancelRequestId === req.id ? (
+                            <div className="flex flex-col gap-1.5 min-w-[190px] p-2 rounded-lg bg-slate-900 border border-rose-500/40">
+                              <input
+                                type="text"
+                                value={cancelReasonInput}
+                                onChange={(e) => setCancelReasonInput(e.target.value)}
+                                placeholder={
+                                  isAr ? 'سبب الإلغاء (إلزامي)...' : 'Cancellation reason...'
+                                }
+                                data-testid={`input-cancel-reason-${req.id}`}
+                                className="rounded bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-white"
+                              />
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const res = await cancelUnmetDemandRequest({
+                                      requestId: req.id,
+                                      reason: cancelReasonInput,
+                                    });
+                                    if (res.ok) {
+                                      setFulfillmentFeedback({
+                                        type: 'success',
+                                        message: isAr
+                                          ? 'تم إلغاء الطلب مع حفظ السجل التاريخي'
+                                          : 'Request cancelled while preserving audit history',
+                                      });
+                                      setActiveCancelRequestId(null);
+                                      setCancelReasonInput('');
+                                    } else {
+                                      setFulfillmentFeedback({
+                                        type: 'error',
+                                        message:
+                                          (isAr ? res.errorAr : res.errorEn) || 'Error',
+                                      });
+                                    }
+                                  }}
+                                  className="px-2 py-1 rounded bg-rose-500 text-white font-bold text-[10px]"
+                                >
+                                  {isAr ? 'تأكيد الإلغاء' : 'Cancel Req'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveCancelRequestId(null);
+                                    setCancelReasonInput('');
+                                  }}
+                                  className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-[10px]"
+                                >
+                                  {isAr ? 'تراجع' : 'Back'}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-wrap items-center gap-1">
+                              {eligibleSales.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveLinkRequestId(req.id);
+                                    setActiveCancelRequestId(null);
+                                    setSelectedSaleIdForFulfill(eligibleSales[0].id);
+                                    setFulfillUnitsInput(remainingUnits);
+                                  }}
+                                  data-testid={`btn-open-fulfill-${req.id}`}
+                                  className="px-2 py-1 rounded bg-sky-500/20 border border-sky-500/40 text-sky-300 hover:bg-sky-500 hover:text-slate-950 font-bold text-[10px] transition whitespace-nowrap"
+                                >
+                                  {isAr ? 'ربط بفاتورة بيع' : 'Link to Sale'}
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveCancelRequestId(req.id);
+                                  setActiveLinkRequestId(null);
+                                  setCancelReasonInput('');
+                                }}
+                                data-testid={`btn-open-cancel-${req.id}`}
+                                className="px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:border-rose-500/50 hover:text-rose-300 text-[10px] transition whitespace-nowrap"
+                              >
+                                {isAr ? 'إلغاء' : 'Cancel'}
+                              </button>
+                            </div>
+                          )
+                        ) : (
+                          <span className="text-[10px] text-slate-500 font-mono">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </AppCard>

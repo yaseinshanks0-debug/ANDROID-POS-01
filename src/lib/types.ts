@@ -159,6 +159,68 @@ export interface OnboardingChecklistStatus {
   completionPercent: number;
 }
 
+export const SUPPORTED_CATALOG_LIFECYCLE_STATUSES = [
+  'ACTIVE',
+  'TEMPORARILY_PAUSED',
+  'DISCONTINUED',
+] as const;
+
+export type CatalogLifecycleStatus =
+  (typeof SUPPORTED_CATALOG_LIFECYCLE_STATUSES)[number];
+
+export interface StockBatchEntry {
+  id: string;
+  batchNumber: string;
+  expiryDate?: string | null;
+  quantityOnHand: number;
+  status?: 'ACTIVE' | 'QUARANTINED_EXPIRED' | 'DEPLETED';
+  branchId?: string | null;
+}
+
+export type CustomFieldScalarValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | string[]
+  | ProductPriceHistoryEntry[]
+  | ProductModificationEntry[]
+  | StockBatchEntry[];
+
+export interface ProductCustomFields {
+  serialNumber?: number;
+  description?: string | null;
+  descriptionAr?: string | null;
+  expiryDate?: string | null;
+  barcodes?: string[];
+  priceCurrency?: SupportedCurrency;
+  createdAt?: string;
+  previousCostPrice?: number;
+  previousSellingPrice?: number;
+  priceUpdatedAt?: string;
+  priceHistory?: ProductPriceHistoryEntry[];
+  modificationHistory?: ProductModificationEntry[];
+  image?: string;
+  changedBy?: string;
+  enablePackaging?: boolean;
+  unitName?: string;
+  unitNameAr?: string;
+  packName?: string;
+  packNameAr?: string;
+  unitsPerPack?: number;
+  defaultSaleUnit?: ProductSaleUnitMode;
+  allowedSaleUnits?: AllowedSaleUnitsMode;
+  packCostPrice?: number;
+  packSellingPrice?: number;
+  catalogLifecycleStatus?: CatalogLifecycleStatus;
+  discontinuedAt?: string | null;
+  discontinuedReason?: string | null;
+  replacementProductId?: string | null;
+  batches?: StockBatchEntry[];
+  [key: string]: CustomFieldScalarValue;
+}
+
 export interface Product {
   id: string;
   companyId?: string;
@@ -185,6 +247,12 @@ export interface Product {
   stock: number;
   minStockAlert: number;
   expiryDate?: string | null;
+  isActive?: boolean;
+  catalogLifecycleStatus?: CatalogLifecycleStatus;
+  discontinuedAt?: string | null;
+  discontinuedReason?: string | null;
+  replacementProductId?: string | null;
+  batches?: StockBatchEntry[];
   // Multi-Unit / Pack & Strip Packaging customization
   enablePackaging?: boolean;
   unitName?: string; // e.g. 'Strip', 'Piece'
@@ -200,7 +268,7 @@ export interface Product {
   imageUrl?: string | null;
   emoji?: string;
   colorHex?: string;
-  customFields?: Record<string, any>;
+  customFields?: ProductCustomFields;
   createdAt?: string;
   updatedAt: string;
 }

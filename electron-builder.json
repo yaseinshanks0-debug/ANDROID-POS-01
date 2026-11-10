@@ -4,7 +4,7 @@
   "electronVersion": "33.4.0",
   "extraMetadata": {
     "name": "dqnamo-pos",
-    "version": "2.4.0",
+    "version": "2.5.0",
     "main": "electron/main.cjs",
     "description": "Dqnamo POS — Enterprise Retail Point of Sale & Live Wi-Fi LAN Sync"
   },
@@ -12,6 +12,7 @@
     "output": "release-exe"
   },
   "npmRebuild": false,
+  "asar": false,
   "files": [
     "dist/**/*",
     "dist-server/**/*",
@@ -19,20 +20,35 @@
     "package.json",
     "!node_modules/**/*"
   ],
-  "asar": true,
-  "asarUnpack": [
-    "dist/**/*",
-    "dist-server/**/*"
+  "extraResources": [
+    {
+      "from": "dist",
+      "to": "www",
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
+      "from": ".data",
+      "to": "seed-data",
+      "filter": [
+        "*.json"
+      ]
+    }
   ],
   "win": {
     "target": [
       {
         "target": "nsis",
-        "arch": ["x64"]
+        "arch": [
+          "x64"
+        ]
       },
       {
         "target": "portable",
-        "arch": ["x64"]
+        "arch": [
+          "x64"
+        ]
       }
     ]
   },

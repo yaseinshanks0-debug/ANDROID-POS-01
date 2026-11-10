@@ -18,6 +18,7 @@ import {
   check,
   unique,
 } from 'drizzle-orm/pg-core';
+import type { ProductCustomFields } from '../lib/types';
 
 // 0. Companies / Tenants (Phase 11 Additive Table)
 export const companies = pgTable(
@@ -181,7 +182,11 @@ export const products = pgTable(
     baseUomId: text('base_uom_id'),
     defaultSellingUomId: text('default_selling_uom_id'),
     imageUrl: text('image_url'),
-    customFields: jsonb('custom_fields').$type<Record<string, any>>().default({}),
+    customFields: jsonb('custom_fields').$type<ProductCustomFields>().default({}),
+    catalogLifecycleStatus: text('catalog_lifecycle_status').default('ACTIVE').notNull(), // 'ACTIVE' | 'TEMPORARILY_PAUSED' | 'DISCONTINUED'
+    discontinuedAt: timestamp('discontinued_at'),
+    discontinuedReason: text('discontinued_reason'),
+    replacementProductId: text('replacement_product_id'),
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -189,8 +194,13 @@ export const products = pgTable(
   (table) => [
     index('product_company_idx').on(table.companyId),
     index('product_category_idx').on(table.categoryId),
+    index('product_lifecycle_idx').on(table.companyId, table.catalogLifecycleStatus),
     uniqueIndex('product_sku_idx').on(table.sku),
     uniqueIndex('product_barcode_idx').on(table.barcode),
+    check(
+      'product_catalog_lifecycle_chk',
+      sql`${table.catalogLifecycleStatus} IN ('ACTIVE', 'TEMPORARILY_PAUSED', 'DISCONTINUED')`
+    ),
   ]
 );
 
@@ -594,10 +604,17 @@ export const unmetDemandRequests = pgTable(
     saleUnitMode: text('sale_unit_mode').default('unit').notNull(),
     requestedBaseUnits: integer('requested_base_units').default(1).notNull(),
     availableStockAtRequest: integer('available_stock_at_request'),
-    availabilityStatus: text('availability_status').notNull(), // 'OUT_OF_STOCK' | 'LOW_STOCK' | 'EXPIRED' | 'NOT_STOCKED' | 'TEMPORARILY_UNAVAILABLE'
-    unavailabilityReason: text('unavailability_reason').notNull(), // 'OUT_OF_STOCK' | 'EXPIRED' | 'NOT_STOCKED' | 'TEMPORARILY_UNAVAILABLE' | 'OTHER'
+    availabilityStatus: text('availability_status').notNull(), // 'OUT_OF_STOCK' | 'LOW_STOCK' | 'EXPIRED' | 'DISCONTINUED' | 'NOT_STOCKED' | 'TEMPORARILY_UNAVAILABLE'
+    unavailabilityReason: text('unavailability_reason').notNull(), // 'OUT_OF_STOCK' | 'INSUFFICIENT_STOCK' | 'EXPIRED_STOCK' | 'DISCONTINUED' | 'NOT_IN_CATALOG' | 'TEMPORARILY_UNAVAILABLE' | 'PRICE_OR_PACK_MISMATCH' | 'OTHER' | legacy 'EXPIRED' | 'NOT_STOCKED'
     confirmedPurchaseIntent: boolean('confirmed_purchase_intent').default(false).notNull(),
-    fulfillmentStatus: text('fulfillment_status').default('unfulfilled').notNull(), // 'unfulfilled' | 'fulfilled_later' | 'cancelled'
+    fulfillmentStatus: text('fulfillment_status').default('unfulfilled').notNull(), // 'unfulfilled' | 'partially_fulfilled' | 'fulfilled_later' | 'cancelled'
+    fulfilledBaseUnits: integer('fulfilled_base_units').default(0).notNull(),
+    remainingUnfulfilledBaseUnits: integer('remaining_unfulfilled_base_units').default(1).notNull(),
+    expiredUnitsObserved: integer('expired_units_observed'),
+    expiredBatchNumber: text('expired_batch_number'),
+    expiredBatchDate: timestamp('expired_batch_date'),
+    substituteProductId: text('substitute_product_id').references(() => products.id, { onDelete: 'set null' }),
+    lastFulfilledAt: timestamp('last_fulfilled_at'),
     customerId: text('customer_id').references(() => customers.id, { onDelete: 'set null' }),
     customerReference: text('customer_reference'),
     unitSellingPriceSnapshot: numeric('unit_selling_price_snapshot', { precision: 12, scale: 2 }),
@@ -611,6 +628,8 @@ export const unmetDemandRequests = pgTable(
   },
   (table) => [
     index('unmet_demand_company_idx').on(table.companyId),
+    index('unmet_demand_company_branch_time_idx').on(table.companyId, table.branchId, table.requestedTimestamp),
+    index('unmet_demand_fulfillment_status_idx').on(table.companyId, table.fulfillmentStatus),
     uniqueIndex('unmet_demand_idempotency_idx').on(table.idempotencyKey),
     index('unmet_demand_timestamp_idx').on(table.requestedTimestamp),
     index('unmet_demand_product_time_idx').on(table.productId, table.requestedTimestamp),
@@ -620,8 +639,62 @@ export const unmetDemandRequests = pgTable(
     check('unmet_demand_qty_positive_chk', sql`${table.requestedQuantity} > 0 AND ${table.requestedQuantity} <= 10000`),
     check('unmet_demand_base_units_positive_chk', sql`${table.requestedBaseUnits} > 0`),
     check(
+      'unmet_demand_fulfilled_bounds_chk',
+      sql`${table.fulfilledBaseUnits} >= 0 AND ${table.fulfilledBaseUnits} <= ${table.requestedBaseUnits} AND ${table.remainingUnfulfilledBaseUnits} = (${table.requestedBaseUnits} - ${table.fulfilledBaseUnits})`
+    ),
+    check(
+      'unmet_demand_availability_status_chk',
+      sql`${table.availabilityStatus} IN ('OUT_OF_STOCK', 'LOW_STOCK', 'EXPIRED', 'DISCONTINUED', 'NOT_STOCKED', 'TEMPORARILY_UNAVAILABLE')`
+    ),
+    check(
+      'unmet_demand_fulfillment_status_chk',
+      sql`${table.fulfillmentStatus} IN ('unfulfilled', 'partially_fulfilled', 'fulfilled_later', 'cancelled')`
+    ),
+    check(
       'unmet_demand_reason_valid_chk',
-      sql`${table.unavailabilityReason} IN ('OUT_OF_STOCK', 'EXPIRED', 'NOT_STOCKED', 'TEMPORARILY_UNAVAILABLE', 'OTHER')`
+      sql`${table.unavailabilityReason} IN ('OUT_OF_STOCK', 'INSUFFICIENT_STOCK', 'EXPIRED_STOCK', 'DISCONTINUED', 'NOT_IN_CATALOG', 'TEMPORARILY_UNAVAILABLE', 'PRICE_OR_PACK_MISMATCH', 'OTHER', 'EXPIRED', 'NOT_STOCKED')`
+    ),
+  ]
+);
+
+// 23b. Customer Demand Intelligence — Sale-Linked Demand Fulfillments (Phase 13 Additive Table)
+export const unmetDemandFulfillments = pgTable(
+  'unmet_demand_fulfillments',
+  {
+    id: text('id').primaryKey(),
+    companyId: text('company_id').default('comp-default').notNull(),
+    requestId: text('request_id')
+      .references(() => unmetDemandRequests.id, { onDelete: 'restrict' })
+      .notNull(),
+    saleId: text('sale_id').references(() => sales.id, { onDelete: 'set null' }),
+    saleTransactionId: text('sale_transaction_id').notNull(),
+    saleItemId: text('sale_item_id').references(() => saleItems.id, { onDelete: 'set null' }),
+    saleLineIndex: integer('sale_line_index').default(0).notNull(),
+    branchId: text('branch_id').references(() => branches.id, { onDelete: 'set null' }),
+    productId: text('product_id')
+      .references(() => products.id, { onDelete: 'set null' })
+      .notNull(),
+    fulfilledBaseUnits: integer('fulfilled_base_units').notNull(),
+    status: text('status').default('active').notNull(), // 'active' | 'reversed_by_void' | 'reversed_by_return'
+    fulfilledAt: timestamp('fulfilled_at').defaultNow().notNull(),
+    reversedAt: timestamp('reversed_at'),
+    reversalReferenceId: text('reversal_reference_id'),
+    recordedByUserId: text('recorded_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('unmet_fulfill_company_idx').on(table.companyId),
+    index('unmet_fulfill_request_idx').on(table.requestId, table.status),
+    index('unmet_fulfill_sale_tx_idx').on(table.saleTransactionId),
+    uniqueIndex('unmet_fulfill_req_sale_line_idx').on(
+      table.requestId,
+      table.saleTransactionId,
+      table.saleLineIndex
+    ),
+    check('unmet_fulfill_units_positive_chk', sql`${table.fulfilledBaseUnits} > 0`),
+    check(
+      'unmet_fulfill_status_chk',
+      sql`${table.status} IN ('active', 'reversed_by_void', 'reversed_by_return')`
     ),
   ]
 );
@@ -816,10 +889,15 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   unmetDemandRequests: many(unmetDemandRequests),
 }));
 
-export const unmetDemandRequestsRelations = relations(unmetDemandRequests, ({ one }) => ({
+export const unmetDemandRequestsRelations = relations(unmetDemandRequests, ({ one, many }) => ({
   product: one(products, {
     fields: [unmetDemandRequests.productId],
     references: [products.id],
+  }),
+  substituteProduct: one(products, {
+    fields: [unmetDemandRequests.substituteProductId],
+    references: [products.id],
+    relationName: 'substituteProductRequests',
   }),
   branch: one(branches, {
     fields: [unmetDemandRequests.branchId],
@@ -831,6 +909,34 @@ export const unmetDemandRequestsRelations = relations(unmetDemandRequests, ({ on
   }),
   recordedBy: one(users, {
     fields: [unmetDemandRequests.recordedByUserId],
+    references: [users.id],
+  }),
+  fulfillments: many(unmetDemandFulfillments),
+}));
+
+export const unmetDemandFulfillmentsRelations = relations(unmetDemandFulfillments, ({ one }) => ({
+  request: one(unmetDemandRequests, {
+    fields: [unmetDemandFulfillments.requestId],
+    references: [unmetDemandRequests.id],
+  }),
+  sale: one(sales, {
+    fields: [unmetDemandFulfillments.saleId],
+    references: [sales.id],
+  }),
+  saleItem: one(saleItems, {
+    fields: [unmetDemandFulfillments.saleItemId],
+    references: [saleItems.id],
+  }),
+  branch: one(branches, {
+    fields: [unmetDemandFulfillments.branchId],
+    references: [branches.id],
+  }),
+  product: one(products, {
+    fields: [unmetDemandFulfillments.productId],
+    references: [products.id],
+  }),
+  recordedBy: one(users, {
+    fields: [unmetDemandFulfillments.recordedByUserId],
     references: [users.id],
   }),
 }));

@@ -10,6 +10,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   build-apk:
     name: Build Android APK (.apk)
@@ -40,23 +43,31 @@ jobs:
           yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
           "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Install Dependencies
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+      - name: Install Dependencies (Including Peer Dependencies for Vite & Recharts)
+        run: |
+          npm install --legacy-peer-deps --no-audit --no-fund
+          if [ ! -d "node_modules/react-is" ]; then
+            npm install --no-save --legacy-peer-deps react-is
+          fi
 
       - name: Build Web Application (Vite)
         run: npm run build
 
-      - name: Sync Web Bundle to Capacitor Android
+      - name: Restore Pristine Android Binary Assets & Sync Capacitor
         run: |
           if [ ! -d "android" ]; then
             npx cap add android
+          elif [ -f "node_modules/@capacitor/cli/assets/android-template.tar.gz" ]; then
+            echo "Restoring clean binary gradle-wrapper.jar and PNG icons from Capacitor template..."
+            tar -xzf node_modules/@capacitor/cli/assets/android-template.tar.gz -C android gradle/wrapper/gradle-wrapper.jar app/src/main/res
           fi
           npx cap sync android
 
       - name: Grant Execute Permission & Ensure Gradle Wrapper
         working-directory: ./android
         run: |
-          if [ ! -s "gradle/wrapper/gradle-wrapper.jar" ]; then
+          if ! jar tf gradle/wrapper/gradle-wrapper.jar > /dev/null 2>&1; then
+            echo "Regenerating valid gradle-wrapper.jar..."
             gradle wrapper --gradle-version 8.14.3 --distribution-type bin
           fi
           sed -i 's/networkTimeout=.*/networkTimeout=120000/g' gradle/wrapper/gradle-wrapper.properties
@@ -106,17 +117,28 @@ jobs:
           node-version: '22'
 
       - name: Install Project Dependencies
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: |
+          npm install --legacy-peer-deps --no-audit --no-fund
+          if (!(Test-Path "node_modules/react-is")) {
+            npm install --no-save --legacy-peer-deps react-is
+          }
 
       - name: Install Electron & Electron Builder for Windows Packaging
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
         run: npm install --no-save --legacy-peer-deps electron@33.4.0 electron-builder@25.1.8
 
-      - name: Build Frontend (Vite) & Bundle Embedded Server (esbuild)
+      - name: Build Frontend (Vite), Bundle Embedded Server (esbuild) & Stage UI Assets
+        shell: bash
         run: |
           npm run build
           npm run server:bundle
+          rm -rf electron/www
+          mkdir -p electron/www
+          cp -r dist/* electron/www/
+          sed -i '/^dist/d' .gitignore || true
+          test -f electron/www/index.html
+          test -f dist-server/server.cjs
 
       - name: Package Windows Installer & Portable EXE (with Mirror Retry on 504)
         shell: bash
@@ -134,9 +156,13 @@ jobs:
             npx electron-builder --win --x64 --config electron-builder.json --publish never
           fi
 
-      - name: Collect Built Windows Executables
+      - name: Verify Packaged Unpacked Resources & Collect Windows Executables
         shell: bash
         run: |
+          echo "Verifying packaged frontend & backend inside win-unpacked..."
+          ls -la release-exe/win-unpacked/resources/
+          test -f release-exe/win-unpacked/resources/www/index.html || test -f release-exe/win-unpacked/resources/app/electron/www/index.html
+          test -f release-exe/win-unpacked/resources/app/dist-server/server.cjs
           cp release-exe/Dqnamo-POS-Setup.exe ./Dqnamo-POS-Setup.exe
           cp release-exe/Dqnamo-POS-Portable.exe ./Dqnamo-POS-Portable.exe
 
@@ -185,7 +211,7 @@ jobs:
             #### 💻 2. نسخة الويندوز لسطح المكتب (`.exe`)
             - **`Dqnamo-POS-Setup.exe`**: معالج التثبيت الرسمي للويندوز (ينشئ اختصاراً على سطح المكتب وقائمة ابدأ).
             - **`Dqnamo-POS-Portable.exe`**: نسخة محمولة تعمل فوراً بمجرد النقر عليها دون الحاجة للتثبيت.
-            - تتضمن نسخة الويندوز خادم المزامنة المحلي المدمج تلقائياً (على المنفذ `3000`) لربط تطبيق الأندرويد مع تطبيق الويندوز عبر الواي فاي مباشرة بدون أي إعدادات خارجية.
+            - تتضمن نسخة الويندوز واجهة النظام الكاملة المدمجة مع خادم المزامنة المحلي تلقائياً (على المنفذ `3000`) والبيانات الأولية لربط تطبيق الأندرويد مع تطبيق الويندوز عبر الواي فاي مباشرة بدون أي إعدادات خارجية.
           files: |
             release-assets/Dqnamo-POS.apk
             release-assets/Dqnamo-POS-Setup.exe

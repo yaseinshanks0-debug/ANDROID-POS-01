@@ -6,12 +6,27 @@
  * Pure Data Model, Input Validation, Server-Side RBAC Binding & Deduplication Logic
  */
 
-import { POSUser, Product, ProductSaleUnitMode, SupportedCurrency } from '../lib/types';
+import {
+  CatalogLifecycleStatus,
+  POSUser,
+  Product,
+  ProductSaleUnitMode,
+  StockBatchEntry,
+  SupportedCurrency,
+  SUPPORTED_CATALOG_LIFECYCLE_STATUSES,
+} from '../lib/types';
 import { resolveAnalyticsUserContext } from './analytics.permissions';
+
+export {
+  SUPPORTED_CATALOG_LIFECYCLE_STATUSES,
+  type CatalogLifecycleStatus,
+  type StockBatchEntry,
+};
 
 export const SUPPORTED_UNAVAILABILITY_REASONS = [
   'OUT_OF_STOCK',
   'EXPIRED',
+  'DISCONTINUED',
   'NOT_STOCKED',
   'TEMPORARILY_UNAVAILABLE',
   'OTHER',
@@ -23,16 +38,44 @@ export type AvailabilityStatusAtRequest =
   | 'OUT_OF_STOCK'
   | 'INSUFFICIENT_QUANTITY'
   | 'EXPIRED'
+  | 'DISCONTINUED'
   | 'UNREGISTERED'
   | 'TEMPORARILY_UNAVAILABLE';
 
 export type UnmetDemandFulfillmentStatus =
   | 'unfulfilled'
+  | 'partially_fulfilled'
   | 'fulfilled_later'
   | 'cancelled';
 
+export type UnmetDemandFulfillmentLinkStatus =
+  | 'active'
+  | 'reversed_by_void'
+  | 'reversed_by_return';
+
+export interface UnmetDemandFulfillmentLinkRecord {
+  id: string;
+  companyId?: string;
+  requestId: string;
+  saleId?: string | null;
+  saleTransactionId: string;
+  saleItemId?: string | null;
+  saleLineIndex?: number;
+  branchId?: string;
+  productId: string;
+  fulfilledBaseUnits: number;
+  status: UnmetDemandFulfillmentLinkStatus;
+  linkedByUserId?: string | null;
+  recordedByUserId?: string | null;
+  linkedAt?: string;
+  fulfilledAt?: string;
+  reversedAt?: string | null;
+  reversalReferenceId?: string | null;
+}
+
 export interface UnmetDemandRequestInput {
   idempotencyKey?: string;
+  companyId?: string;
   productId?: string | null;
   isRegisteredProduct?: boolean;
   productName?: string;
@@ -49,6 +92,10 @@ export interface UnmetDemandRequestInput {
   saleUnitMode?: ProductSaleUnitMode;
   unavailabilityReason?: UnavailabilityReason | string;
   confirmedPurchaseIntent?: boolean;
+  expiredUnitsObserved?: number | null;
+  expiredBatchNumber?: string | null;
+  expiredBatchDate?: string | null;
+  substituteProductId?: string | null;
   customerId?: string | null;
   customerReference?: string | null;
   notes?: string | null;
@@ -59,6 +106,7 @@ export interface UnmetDemandRequestInput {
 
 export interface UnmetDemandRequestRecord {
   id: string;
+  companyId?: string;
   idempotencyKey: string;
   dedupeFingerprint: string;
   productId: string | null;
@@ -80,6 +128,14 @@ export interface UnmetDemandRequestRecord {
   unavailabilityReason: UnavailabilityReason;
   confirmedPurchaseIntent: boolean;
   fulfillmentStatus: UnmetDemandFulfillmentStatus;
+  fulfilledBaseUnits?: number;
+  remainingUnfulfilledBaseUnits?: number;
+  expiredUnitsObserved?: number | null;
+  expiredBatchNumber?: string | null;
+  expiredBatchDate?: string | null;
+  substituteProductId?: string | null;
+  lastFulfilledAt?: string | null;
+  fulfillments?: UnmetDemandFulfillmentLinkRecord[];
   customerId: string | null;
   customerReference: string | null;
   unitSellingPriceSnapshot: number | null;
@@ -124,6 +180,155 @@ function sanitizeText(val: unknown, maxLen: number): string {
     .replace(/[\u0000-\u001F\u007F]/g, ' ')
     .trim()
     .slice(0, maxLen);
+}
+
+/**
+ * Resolves the explicit catalog lifecycle state of a product.
+ * CRITICAL RULE: An inactive product (`isActive === false`) without explicit
+ * `catalogLifecycleStatus === 'DISCONTINUED'` is classified as `'TEMPORARILY_PAUSED'`,
+ * NEVER automatically as `'DISCONTINUED'`.
+ */
+export function resolveProductCatalogLifecycleStatus(
+  product?: Product | null
+): CatalogLifecycleStatus {
+  if (!product) return 'ACTIVE';
+
+  const explicitStatus =
+    product.catalogLifecycleStatus ||
+    product.customFields?.catalogLifecycleStatus;
+
+  if (explicitStatus === 'DISCONTINUED') {
+    return 'DISCONTINUED';
+  }
+  if (explicitStatus === 'TEMPORARILY_PAUSED') {
+    return 'TEMPORARILY_PAUSED';
+  }
+  if (product.isActive === false) {
+    return 'TEMPORARILY_PAUSED';
+  }
+  return 'ACTIVE';
+}
+
+/**
+ * Calculates sellable inventory using valid, non-expired batches without ever setting
+ * the entire product's available stock to zero just because one batch has expired.
+ */
+export function computeProductSellableStock(
+  product: Pick<Product, 'stock' | 'customFields' | 'batches'>,
+  now: Date = new Date(),
+  fallbackExpiredUnitsObserved?: number | null
+): {
+  totalPhysicalStock: number;
+  expiredStockUnits: number;
+  sellableStockUnits: number;
+} {
+  const totalPhysicalStock = Math.max(0, Math.trunc(Number(product.stock || 0)));
+  const batches: StockBatchEntry[] | undefined =
+    Array.isArray(product.batches) && product.batches.length > 0
+      ? product.batches
+      : Array.isArray(product.customFields?.batches) &&
+        product.customFields.batches.length > 0
+      ? product.customFields.batches
+      : undefined;
+
+  if (batches && batches.length > 0) {
+    const nowMs = now.getTime();
+    let expiredFromBatches = 0;
+    for (const batch of batches) {
+      if (!batch) continue;
+      const qty = Math.max(0, Math.trunc(Number(batch.quantityOnHand || 0)));
+      if (qty <= 0) continue;
+      const isQuarantined = batch.status === 'QUARANTINED_EXPIRED';
+      let isPastExpiry = false;
+      if (batch.expiryDate) {
+        const expMs = new Date(batch.expiryDate).getTime();
+        if (!Number.isNaN(expMs) && expMs <= nowMs) {
+          isPastExpiry = true;
+        }
+      }
+      if (isQuarantined || isPastExpiry) {
+        expiredFromBatches += qty;
+      }
+    }
+    const expiredStockUnits = Math.min(totalPhysicalStock, expiredFromBatches);
+    return {
+      totalPhysicalStock,
+      expiredStockUnits,
+      sellableStockUnits: Math.max(0, totalPhysicalStock - expiredStockUnits),
+    };
+  }
+
+  const observedExpired =
+    fallbackExpiredUnitsObserved !== undefined &&
+    fallbackExpiredUnitsObserved !== null &&
+    Number.isFinite(Number(fallbackExpiredUnitsObserved)) &&
+    Number(fallbackExpiredUnitsObserved) > 0
+      ? Math.min(totalPhysicalStock, Math.trunc(Number(fallbackExpiredUnitsObserved)))
+      : 0;
+
+  return {
+    totalPhysicalStock,
+    expiredStockUnits: observedExpired,
+    sellableStockUnits: Math.max(0, totalPhysicalStock - observedExpired),
+  };
+}
+
+/**
+ * Pure domain calculator for partial and full fulfillment state derived from sale-linked fulfillment records.
+ * Never marks a request as fulfilled without active sale-linked fulfillment units.
+ */
+export function computeUnmetDemandFulfillmentState(params: {
+  requestedBaseUnits: number;
+  fulfillments?: ReadonlyArray<
+    Pick<UnmetDemandFulfillmentLinkRecord, 'fulfilledBaseUnits' | 'status'> & {
+      fulfilledAt?: string;
+      linkedAt?: string;
+    }
+  >;
+  isCancelled?: boolean;
+}): {
+  fulfilledBaseUnits: number;
+  remainingUnfulfilledBaseUnits: number;
+  fulfillmentStatus: UnmetDemandFulfillmentStatus;
+  lastFulfilledAt: string | null;
+} {
+  const requested = Math.max(1, Math.trunc(Number(params.requestedBaseUnits || 1)));
+  let lastFulfilledAt: string | null = null;
+  const activeFulfilledSum = (params.fulfillments || []).reduce((acc, link) => {
+    if (!link || link.status !== 'active') return acc;
+    const units = Math.max(0, Math.trunc(Number(link.fulfilledBaseUnits || 0)));
+    const ts = link.fulfilledAt || link.linkedAt || null;
+    if (ts && (!lastFulfilledAt || ts > lastFulfilledAt)) {
+      lastFulfilledAt = ts;
+    }
+    return acc + units;
+  }, 0);
+
+  const fulfilledBaseUnits = Math.min(requested, activeFulfilledSum);
+  const remainingUnfulfilledBaseUnits = Math.max(0, requested - fulfilledBaseUnits);
+
+  if (params.isCancelled) {
+    return {
+      fulfilledBaseUnits,
+      remainingUnfulfilledBaseUnits,
+      fulfillmentStatus: 'cancelled',
+      lastFulfilledAt,
+    };
+  }
+
+  const fulfillmentStatus: UnmetDemandFulfillmentStatus =
+    fulfilledBaseUnits <= 0
+      ? 'unfulfilled'
+      : fulfilledBaseUnits < requested
+      ? 'partially_fulfilled'
+      : 'fulfilled_later';
+
+  return {
+    fulfilledBaseUnits,
+    remainingUnfulfilledBaseUnits,
+    fulfillmentStatus,
+    lastFulfilledAt,
+  };
 }
 
 /**
@@ -260,7 +465,7 @@ export function validateAndBuildUnmetDemandRequest(
       'سبب عدم التوفر غير صالح. يرجى اختيار سبب معتمد.'
     );
   }
-  const unavailabilityReason = rawReason as UnavailabilityReason;
+  let unavailabilityReason = rawReason as UnavailabilityReason;
 
   // 3. Validate requested quantity (default 1 when omitted)
   const rawQty =
@@ -276,6 +481,26 @@ export function validateAndBuildUnmetDemandRequest(
     );
   }
   const requestedQuantity = rawQty;
+
+  // Optional expired units observed validation when provided
+  let expiredUnitsObserved: number | null = null;
+  if (input.expiredUnitsObserved !== undefined && input.expiredUnitsObserved !== null) {
+    const rawExpQty = Number(input.expiredUnitsObserved);
+    if (
+      !Number.isFinite(rawExpQty) ||
+      !Number.isInteger(rawExpQty) ||
+      rawExpQty < 1 ||
+      rawExpQty > 10000
+    ) {
+      return makeErrorResult(
+        400,
+        'INVALID_QUANTITY',
+        'Observed expired units must be a whole number between 1 and 10,000.',
+        'يجب أن يكون عدد الوحدات منتهية الصلاحية المرصودة عدداً صحيحاً موجباً بين 1 و 10,000.'
+      );
+    }
+    expiredUnitsObserved = rawExpQty;
+  }
 
   // 4. Resolve registered product vs. unregistered product request
   const cleanProductId =
@@ -340,13 +565,34 @@ export function validateAndBuildUnmetDemandRequest(
   const requestedBaseUnits = requestedQuantity * unitsPerPack;
 
   // 5. Determine availability status at the time of request without fabricating missing stock
-  const availableStockAtRequest = matchedProduct ? matchedProduct.stock : null;
+  // or automatically classifying inactive (`isActive === false`) products as DISCONTINUED.
+  const catalogLifecycle = resolveProductCatalogLifecycleStatus(matchedProduct);
+  const availableStockAtRequest = matchedProduct
+    ? computeProductSellableStock(matchedProduct, now, expiredUnitsObserved).sellableStockUnits
+    : null;
+
+  if (
+    matchedProduct &&
+    catalogLifecycle === 'DISCONTINUED' &&
+    !input.unavailabilityReason
+  ) {
+    unavailabilityReason = 'DISCONTINUED';
+  }
+
   let availabilityStatus: AvailabilityStatusAtRequest;
   if (!isRegisteredProduct || unavailabilityReason === 'NOT_STOCKED') {
     availabilityStatus = 'UNREGISTERED';
+  } else if (
+    unavailabilityReason === 'DISCONTINUED' ||
+    catalogLifecycle === 'DISCONTINUED'
+  ) {
+    availabilityStatus = 'DISCONTINUED';
   } else if (unavailabilityReason === 'EXPIRED') {
     availabilityStatus = 'EXPIRED';
-  } else if (unavailabilityReason === 'TEMPORARILY_UNAVAILABLE') {
+  } else if (
+    unavailabilityReason === 'TEMPORARILY_UNAVAILABLE' ||
+    catalogLifecycle === 'TEMPORARILY_PAUSED'
+  ) {
     availabilityStatus = 'TEMPORARILY_UNAVAILABLE';
   } else if (availableStockAtRequest !== null && availableStockAtRequest <= 0) {
     availabilityStatus = 'OUT_OF_STOCK';
@@ -365,6 +611,11 @@ export function validateAndBuildUnmetDemandRequest(
     : userContext.assignedBranchId || 'branch-main';
 
   const effectiveTerminalName = userContext.assignedTerminalName || 'Main Terminal';
+  const matchedServerUser = serverUsers.find((u) => u && u.id === userContext.userId);
+  const effectiveCompanyId =
+    matchedServerUser?.companyId ||
+    sanitizeText(input.companyId, 64) ||
+    'comp-default';
 
   // 7. Validate timestamp
   let reqDate = now;
@@ -378,6 +629,13 @@ export function validateAndBuildUnmetDemandRequest(
   const customerId = sanitizeText(input.customerId, 64) || null;
   const customerReference = sanitizeText(input.customerReference, 100) || null;
   const notes = sanitizeText(input.notes, 500) || null;
+  const expiredBatchNumber = sanitizeText(input.expiredBatchNumber, 80) || null;
+  const expiredBatchDate = sanitizeText(input.expiredBatchDate, 40) || null;
+  const substituteProductId =
+    sanitizeText(input.substituteProductId, 100) ||
+    matchedProduct?.replacementProductId ||
+    matchedProduct?.customFields?.replacementProductId ||
+    null;
 
   const dedupeFingerprint = buildUnmetDemandDedupeFingerprint({
     branchId: effectiveBranchId,
@@ -453,6 +711,7 @@ export function validateAndBuildUnmetDemandRequest(
       .toString(36)
       .slice(2, 8)
       .toUpperCase()}`,
+    companyId: effectiveCompanyId,
     idempotencyKey,
     dedupeFingerprint,
     productId: matchedProduct ? matchedProduct.id : null,
@@ -476,6 +735,14 @@ export function validateAndBuildUnmetDemandRequest(
     unavailabilityReason,
     confirmedPurchaseIntent: Boolean(input.confirmedPurchaseIntent),
     fulfillmentStatus: 'unfulfilled',
+    fulfilledBaseUnits: 0,
+    remainingUnfulfilledBaseUnits: requestedBaseUnits,
+    expiredUnitsObserved,
+    expiredBatchNumber,
+    expiredBatchDate,
+    substituteProductId,
+    lastFulfilledAt: null,
+    fulfillments: [],
     customerId,
     customerReference,
     unitSellingPriceSnapshot,

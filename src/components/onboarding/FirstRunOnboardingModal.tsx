@@ -319,11 +319,16 @@ export const FirstRunOnboardingModal: React.FC = () => {
         return false;
       }
 
-      if (!ownerPassword.trim() || ownerPassword.trim().length < 4) {
+      if (
+        !ownerPassword.trim() ||
+        ownerPassword.trim().length < 8 ||
+        !/[A-Za-z\u0600-\u06FF]/.test(ownerPassword.trim()) ||
+        !/\d/.test(ownerPassword.trim())
+      ) {
         setErrorMessage(
           isAr
-            ? 'يرجى إدخال كلمة مرور للمالك تتكون من 4 أحرف أو أرقام على الأقل.'
-            : 'Owner password is required and must be at least 4 characters.'
+            ? 'يرجى إدخال كلمة مرور للمالك تتكون من 8 خانات على الأقل وتحتوي على أحرف وأرقام.'
+            : 'Owner password must be at least 8 characters and contain both letters and numbers.'
         );
         return false;
       }
@@ -378,12 +383,17 @@ export const FirstRunOnboardingModal: React.FC = () => {
       return;
     }
 
-    if (!ownerPassword.trim() || ownerPassword.trim().length < 4) {
+    if (
+      !ownerPassword.trim() ||
+      ownerPassword.trim().length < 8 ||
+      !/[A-Za-z\u0600-\u06FF]/.test(ownerPassword.trim()) ||
+      !/\d/.test(ownerPassword.trim())
+    ) {
       setWizardStep(4);
       setErrorMessage(
         isAr
-          ? 'يرجى إدخال كلمة مرور المالك (4 أحرف على الأقل) في الخطوة 4.'
-          : 'Please enter an Owner Password (at least 4 characters) in Step 4.'
+          ? 'يرجى إدخال كلمة مرور المالك (8 خانات على الأقل تحتوي على أحرف وأرقام) في الخطوة 4.'
+          : 'Please enter an Owner Password (at least 8 characters with letters and numbers) in Step 4.'
       );
       return;
     }

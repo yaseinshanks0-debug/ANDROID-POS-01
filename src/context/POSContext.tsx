@@ -341,11 +341,30 @@ export interface POSContextType {
   finishTrainingTour: () => void;
   resetTrainingTour: () => void;
 
-  // Phase 10: Customer Demand Intelligence (Unmet Demand Capture)
+  // Phase 10: Customer Demand Intelligence (Unmet Demand Capture & Fulfillment)
   unmetDemandRequests: UnmetDemandRequestRecord[];
   recordUnmetDemandRequest: (
     input: Partial<UnmetDemandRequestInput>
   ) => Promise<UnmetDemandValidationResult>;
+  fulfillUnmetDemandFromSale: (params: {
+    requestId: string;
+    saleId: string;
+    fulfilledBaseUnits?: number;
+  }) => Promise<{
+    ok: boolean;
+    errorEn?: string;
+    errorAr?: string;
+    record?: UnmetDemandRequestRecord;
+  }>;
+  cancelUnmetDemandRequest: (params: {
+    requestId: string;
+    reason: string;
+  }) => Promise<{
+    ok: boolean;
+    errorEn?: string;
+    errorAr?: string;
+    record?: UnmetDemandRequestRecord;
+  }>;
   isUnmetDemandModalOpen: boolean;
   unmetDemandModalInitialData: Partial<UnmetDemandRequestInput> | null;
   openUnmetDemandModal: (initial?: Partial<UnmetDemandRequestInput>) => void;
@@ -492,16 +511,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return {
       ...DEFAULT_COMPANY_PROFILE,
       id: currentCompanyId || 'comp-clean-store',
-      legalName: '',
-      displayName: 'New Store (Offline)',
-      displayNameAr: 'متجر جديد (أوفلاين)',
-      businessType: '',
-      address: '',
-      phone: '',
-      email: '',
-      taxNumber: '',
-      secondaryCurrencies: [],
-      onboardingCompleted: false,
     };
   }, [workspaceMode, companies, currentCompanyId]);
 
@@ -1114,7 +1123,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     applyNewRateToTransaction,
     lockTransactionSaleRate,
     applyNewRateToAllTransactions,
-    voidTransaction,
+    voidTransaction: baseVoidTransaction,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -1287,6 +1296,9 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     openUnmetDemandModal,
     closeUnmetDemandModal,
     recordUnmetDemandRequest,
+    fulfillUnmetDemandFromSale,
+    cancelUnmetDemandRequest,
+    reverseUnmetDemandBySale,
   } = useTrainingAndDemandDomain({
     currentUser,
     currentCompany,
@@ -1302,6 +1314,17 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     unmetDemandRequests,
     setUnmetDemandRequests,
   });
+
+  const voidTransaction = useCallback(
+    (transactionId: string) => {
+      const ok = baseVoidTransaction(transactionId);
+      if (ok) {
+        reverseUnmetDemandBySale(transactionId);
+      }
+      return ok;
+    },
+    [baseVoidTransaction, reverseUnmetDemandBySale]
+  );
 
   const { collectClientBackupDataset, hydrateCompanyFromBackupPayload } =
     useBackupHydrationDomain({
@@ -1642,6 +1665,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resetTrainingTour,
       unmetDemandRequests,
       recordUnmetDemandRequest,
+      fulfillUnmetDemandFromSale,
+      cancelUnmetDemandRequest,
       isUnmetDemandModalOpen,
       unmetDemandModalInitialData,
       openUnmetDemandModal,
@@ -1764,6 +1789,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resetTrainingTour,
       unmetDemandRequests,
       recordUnmetDemandRequest,
+      fulfillUnmetDemandFromSale,
+      cancelUnmetDemandRequest,
       isUnmetDemandModalOpen,
       unmetDemandModalInitialData,
       openUnmetDemandModal,

@@ -5,6 +5,7 @@
 
 import {
   Product,
+  ProductCustomFields,
   ProductModificationEntry,
   ProductPriceHistoryEntry,
   StockMovementType,
@@ -732,5 +733,63 @@ export function filterCategoriesByQuery(categories: string[], query: string): st
   });
 }
 
+/**
+ * Normalizes and synchronizes a product's strongly-typed `customFields` (`ProductCustomFields`)
+ * with its top-level domain fields (`expiryDate`, `barcodes`, `priceHistory`, `modificationHistory`, `priceCurrency`, etc.)
+ * without losing type safety.
+ */
+export function normalizeProductCustomFields(
+  product: Partial<Product> & { customFields?: ProductCustomFields }
+): ProductCustomFields {
+  const cf: ProductCustomFields =
+    product.customFields && typeof product.customFields === 'object'
+      ? { ...product.customFields }
+      : {};
 
+  const barcodes = normalizeProductBarcodes(
+    product.barcode,
+    product.barcodes ?? cf.barcodes ?? []
+  );
+  const expiryDate =
+    product.expiryDate !== undefined ? product.expiryDate : cf.expiryDate ?? null;
+  const description =
+    product.description !== undefined ? product.description : cf.description ?? null;
+  const descriptionAr =
+    product.descriptionAr !== undefined ? product.descriptionAr : cf.descriptionAr ?? null;
+  const priceCurrency = (product.priceCurrency || cf.priceCurrency || 'SDG')
+    .toString()
+    .toUpperCase();
+  const priceHistory = Array.isArray(product.priceHistory)
+    ? product.priceHistory
+    : Array.isArray(cf.priceHistory)
+    ? cf.priceHistory
+    : [];
+  const modificationHistory = Array.isArray(product.modificationHistory)
+    ? product.modificationHistory
+    : Array.isArray(cf.modificationHistory)
+    ? cf.modificationHistory
+    : [];
 
+  return {
+    ...cf,
+    ...(product.serialNumber !== undefined ? { serialNumber: product.serialNumber } : {}),
+    description,
+    descriptionAr,
+    expiryDate,
+    barcodes,
+    priceCurrency,
+    priceHistory,
+    modificationHistory,
+    ...(product.previousCostPrice !== undefined
+      ? { previousCostPrice: product.previousCostPrice }
+      : {}),
+    ...(product.previousSellingPrice !== undefined
+      ? { previousSellingPrice: product.previousSellingPrice }
+      : {}),
+    ...(product.priceUpdatedAt !== undefined ? { priceUpdatedAt: product.priceUpdatedAt } : {}),
+    ...(product.enablePackaging !== undefined
+      ? { enablePackaging: product.enablePackaging }
+      : {}),
+    ...(product.unitsPerPack !== undefined ? { unitsPerPack: product.unitsPerPack } : {}),
+  };
+}

@@ -327,6 +327,29 @@ test('mergeAndDeduplicateCategories and filterCategoriesByQuery support custom c
   assert.deepEqual(byLetterV, ['Beverages']);
 });
 
+test('Problem #18: normalizeProductCustomFields enforces strongly-typed ProductCustomFields synchronization', async () => {
+  const { normalizeProductCustomFields } = await import('./inventory-rules');
 
+  const normalized = normalizeProductCustomFields({
+    barcode: '6281001',
+    barcodes: ['6281002'],
+    expiryDate: '2027-12-31',
+    priceCurrency: 'USD',
+    enablePackaging: true,
+    unitsPerPack: 8,
+    customFields: {
+      origin_country: 'Sudan',
+      shelf_number: 12,
+    },
+  });
 
-
+  assert.deepEqual(normalized.barcodes, ['6281001', '6281002']);
+  assert.equal(normalized.expiryDate, '2027-12-31');
+  assert.equal(normalized.priceCurrency, 'USD');
+  assert.equal(normalized.enablePackaging, true);
+  assert.equal(normalized.unitsPerPack, 8);
+  assert.equal(normalized.origin_country, 'Sudan');
+  assert.equal(normalized.shelf_number, 12);
+  assert.deepEqual(normalized.priceHistory, []);
+  assert.deepEqual(normalized.modificationHistory, []);
+});
