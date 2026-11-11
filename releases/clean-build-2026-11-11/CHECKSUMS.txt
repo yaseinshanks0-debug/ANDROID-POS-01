@@ -1,0 +1,20 @@
+# SHA256 CHECKSUMS — Dqnamo POS v2.5.0 (clean-build-2026-11-11)
+# Generated: 2026-11-11T09:16:30Z
+# App ID: com.dqnamo.pos | Version: 2.5.0 (versionCode 250)
+
+# --- Locally Verified Build & Packaging Artifacts ---
+3360191777d0e6784f2021f780072cd1cf31963270a63621b808b7841140155e  release-exe/win-unpacked/Dqnamo POS.exe (188,775,424 bytes)
+c33fa16ab50b4d7d68019aac879793fb418b5e5ed498cf91926a4c6540ac3329  release-exe/win-unpacked/resources/app/dist-server/server.cjs (3,174,807 bytes)
+b4d4c91fb081265af1b199a28f7c005f97810d60f4e07d83f0d068713b270256  release-exe/win-unpacked/resources/www/index.html (3,720 bytes)
+b4d4c91fb081265af1b199a28f7c005f97810d60f4e07d83f0d068713b270256  android/app/src/main/assets/public/index.html (3,720 bytes)
+3632412275e83acefeb9522bfe2de3ff5ce641e70ecf9b94715f46740d83df3d  android/app/src/main/assets/capacitor.config.json
+7d3a4ac4de1c32b59bc6a4eb8ecb8e612ccd0cf1ae1e99f66902da64df296172  android/gradle/wrapper/gradle-wrapper.jar (43,453 bytes)
+41314dbbd5d82d6fc514b1c24d863ae862d93f3b3f926cd4ded980f9a98eb95a  package-lock.json
+
+# --- Note on Final Installer & Android Bundle Checksums ---
+# When .github/workflows/build-apk.yml runs on GitHub Actions (windows-latest + ubuntu-latest),
+# the publish-release job automatically appends/updates the SHA256 checksums for:
+#   - Dqnamo-POS-Setup.exe
+#   - Dqnamo-POS-Portable.exe
+#   - Dqnamo-POS-v2.5.0.apk
+#   - Dqnamo-POS-v2.5.0.aab

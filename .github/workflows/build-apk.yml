@@ -1,4 +1,4 @@
-name: Build Android APK & Windows EXE (Dqnamo POS)
+name: Build Android APK/AAB & Windows EXE (Dqnamo POS v2.5.0)
 
 on:
   push:
@@ -15,25 +15,30 @@ env:
 
 jobs:
   build-apk:
-    name: Build Android APK (.apk)
+    name: Phase 5 — Build Android APK & AAB (ubuntu-latest)
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: 1. Checkout Repository & Record Commit Hash
         uses: actions/checkout@v4
+
+      - name: Record Git Commit Hash
+        run: |
+          echo "GIT_COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
+          echo "Building from commit: $(git rev-parse HEAD)"
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Setup Java JDK 21
+      - name: Setup Java JDK 21 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Setup Android SDK
+      - name: Setup Android SDK (API 36)
         run: |
           export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           export ANDROID_SDK_ROOT="$ANDROID_HOME"
@@ -43,14 +48,23 @@ jobs:
           yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
           "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Install Dependencies (Including Peer Dependencies for Vite & Recharts)
+      - name: Clean Previous Build Artifacts & Install Dependencies via npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
         run: |
-          npm install --legacy-peer-deps --no-audit --no-fund
-          if [ ! -d "node_modules/react-is" ]; then
-            npm install --no-save --legacy-peer-deps react-is
-          fi
+          npm run clean
+          npm ci --include=optional --legacy-peer-deps --no-audit --no-fund
 
-      - name: Build Web Application (Vite)
+      - name: 2. Verify Rolldown Linux Native Binding (@rolldown/binding-linux-x64-gnu)
+        run: npm run verify:rolldown
+
+      - name: Run TypeScript Check (npm run lint)
+        run: npm run lint
+
+      - name: Run Unit Test Suite (npm test)
+        run: npm test
+
+      - name: Build Web Application (npm run build)
         run: npm run build
 
       - name: Restore Pristine Android Binary Assets & Sync Capacitor
@@ -62,27 +76,30 @@ jobs:
             tar -xzf node_modules/@capacitor/cli/assets/android-template.tar.gz -C android gradle/wrapper/gradle-wrapper.jar app/src/main/res
           fi
           npx cap sync android
+          test -f android/app/src/main/assets/public/index.html
+          test -f android/app/src/main/assets/capacitor.config.json
+          test -f android/app/src/main/AndroidManifest.xml
 
-      - name: Grant Execute Permission & Ensure Gradle Wrapper
+      - name: Ensure Gradle Wrapper Integrity
         working-directory: ./android
         run: |
           if ! jar tf gradle/wrapper/gradle-wrapper.jar > /dev/null 2>&1; then
             echo "Regenerating valid gradle-wrapper.jar..."
-            gradle wrapper --gradle-version 8.14.3 --distribution-type bin
+            gradle wrapper --gradle-version 8.13 --distribution-type bin
           fi
           sed -i 's/networkTimeout=.*/networkTimeout=120000/g' gradle/wrapper/gradle-wrapper.properties
           sed -i 's/-all\.zip/-bin.zip/g' gradle/wrapper/gradle-wrapper.properties
           chmod +x gradlew
 
-      - name: Build Debug APK (with Automatic Network Retry)
+      - name: 3 & 4. Build Android APK (assembleDebug) & Release AAB (bundleRelease)
         working-directory: ./android
         run: |
           GRADLE_OPTS="-Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000"
           export GRADLE_OPTS
           for attempt in 1 2 3; do
-            echo "Building Android APK (Attempt $attempt)..."
-            if ./gradlew assembleDebug --no-daemon; then
-              echo "Android APK built successfully on attempt $attempt."
+            echo "Building Android APK & AAB (Attempt $attempt)..."
+            if ./gradlew clean assembleDebug bundleRelease --no-daemon; then
+              echo "Android APK & AAB built successfully on attempt $attempt."
               break
             fi
             if [ "$attempt" -eq 3 ]; then
@@ -93,54 +110,88 @@ jobs:
             sleep 5
           done
 
-      - name: Rename APK for Direct Download
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk Dqnamo-POS.apk
+      - name: 5. Verify Android Outputs, Metadata, & Checksums
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk Dqnamo-POS-v2.5.0.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk Dqnamo-POS.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab Dqnamo-POS-v2.5.0.aab
+          ls -lh Dqnamo-POS-v2.5.0.apk Dqnamo-POS-v2.5.0.aab
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort -V | tail -n 1)
+          if [ -n "$AAPT" ]; then
+            "$AAPT" dump badging Dqnamo-POS-v2.5.0.apk | grep -E "package:|sdkVersion:|targetSdkVersion:"
+            "$AAPT" dump badging Dqnamo-POS-v2.5.0.apk | grep "name='com.dqnamo.pos'"
+            "$AAPT" dump badging Dqnamo-POS-v2.5.0.apk | grep "versionCode='250'"
+            "$AAPT" dump badging Dqnamo-POS-v2.5.0.apk | grep "versionName='2.5.0'"
+          fi
+          sha256sum Dqnamo-POS-v2.5.0.apk Dqnamo-POS-v2.5.0.aab | tee android-checksums.txt
 
-      - name: Upload Android APK Artifact
+      - name: Upload Android APK & AAB Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Dqnamo-POS-APK
-          path: Dqnamo-POS.apk
+          path: |
+            Dqnamo-POS-v2.5.0.apk
+            Dqnamo-POS.apk
+            Dqnamo-POS-v2.5.0.aab
+            android-checksums.txt
           retention-days: 90
 
   build-exe:
-    name: Build Windows Desktop App (.exe)
+    name: Phase 4 — Build Windows Desktop App (.exe) (windows-latest)
     runs-on: windows-latest
 
     steps:
-      - name: Checkout Repository
+      - name: 1. Checkout Repository & Record Commit Hash
         uses: actions/checkout@v4
+
+      - name: Record Git Commit Hash
+        shell: bash
+        run: |
+          echo "GIT_COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
+          echo "Building Windows EXE from commit: $(git rev-parse HEAD)"
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Install Project Dependencies
-        run: |
-          npm install --legacy-peer-deps --no-audit --no-fund
-          if (!(Test-Path "node_modules/react-is")) {
-            npm install --no-save --legacy-peer-deps react-is
-          }
-
-      - name: Install Electron & Electron Builder for Windows Packaging
+      - name: Clean Old Build Files & Install Dependencies via npm ci
+        shell: bash
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-        run: npm install --no-save --legacy-peer-deps electron@33.4.0 electron-builder@25.1.8
+        run: |
+          npm run clean
+          npm ci --include=optional --legacy-peer-deps --no-audit --no-fund
 
-      - name: Build Frontend (Vite), Bundle Embedded Server (esbuild) & Stage UI Assets
+      - name: 2. Verify Rolldown Windows Native Binding (@rolldown/binding-win32-x64-msvc)
         shell: bash
         run: |
-          npm run build
-          npm run server:bundle
-          rm -rf electron/www
-          mkdir -p electron/www
-          cp -r dist/* electron/www/
+          npm run verify:rolldown
+          node -e "const pkg = require('@rolldown/binding-win32-x64-msvc/package.json'); console.log('Verified @rolldown/binding-win32-x64-msvc version:', pkg.version); if (!pkg.version) process.exit(1);"
+
+      - name: 3a. Run TypeScript Check (npm run lint)
+        run: npm run lint
+
+      - name: 3b. Run Unit Tests (npm test)
+        run: npm test
+
+      - name: 3c. Build Frontend (npm run build)
+        run: npm run build
+
+      - name: 3d. Bundle Embedded Server (npm run server:bundle)
+        run: npm run server:bundle
+
+      - name: 3e. Stage UI Assets (npm run exe:stage-ui)
+        shell: bash
+        run: |
+          npm run exe:stage-ui
+          cp -r dist/* electron/www/ || true
           sed -i '/^dist/d' .gitignore || true
+          sed -i '/^electron\/www/d' .gitignore || true
           test -f electron/www/index.html
           test -f dist-server/server.cjs
 
-      - name: Package Windows Installer & Portable EXE (with Mirror Retry on 504)
+      - name: 4. Package Windows Installer & Portable EXE (Electron Builder)
         shell: bash
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -156,15 +207,26 @@ jobs:
             npx electron-builder --win --x64 --config electron-builder.json --publish never
           fi
 
-      - name: Verify Packaged Unpacked Resources & Collect Windows Executables
+      - name: 5. Verify Packaged Resources, Smoke-Test Embedded Backend, & Compute SHA256
         shell: bash
         run: |
-          echo "Verifying packaged frontend & backend inside win-unpacked..."
+          echo "Verifying packaged frontend, backend, and seed data inside win-unpacked..."
           ls -la release-exe/win-unpacked/resources/
-          test -f release-exe/win-unpacked/resources/www/index.html || test -f release-exe/win-unpacked/resources/app/electron/www/index.html
+          test -f release-exe/win-unpacked/resources/www/index.html
+          test -f release-exe/win-unpacked/resources/app/electron/www/index.html
           test -f release-exe/win-unpacked/resources/app/dist-server/server.cjs
+          test -d release-exe/win-unpacked/resources/seed-data
           cp release-exe/Dqnamo-POS-Setup.exe ./Dqnamo-POS-Setup.exe
           cp release-exe/Dqnamo-POS-Portable.exe ./Dqnamo-POS-Portable.exe
+          ls -lh Dqnamo-POS-Setup.exe Dqnamo-POS-Portable.exe
+          sha256sum Dqnamo-POS-Setup.exe Dqnamo-POS-Portable.exe | tee windows-checksums.txt
+          echo "Running headless smoke test of packaged Windows server.cjs..."
+          NODE_ENV=production PORT=3199 DQNAMO_DIST_DIR="$PWD/release-exe/win-unpacked/resources/www" node release-exe/win-unpacked/resources/app/dist-server/server.cjs &
+          SRV_PID=$!
+          sleep 3
+          curl -fsS http://127.0.0.1:3199/api/lan-sync/info
+          curl -fsS http://127.0.0.1:3199/ | grep -i "<!doctype html>"
+          kill $SRV_PID || true
 
       - name: Upload Windows EXE Artifacts
         uses: actions/upload-artifact@v4
@@ -173,10 +235,11 @@ jobs:
           path: |
             Dqnamo-POS-Setup.exe
             Dqnamo-POS-Portable.exe
+            windows-checksums.txt
           retention-days: 90
 
   publish-release:
-    name: Publish APK & EXE to GitHub Releases
+    name: Assemble Release Bundle & Publish to GitHub Releases
     needs:
       - build-apk
       - build-exe
@@ -184,38 +247,57 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     steps:
-      - name: Download Android APK Artifact
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Android APK & AAB Artifacts
         uses: actions/download-artifact@v4
         with:
           name: Dqnamo-POS-APK
-          path: ./release-assets
+          path: ./releases/clean-build-2026-11-11
 
       - name: Download Windows EXE Artifacts
         uses: actions/download-artifact@v4
         with:
           name: Dqnamo-POS-Windows-EXE
-          path: ./release-assets
+          path: ./releases/clean-build-2026-11-11
 
-      - name: Publish Direct Download Release (APK + EXE)
+      - name: Generate Final CHECKSUMS.txt in releases/clean-build-2026-11-11
+        working-directory: ./releases/clean-build-2026-11-11
+        run: |
+          sha256sum Dqnamo-POS-Setup.exe Dqnamo-POS-Portable.exe Dqnamo-POS-v2.5.0.apk Dqnamo-POS-v2.5.0.aab | tee CHECKSUMS.txt
+          ls -lh
+
+      - name: Upload Consolidated Clean Release Bundle Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dqnamo-POS-v2.5.0-Clean-Release-Bundle
+          path: ./releases/clean-build-2026-11-11
+          retention-days: 90
+
+      - name: Publish Direct Download Release (APK + AAB + EXE + Checksums)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-apk
-          name: "Dqnamo POS — Android (.apk) & Windows (.exe) Latest Build"
+          name: "Dqnamo POS v2.5.0 — Android (.apk / .aab) & Windows (.exe) Clean Build"
           body: |
-            ### Dqnamo POS — النسخ الجاهزة للتثبيت المباشر (أندرويد `.apk` + ويندوز `.exe`)
+            ### Dqnamo POS v2.5.0 — النسخ النظيفة الجاهزة للتثبيت المباشر (`v2.5.0` / `versionCode 250`)
 
-            #### 📱 1. نسخة الأندرويد (`Dqnamo-POS.apk`)
-            - قم بتحميل الملف **`Dqnamo-POS.apk`** وتثبيته مباشرة على هاتف أو تابلت الأندرويد.
-            - يدعم العمل أوفلاين، والنسخ الاحتياطي المحلي، والمزامنة الفورية الحية (Live Wi-Fi Sync) مع جهاز اللابتوب.
+            #### 📱 1. نسخ الأندرويد (`Dqnamo-POS-v2.5.0.apk` & `Dqnamo-POS-v2.5.0.aab`)
+            - **`Dqnamo-POS-v2.5.0.apk`** (و`Dqnamo-POS.apk`): نسخة `Debug APK` موقعة بمفتاح الاختبار القياسي وجاهزة للتثبيت المباشر على هواتف وأجهزة الأندرويد اللوحية.
+            - **`Dqnamo-POS-v2.5.0.aab`**: حزمة `Android App Bundle (Release)` غير موقعة (`Unsigned`)؛ تتطلب التوقيع بمفتاح الرفع الخاص بالمالك (`Upload Keystore`) قبل رفعها إلى Google Play Console.
 
-            #### 💻 2. نسخة الويندوز لسطح المكتب (`.exe`)
-            - **`Dqnamo-POS-Setup.exe`**: معالج التثبيت الرسمي للويندوز (ينشئ اختصاراً على سطح المكتب وقائمة ابدأ).
-            - **`Dqnamo-POS-Portable.exe`**: نسخة محمولة تعمل فوراً بمجرد النقر عليها دون الحاجة للتثبيت.
-            - تتضمن نسخة الويندوز واجهة النظام الكاملة المدمجة مع خادم المزامنة المحلي تلقائياً (على المنفذ `3000`) والبيانات الأولية لربط تطبيق الأندرويد مع تطبيق الويندوز عبر الواي فاي مباشرة بدون أي إعدادات خارجية.
+            #### 💻 2. نسخ الويندوز لسطح المكتب (`.exe`)
+            - **`Dqnamo-POS-Setup.exe`**: معالج التثبيت الرسمي لنظام Windows x64.
+            - **`Dqnamo-POS-Portable.exe`**: نسخة محمولة تعمل مباشرة دون تثبيت.
+            - تتضمن واجهة النظام الكاملة المدمجة مع خادم المزامنة المحلي (`server.cjs`) والبيانات الأولية.
           files: |
-            release-assets/Dqnamo-POS.apk
-            release-assets/Dqnamo-POS-Setup.exe
-            release-assets/Dqnamo-POS-Portable.exe
+            releases/clean-build-2026-11-11/Dqnamo-POS-v2.5.0.apk
+            releases/clean-build-2026-11-11/Dqnamo-POS.apk
+            releases/clean-build-2026-11-11/Dqnamo-POS-v2.5.0.aab
+            releases/clean-build-2026-11-11/Dqnamo-POS-Setup.exe
+            releases/clean-build-2026-11-11/Dqnamo-POS-Portable.exe
+            releases/clean-build-2026-11-11/CHECKSUMS.txt
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

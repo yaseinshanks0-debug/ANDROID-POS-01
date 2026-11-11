@@ -1,25 +1,28 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.5.0",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
+    "verify:rolldown": "node scripts/verify-rolldown-binding.cjs",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "node -e \"const fs=require('node:fs');for(const p of ['dist','dist-server','electron/www','server.js'])fs.rmSync(p,{recursive:true,force:true});\"",
     "lint": "tsc --noEmit",
-    "test": "tsx --test src/lib/*.test.ts src/db/*.test.ts",
+    "test": "tsx --test --test-concurrency=1 src/lib/*.test.ts src/lib/__tests__/*.test.ts src/db/products-repo.test.ts src/db/__tests__/*.test.ts src/analytics/unmet-demand.validation.test.ts src/analytics/unmet-demand-fulfillment-api.test.ts src/analytics/phase4-demand-forecasting-replenishment.test.ts src/analytics/phase10-intelligence.test.ts src/analytics/unmet-demand-knowledge-base.test.ts",
+    "test:live-db": "tsx --test --test-concurrency=1 src/db/exchange-rates-workflow.test.ts src/db/phase1-schema.test.ts src/analytics/analytics.test.ts src/analytics/phase11-release.test.ts src/analytics/phase95-lifecycle.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed:phase1": "tsx src/db/seed-phase1.ts",
-    "apk:sync": "vite build && cap sync android",
-    "apk:build": "vite build && cap sync android && cd android && ./gradlew assembleDebug",
+    "apk:sync": "npm run verify:rolldown && vite build && cap sync android",
+    "apk:build": "npm run verify:rolldown && vite build && cap sync android && cd android && ./gradlew assembleDebug",
     "server:bundle": "esbuild server.ts --bundle --platform=node --format=cjs --outfile=dist-server/server.cjs --external:vite --external:pg-native",
     "exe:stage-ui": "node -e \"const fs=require('node:fs');fs.rmSync('electron/www',{recursive:true,force:true});fs.cpSync('dist','electron/www',{recursive:true});\"",
-    "exe:build": "npm run build && npm run server:bundle && npm run exe:stage-ui && npx electron-builder --win --x64 --config electron-builder.json --publish never"
+    "win:prepare": "npm run verify:rolldown && npm run lint && npm test && npm run build && npm run server:bundle && npm run exe:stage-ui",
+    "exe:build": "npm run verify:rolldown && npm run build && npm run server:bundle && npm run exe:stage-ui && npx electron-builder --win --x64 --config electron-builder.json --publish never"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",
@@ -63,6 +66,8 @@
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.21",
     "drizzle-kit": "^0.31.11",
+    "electron": "33.4.0",
+    "electron-builder": "25.1.8",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2"

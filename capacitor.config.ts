@@ -11,7 +11,7 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: true,
     captureInput: true,
-    webContentsDebuggingEnabled: true,
+    webContentsDebuggingEnabled: process.env.NODE_ENV !== 'production',
   },
   plugins: {
     StatusBar: {

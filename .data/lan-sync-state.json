@@ -2,8 +2,8 @@
   "companies": {
     "comp-mw21xg78-fbe4": {
       "companyId": "comp-mw21xg78-fbe4",
-      "revision": 4,
-      "updatedAt": "2026-11-09T09:12:33.579Z",
+      "revision": 5,
+      "updatedAt": "2026-11-11T08:24:57.315Z",
       "lastUpdatedByDeviceId": "windows-ucphu2",
       "lastUpdatedByDeviceName": "كمبيوتر الويندوز (Windows POS)",
       "deletedProductIds": [],
@@ -556,6 +556,18 @@
     }
   },
   "recentEvents": [
+    {
+      "id": "evt-mwbusmw3-h1xt",
+      "timestamp": "2026-11-11T08:24:57.314Z",
+      "deviceId": "windows-ucphu2",
+      "deviceName": "كمبيوتر الويندوز (Windows POS)",
+      "platform": "windows",
+      "companyId": "comp-mw21xg78-fbe4",
+      "operationType": "STATE_SYNC",
+      "summaryAr": "ربط ومزامنة أولية عبر الواي فاي",
+      "summaryEn": "Initial Wi-Fi LAN handshake sync",
+      "revision": 5
+    },
     {
       "id": "evt-mw926mtr-tsbd",
       "timestamp": "2026-11-09T09:28:29.199Z",

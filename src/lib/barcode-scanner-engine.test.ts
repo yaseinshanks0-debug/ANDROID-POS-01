@@ -11,8 +11,21 @@ import {
   getScannerDiagnostics,
   recordScannerStage,
   resetScannerDiagnosticsLogs,
+  resolveZXingModule,
   ENABLED_BARCODE_FORMAT_LABELS,
 } from './barcode-scanner-engine';
+import * as zxingNs from '@zxing/library';
+
+test('ERR-05: resolveZXingModule resolves both ESM named namespace and CJS default-wrapped namespace without undefined exports', () => {
+  const resolvedEsm = resolveZXingModule(zxingNs as unknown as Record<string, unknown>);
+  assert.equal(typeof resolvedEsm.MultiFormatOneDReader, 'function');
+  assert.equal(typeof resolvedEsm.QRCodeReader, 'function');
+  assert.equal(typeof resolvedEsm.MultiFormatWriter, 'function');
+
+  const simulatedCjsWrapper = { default: resolvedEsm };
+  const resolvedCjs = resolveZXingModule(simulatedCjsWrapper);
+  assert.equal(resolvedCjs.MultiFormatOneDReader, resolvedEsm.MultiFormatOneDReader);
+});
 
 test('Phase 3 & 7: Decodes real EAN-13 barcode image accurately', () => {
   const code = '4006381333931';

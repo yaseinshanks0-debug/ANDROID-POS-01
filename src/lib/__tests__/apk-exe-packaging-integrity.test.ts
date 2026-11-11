@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-test('APK & Windows EXE Packaging Integrity — package.json includes react-is and exe:stage-ui', () => {
+test('APK & Windows EXE Packaging Integrity — package.json includes react-is, electron devDependencies, verify:rolldown, and exe:stage-ui', () => {
   const pkgPath = path.join(process.cwd(), 'package.json');
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
 
+  assert.equal(pkg.version, '2.5.0', 'package.json version must be aligned to 2.5.0');
   assert.equal(
     pkg.main,
     'electron/main.cjs',
@@ -17,6 +18,18 @@ test('APK & Windows EXE Packaging Integrity — package.json includes react-is a
     'package.json dependencies must explicitly include react-is for Recharts + Vite Rolldown under --legacy-peer-deps'
   );
   assert.ok(
+    pkg.devDependencies && typeof pkg.devDependencies['electron'] === 'string',
+    'package.json devDependencies must include electron so a second npm install is never required in CI'
+  );
+  assert.ok(
+    pkg.devDependencies && typeof pkg.devDependencies['electron-builder'] === 'string',
+    'package.json devDependencies must include electron-builder so a second npm install is never required in CI'
+  );
+  assert.ok(
+    pkg.scripts && typeof pkg.scripts['verify:rolldown'] === 'string',
+    'package.json scripts must define verify:rolldown'
+  );
+  assert.ok(
     pkg.scripts && typeof pkg.scripts['exe:stage-ui'] === 'string',
     'package.json scripts must define exe:stage-ui'
   );
@@ -24,6 +37,20 @@ test('APK & Windows EXE Packaging Integrity — package.json includes react-is a
     pkg.scripts['exe:build'].includes('exe:stage-ui'),
     'exe:build must stage UI assets into electron/www before invoking electron-builder'
   );
+});
+
+test('APK & Windows EXE Packaging Integrity — Version 2.5.0 and App ID com.dqnamo.pos are aligned across all targets', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8'));
+  const eb = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'electron-builder.json'), 'utf-8'));
+  const capContent = fs.readFileSync(path.join(process.cwd(), 'capacitor.config.ts'), 'utf-8');
+  const gradleContent = fs.readFileSync(path.join(process.cwd(), 'android', 'app', 'build.gradle'), 'utf-8');
+
+  assert.equal(pkg.version, '2.5.0');
+  assert.equal(eb.appId, 'com.dqnamo.pos');
+  assert.ok(capContent.includes("appId: 'com.dqnamo.pos'"));
+  assert.ok(gradleContent.includes('applicationId "com.dqnamo.pos"'));
+  assert.ok(gradleContent.includes('versionCode 250'));
+  assert.ok(gradleContent.includes('versionName "2.5.0"'));
 });
 
 test('APK & Windows EXE Packaging Integrity — electron-builder.json disables ASAR and bundles extraResources', () => {
@@ -67,7 +94,7 @@ test('APK & Windows EXE Packaging Integrity — electron/main.cjs resolves www/d
   );
 });
 
-test('APK & Windows EXE Packaging Integrity — GitHub Actions workflow validates wrapper and stages electron/www', () => {
+test('APK & Windows EXE Packaging Integrity — GitHub Actions workflow uses single npm install, verifies Rolldown binding, and stages electron/www', () => {
   const workflowPath = path.join(process.cwd(), '.github', 'workflows', 'build-apk.yml');
   const wfContent = fs.readFileSync(workflowPath, 'utf-8');
 
@@ -80,7 +107,15 @@ test('APK & Windows EXE Packaging Integrity — GitHub Actions workflow validate
     'build-apk.yml must verify gradle-wrapper.jar integrity using jar tf'
   );
   assert.ok(
-    wfContent.includes('cp -r dist/* electron/www/'),
-    'build-apk.yml must stage dist/* into electron/www/ before packaging Windows EXE'
+    !wfContent.includes('npm install --no-save'),
+    'build-apk.yml must NEVER run a second npm install --no-save that prunes @rolldown/binding-win32-x64-msvc'
+  );
+  assert.ok(
+    wfContent.includes('npm run verify:rolldown'),
+    'build-apk.yml must verify Rolldown native binding before running Vite build'
+  );
+  assert.ok(
+    wfContent.includes('npm run exe:stage-ui'),
+    'build-apk.yml must stage dist/* into electron/www/ via npm run exe:stage-ui before packaging Windows EXE'
   );
 });

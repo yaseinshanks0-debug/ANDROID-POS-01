@@ -16,7 +16,19 @@ import {
 } from 'barcode-detector/ponyfill';
 import * as zxingNs from '@zxing/library';
 
-const zxingPkg: typeof zxingNs = (zxingNs as any).default || zxingNs;
+export function resolveZXingModule(mod: Record<string, unknown>): typeof zxingNs {
+  const defaultExport = Reflect.get(mod, 'default');
+  if (
+    defaultExport &&
+    typeof defaultExport === 'object' &&
+    'MultiFormatOneDReader' in defaultExport
+  ) {
+    return defaultExport as typeof zxingNs;
+  }
+  return mod as typeof zxingNs;
+}
+
+const zxingPkg: typeof zxingNs = resolveZXingModule(zxingNs as unknown as Record<string, unknown>);
 
 const {
   MultiFormatOneDReader,

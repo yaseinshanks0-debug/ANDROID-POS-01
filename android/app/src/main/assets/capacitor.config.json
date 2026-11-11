@@ -17,6 +17,11 @@
 			"backgroundColor": "#090a0f",
 			"overlaysWebView": false
 		},
-		"Haptics": {}
+		"Haptics": {},
+		"CapacitorSQLite": {
+			"iosDatabaseLocation": "Library/CapacitorDatabase",
+			"iosIsEncryption": false,
+			"androidIsEncryption": false
+		}
 	}
 }
