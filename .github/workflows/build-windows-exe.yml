@@ -1,0 +1,141 @@
+name: 2. Build & Publish Windows Desktop EXE (Dqnamo POS)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  build-and-publish-windows:
+    name: Build & Publish Windows Desktop (.exe) (windows-latest)
+    runs-on: windows-latest
+
+    steps:
+      - name: 1. Checkout Repository & Record Commit Hash
+        uses: actions/checkout@v4
+
+      - name: Record Git Commit Hash
+        shell: bash
+        run: |
+          echo "GIT_COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
+          echo "Building Windows EXE from commit: $(git rev-parse HEAD)"
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Clean Old Build Files & Install Dependencies via npm ci
+        shell: bash
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: |
+          npm run clean
+          npm ci --include=optional --legacy-peer-deps --no-audit --no-fund
+
+      - name: 2. Verify Rolldown Windows Native Binding (@rolldown/binding-win32-x64-msvc)
+        shell: bash
+        run: |
+          npm run verify:rolldown
+          node -e "const fs = require('node:fs'); const pkg = require('./node_modules/@rolldown/binding-win32-x64-msvc/package.json'); const stat = fs.statSync('./node_modules/@rolldown/binding-win32-x64-msvc/rolldown-binding.win32-x64-msvc.node'); const mod = require('./node_modules/@rolldown/binding-win32-x64-msvc'); console.log('Verified @rolldown/binding-win32-x64-msvc:', { version: pkg.version, binaryBytes: stat.size, exportsCount: Object.keys(mod).length }); if (pkg.version !== '1.2.15' || stat.size <= 0 || !mod) process.exit(1);"
+
+      - name: 3a. Run TypeScript Check (npm run lint)
+        run: npm run lint
+
+      - name: 3b. Run Unit Tests (npm test)
+        run: npm test
+
+      - name: 3c. Build Frontend (npm run build)
+        run: npm run build
+
+      - name: 3d. Bundle Embedded Server (npm run server:bundle)
+        run: npm run server:bundle
+
+      - name: 3e. Stage UI Assets (npm run exe:stage-ui)
+        shell: bash
+        run: |
+          npm run exe:stage-ui
+          cp -r dist/* electron/www/ || true
+          sed -i '/^dist/d' .gitignore || true
+          sed -i '/^electron\/www/d' .gitignore || true
+          test -f electron/www/index.html
+          test -f dist-server/server.cjs
+
+      - name: 4. Package Windows Installer & Portable EXE (Electron Builder)
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          echo "Attempt 1: Building Windows EXE via default Electron CDN..."
+          if npx electron-builder --win --x64 --config electron-builder.json --publish never; then
+            echo "Windows EXE build succeeded on Attempt 1."
+          else
+            echo "Attempt 1 encountered a network timeout (504). Retrying with high-availability Electron Mirror..."
+            sleep 3
+            export ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
+            export ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder-binaries/"
+            npx electron-builder --win --x64 --config electron-builder.json --publish never
+          fi
+
+      - name: 5. Verify Packaged Resources, Smoke-Test Embedded Backend, & Compute SHA256
+        shell: bash
+        run: |
+          echo "Verifying packaged frontend, backend, and seed data inside win-unpacked..."
+          mkdir -p releases/windows-v2.5.0
+          ls -la release-exe/win-unpacked/resources/
+          test -f release-exe/win-unpacked/resources/www/index.html
+          test -f release-exe/win-unpacked/resources/app/electron/www/index.html
+          test -f release-exe/win-unpacked/resources/app/dist-server/server.cjs
+          test -d release-exe/win-unpacked/resources/seed-data
+          cp release-exe/Dqnamo-POS-Setup.exe ./Dqnamo-POS-Setup.exe
+          cp release-exe/Dqnamo-POS-Portable.exe ./Dqnamo-POS-Portable.exe
+          cp Dqnamo-POS-Setup.exe Dqnamo-POS-Portable.exe releases/windows-v2.5.0/
+          ls -lh Dqnamo-POS-Setup.exe Dqnamo-POS-Portable.exe
+          sha256sum Dqnamo-POS-Setup.exe Dqnamo-POS-Portable.exe | tee windows-checksums.txt
+          cp windows-checksums.txt releases/windows-v2.5.0/CHECKSUMS-WINDOWS.txt
+          echo "Running headless smoke test of packaged Windows server.cjs..."
+          NODE_ENV=production PORT=3199 DQNAMO_DIST_DIR="$PWD/release-exe/win-unpacked/resources/www" node release-exe/win-unpacked/resources/app/dist-server/server.cjs &
+          SRV_PID=$!
+          sleep 3
+          curl -fsS http://127.0.0.1:3199/api/lan-sync/info
+          curl -fsS http://127.0.0.1:3199/ | grep -i "<!doctype html>"
+          kill $SRV_PID || true
+
+      - name: 6. Upload Windows EXE Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dqnamo-POS-Windows-EXE
+          path: |
+            Dqnamo-POS-Setup.exe
+            Dqnamo-POS-Portable.exe
+            windows-checksums.txt
+          retention-days: 90
+
+      - name: 7. Publish Windows Release to Dedicated GitHub Release Path (latest-windows-exe)
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-windows-exe
+          name: "Dqnamo POS v2.5.0 — Windows Desktop (.exe) Release"
+          body: |
+            ### 💻 Dqnamo POS v2.5.0 — إصدار الويندوز المستقل لسطح المكتب (`.exe`)
+            - **Commit:** `${{ env.GIT_COMMIT_SHA }}`
+            - **App ID:** `com.dqnamo.pos` | **Version:** `2.5.0` (`Windows x64`)
+            - **`Dqnamo-POS-Setup.exe`**: معالج التثبيت الرسمي لنظام Windows x64 (ينشئ اختصاراً على سطح المكتب وقائمة ابدأ).
+            - **`Dqnamo-POS-Portable.exe`**: نسخة محمولة تعمل فوراً بمجرد النقر عليها دون الحاجة للتثبيت.
+            - تتضمن واجهة النظام الكاملة المدمجة مع خادم المزامنة المحلي (`server.cjs`) والبيانات الأولية.
+          files: |
+            Dqnamo-POS-Setup.exe
+            Dqnamo-POS-Portable.exe
+            windows-checksums.txt
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

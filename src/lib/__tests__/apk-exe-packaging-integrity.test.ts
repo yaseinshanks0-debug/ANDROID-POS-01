@@ -94,28 +94,57 @@ test('APK & Windows EXE Packaging Integrity — electron/main.cjs resolves www/d
   );
 });
 
-test('APK & Windows EXE Packaging Integrity — GitHub Actions workflow uses single npm install, verifies Rolldown binding, and stages electron/www', () => {
-  const workflowPath = path.join(process.cwd(), '.github', 'workflows', 'build-apk.yml');
-  const wfContent = fs.readFileSync(workflowPath, 'utf-8');
+test('APK & Windows EXE Packaging Integrity — Separate GitHub Actions workflows for Android (build-apk.yml) and Windows (build-windows-exe.yml)', () => {
+  const androidWfPath = path.join(process.cwd(), '.github', 'workflows', 'build-apk.yml');
+  const windowsWfPath = path.join(process.cwd(), '.github', 'workflows', 'build-windows-exe.yml');
 
+  assert.ok(fs.existsSync(androidWfPath), 'build-apk.yml must exist for the Android workflow');
+  assert.ok(fs.existsSync(windowsWfPath), 'build-windows-exe.yml must exist for the Windows workflow');
+
+  const androidWf = fs.readFileSync(androidWfPath, 'utf-8');
+  const windowsWf = fs.readFileSync(windowsWfPath, 'utf-8');
+
+  // Verify Android dedicated workflow
   assert.ok(
-    wfContent.includes('android-template.tar.gz'),
+    androidWf.includes('android-template.tar.gz'),
     'build-apk.yml must restore pristine binary assets from Capacitor android-template.tar.gz'
   );
   assert.ok(
-    wfContent.includes('jar tf gradle/wrapper/gradle-wrapper.jar'),
+    androidWf.includes('jar tf gradle/wrapper/gradle-wrapper.jar'),
     'build-apk.yml must verify gradle-wrapper.jar integrity using jar tf'
   );
   assert.ok(
-    !wfContent.includes('npm install --no-save'),
-    'build-apk.yml must NEVER run a second npm install --no-save that prunes @rolldown/binding-win32-x64-msvc'
-  );
-  assert.ok(
-    wfContent.includes('npm run verify:rolldown'),
+    androidWf.includes('npm run verify:rolldown'),
     'build-apk.yml must verify Rolldown native binding before running Vite build'
   );
   assert.ok(
-    wfContent.includes('npm run exe:stage-ui'),
-    'build-apk.yml must stage dist/* into electron/www/ via npm run exe:stage-ui before packaging Windows EXE'
+    androidWf.includes('tag_name: latest-apk'),
+    'build-apk.yml must publish Android APK/AAB to its own release tag (latest-apk)'
+  );
+  assert.ok(
+    !androidWf.includes('runs-on: windows-latest'),
+    'build-apk.yml must be strictly dedicated to Android (no windows-latest jobs)'
+  );
+
+  // Verify Windows dedicated workflow
+  assert.ok(
+    windowsWf.includes('runs-on: windows-latest'),
+    'build-windows-exe.yml must run on windows-latest'
+  );
+  assert.ok(
+    !windowsWf.includes('npm install --no-save'),
+    'build-windows-exe.yml must NEVER run a second npm install --no-save that prunes @rolldown/binding-win32-x64-msvc'
+  );
+  assert.ok(
+    windowsWf.includes('npm run verify:rolldown'),
+    'build-windows-exe.yml must verify Rolldown native binding before running Vite build'
+  );
+  assert.ok(
+    windowsWf.includes('npm run exe:stage-ui'),
+    'build-windows-exe.yml must stage dist/* into electron/www/ via npm run exe:stage-ui before packaging Windows EXE'
+  );
+  assert.ok(
+    windowsWf.includes('tag_name: latest-windows-exe'),
+    'build-windows-exe.yml must publish Windows EXE to its own dedicated release tag (latest-windows-exe)'
   );
 });
