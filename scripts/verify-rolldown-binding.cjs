@@ -58,6 +58,48 @@ const PLATFORM_BINDINGS = Object.freeze({
   },
 });
 
+const TOOLCHAIN_BINDINGS = Object.freeze([
+  {
+    id: 'typescript',
+    parentPkg: 'typescript',
+    checkNativeLoad: false,
+    platforms: {
+      'win32-x64': { pkgName: '@typescript/typescript-win32-x64', binaryFile: 'lib/tsc.exe' },
+      'win32-arm64': { pkgName: '@typescript/typescript-win32-arm64', binaryFile: 'lib/tsc.exe' },
+      'linux-x64': { pkgName: '@typescript/typescript-linux-x64', binaryFile: 'lib/tsc' },
+      'linux-arm64': { pkgName: '@typescript/typescript-linux-arm64', binaryFile: 'lib/tsc' },
+      'darwin-arm64': { pkgName: '@typescript/typescript-darwin-arm64', binaryFile: 'lib/tsc' },
+      'darwin-x64': { pkgName: '@typescript/typescript-darwin-x64', binaryFile: 'lib/tsc' },
+    },
+  },
+  {
+    id: 'tailwindcss-oxide',
+    parentPkg: '@tailwindcss/oxide',
+    checkNativeLoad: false,
+    platforms: {
+      'win32-x64': { pkgName: '@tailwindcss/oxide-win32-x64-msvc', binaryFile: 'tailwindcss-oxide.win32-x64-msvc.node' },
+      'win32-arm64': { pkgName: '@tailwindcss/oxide-win32-arm64-msvc', binaryFile: 'tailwindcss-oxide.win32-arm64-msvc.node' },
+      'linux-x64': { pkgName: '@tailwindcss/oxide-linux-x64-gnu', binaryFile: 'tailwindcss-oxide.linux-x64-gnu.node' },
+      'linux-arm64': { pkgName: '@tailwindcss/oxide-linux-arm64-gnu', binaryFile: 'tailwindcss-oxide.linux-arm64-gnu.node' },
+      'darwin-arm64': { pkgName: '@tailwindcss/oxide-darwin-arm64', binaryFile: 'tailwindcss-oxide.darwin-arm64.node' },
+      'darwin-x64': { pkgName: '@tailwindcss/oxide-darwin-x64', binaryFile: 'tailwindcss-oxide.darwin-x64.node' },
+    },
+  },
+  {
+    id: 'lightningcss',
+    parentPkg: 'lightningcss',
+    checkNativeLoad: false,
+    platforms: {
+      'win32-x64': { pkgName: 'lightningcss-win32-x64-msvc', binaryFile: 'lightningcss.win32-x64-msvc.node' },
+      'win32-arm64': { pkgName: 'lightningcss-win32-arm64-msvc', binaryFile: 'lightningcss.win32-arm64-msvc.node' },
+      'linux-x64': { pkgName: 'lightningcss-linux-x64-gnu', binaryFile: 'lightningcss.linux-x64-gnu.node' },
+      'linux-arm64': { pkgName: 'lightningcss-linux-arm64-gnu', binaryFile: 'lightningcss.linux-arm64-gnu.node' },
+      'darwin-arm64': { pkgName: 'lightningcss-darwin-arm64', binaryFile: 'lightningcss.darwin-arm64.node' },
+      'darwin-x64': { pkgName: 'lightningcss-darwin-x64', binaryFile: 'lightningcss.darwin-x64.node' },
+    },
+  },
+]);
+
 function getExpectedRolldownBindingSpec(platform = process.platform, arch = process.arch) {
   return PLATFORM_BINDINGS[`${platform}-${arch}`] || null;
 }
@@ -65,6 +107,18 @@ function getExpectedRolldownBindingSpec(platform = process.platform, arch = proc
 function getExpectedRolldownBindingPackage(platform = process.platform, arch = process.arch) {
   const spec = getExpectedRolldownBindingSpec(platform, arch);
   return spec ? spec.pkgName : null;
+}
+
+function getPackageVersion(rootDir, parentPkg, fsModule = fs, pathModule = path) {
+  const pkgPath = pathModule.join(rootDir, 'node_modules', ...parentPkg.split('/'), 'package.json');
+  if (!fsModule.existsSync(pkgPath)) {
+    throw new Error(`node_modules/${parentPkg}/package.json not found. Run npm ci or npm install first.`);
+  }
+  const pkg = JSON.parse(fsModule.readFileSync(pkgPath, 'utf-8'));
+  if (!pkg.version || typeof pkg.version !== 'string') {
+    throw new Error(`Invalid version in node_modules/${parentPkg}/package.json`);
+  }
+  return pkg.version;
 }
 
 function getRolldownVersion(rootDir, fsModule = fs) {
@@ -276,7 +330,7 @@ function verifyExtractedBinding({
     expectedBinaryFile ||
     (typeof pkgJson.main === 'string' && pkgJson.main.endsWith('.node') ? pkgJson.main : null);
 
-  let binaryPath = binaryFileName ? pathModule.join(pkgDir, binaryFileName) : null;
+  let binaryPath = binaryFileName ? pathModule.join(pkgDir, ...binaryFileName.split('/')) : null;
   if (!binaryPath || !fsModule.existsSync(binaryPath)) {
     const entries = fsModule.existsSync(pkgDir) ? fsModule.readdirSync(pkgDir) : [];
     const foundNode = entries.find((f) => f.endsWith('.node'));
@@ -458,9 +512,152 @@ function ensureRolldownBinding({
   return { ...postRepairCheck, repaired: true };
 }
 
+function ensurePackageBinding({
+  rootDir = process.cwd(),
+  parentPkg,
+  pkgName,
+  binaryFile,
+  platform = process.platform,
+  arch = process.arch,
+  spawnSyncFn = spawnSync,
+  fsModule = fs,
+  pathModule = path,
+  requireFn = require,
+  checkNativeLoad = false,
+  logger = console,
+}) {
+  const expectedVersion = getPackageVersion(rootDir, parentPkg, fsModule, pathModule);
+  const initialCheck = verifyExtractedBinding({
+    rootDir,
+    pkgName,
+    expectedVersion,
+    expectedBinaryFile: binaryFile,
+    fsModule,
+    pathModule,
+    requireFn,
+    checkNativeLoad,
+  });
+
+  if (initialCheck.ok) {
+    logger.log(
+      `[Native Verify] PASS — ${pkgName}@${initialCheck.version} (${binaryFile}, ${initialCheck.binarySize} bytes)`
+    );
+    return { ...initialCheck, repaired: false };
+  }
+
+  logger.warn(
+    `[Native Verify] WARNING — ${pkgName}@${expectedVersion} not ready (${initialCheck.reason}). Repairing via npm pack...`
+  );
+
+  const targetDir = pathModule.join(rootDir, 'node_modules', ...pkgName.split('/'));
+  const tmpDir = pathModule.join(rootDir, `.tmp-native-binding-${Date.now()}`);
+  fsModule.rmSync(tmpDir, { recursive: true, force: true });
+  fsModule.mkdirSync(tmpDir, { recursive: true });
+
+  try {
+    const npmInvoke = resolveNpmCliInvocation(fsModule);
+    const packResult = spawnSyncFn(
+      npmInvoke.command,
+      [...npmInvoke.prefixArgs, 'pack', `${pkgName}@${expectedVersion}`],
+      {
+        cwd: tmpDir,
+        encoding: 'utf-8',
+        shell: npmInvoke.shell,
+        windowsHide: true,
+      }
+    );
+
+    if (packResult.error) {
+      throw new Error(`npm pack process error: ${packResult.error.message}`);
+    }
+    if (packResult.status !== 0) {
+      throw new Error(
+        `npm pack failed with exit code ${packResult.status}: ${String(packResult.stderr || packResult.stdout || '').trim()}`
+      );
+    }
+
+    const tgzName = parseNpmPackFilename(packResult.stdout, tmpDir, fsModule);
+    const tgzPath = pathModule.join(tmpDir, tgzName);
+
+    extractTgzArchive({
+      projectRoot: rootDir,
+      archivePath: tgzPath,
+      targetDir,
+      spawnSyncFn,
+      fsModule,
+      pathModule,
+      platform,
+    });
+  } finally {
+    fsModule.rmSync(tmpDir, { recursive: true, force: true });
+  }
+
+  const postRepairCheck = verifyExtractedBinding({
+    rootDir,
+    pkgName,
+    expectedVersion,
+    expectedBinaryFile: binaryFile,
+    fsModule,
+    pathModule,
+    requireFn,
+    checkNativeLoad,
+  });
+
+  if (!postRepairCheck.ok) {
+    throw new Error(
+      `[Native Verify] FAIL — Could not verify ${pkgName}@${expectedVersion} after extraction: ${postRepairCheck.reason}`
+    );
+  }
+
+  logger.log(
+    `[Native Verify] PASS — Restored ${pkgName}@${postRepairCheck.version} (${binaryFile}, ${postRepairCheck.binarySize} bytes)`
+  );
+
+  return { ...postRepairCheck, repaired: true };
+}
+
+function ensurePlatformToolchainBindings({
+  rootDir = process.cwd(),
+  platform = process.platform,
+  arch = process.arch,
+  spawnSyncFn = spawnSync,
+  fsModule = fs,
+  pathModule = path,
+  requireFn = require,
+  logger = console,
+} = {}) {
+  const key = `${platform}-${arch}`;
+  const results = {};
+
+  for (const entry of TOOLCHAIN_BINDINGS) {
+    const spec = entry.platforms[key];
+    if (!spec) continue;
+    const parentPkgPath = pathModule.join(rootDir, 'node_modules', ...entry.parentPkg.split('/'), 'package.json');
+    if (!fsModule.existsSync(parentPkgPath)) continue;
+
+    results[entry.id] = ensurePackageBinding({
+      rootDir,
+      parentPkg: entry.parentPkg,
+      pkgName: spec.pkgName,
+      binaryFile: spec.binaryFile,
+      platform,
+      arch,
+      spawnSyncFn,
+      fsModule,
+      pathModule,
+      requireFn,
+      checkNativeLoad: entry.checkNativeLoad && platform === process.platform && arch === process.arch,
+      logger,
+    });
+  }
+
+  return results;
+}
+
 function main() {
   try {
     ensureRolldownBinding();
+    ensurePlatformToolchainBindings();
   } catch (err) {
     console.error(err && err.message ? err.message : String(err));
     process.exit(1);
@@ -473,8 +670,10 @@ if (require.main === module) {
 
 module.exports = {
   PLATFORM_BINDINGS,
+  TOOLCHAIN_BINDINGS,
   getExpectedRolldownBindingSpec,
   getExpectedRolldownBindingPackage,
+  getPackageVersion,
   getRolldownVersion,
   toSafeRelativeTarPath,
   parseNpmPackFilename,
@@ -483,4 +682,6 @@ module.exports = {
   extractTgzArchive,
   verifyExtractedBinding,
   ensureRolldownBinding,
+  ensurePackageBinding,
+  ensurePlatformToolchainBindings,
 };

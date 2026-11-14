@@ -41,11 +41,29 @@ jobs:
           npm run clean
           npm ci --include=optional --legacy-peer-deps --no-audit --no-fund
 
-      - name: 2. Verify Rolldown Windows Native Binding (@rolldown/binding-win32-x64-msvc)
+      - name: 2. Verify Windows Native Toolchain Bindings (Rolldown, TypeScript, Tailwind Oxide, LightningCSS)
         shell: bash
         run: |
           npm run verify:rolldown
-          node -e "const fs = require('node:fs'); const pkg = require('./node_modules/@rolldown/binding-win32-x64-msvc/package.json'); const stat = fs.statSync('./node_modules/@rolldown/binding-win32-x64-msvc/rolldown-binding.win32-x64-msvc.node'); const mod = require('./node_modules/@rolldown/binding-win32-x64-msvc'); console.log('Verified @rolldown/binding-win32-x64-msvc:', { version: pkg.version, binaryBytes: stat.size, exportsCount: Object.keys(mod).length }); if (pkg.version !== '1.2.15' || stat.size <= 0 || !mod) process.exit(1);"
+          node -e "
+            const fs = require('node:fs');
+            const rolldownVer = require('./node_modules/rolldown/package.json').version;
+            const rolldownPkg = require('./node_modules/@rolldown/binding-win32-x64-msvc/package.json');
+            const rolldownStat = fs.statSync('./node_modules/@rolldown/binding-win32-x64-msvc/rolldown-binding.win32-x64-msvc.node');
+            const rolldownMod = require('./node_modules/@rolldown/binding-win32-x64-msvc');
+            const tscStat = fs.statSync('./node_modules/@typescript/typescript-win32-x64/lib/tsc.exe');
+            const oxideStat = fs.statSync('./node_modules/@tailwindcss/oxide-win32-x64-msvc/tailwindcss-oxide.win32-x64-msvc.node');
+            const lcssStat = fs.statSync('./node_modules/lightningcss-win32-x64-msvc/lightningcss.win32-x64-msvc.node');
+            console.log('Verified Windows native bindings:', {
+              rolldown: { version: rolldownPkg.version, bytes: rolldownStat.size, exports: Object.keys(rolldownMod).length },
+              tscExeBytes: tscStat.size,
+              oxideBytes: oxideStat.size,
+              lightningcssBytes: lcssStat.size
+            });
+            if (rolldownPkg.version !== rolldownVer || rolldownStat.size <= 0 || !rolldownMod || tscStat.size <= 0 || oxideStat.size <= 0 || lcssStat.size <= 0) {
+              process.exit(1);
+            }
+          "
 
       - name: 3a. Run TypeScript Check (npm run lint)
         run: npm run lint

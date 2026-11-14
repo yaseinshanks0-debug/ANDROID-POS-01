@@ -94,7 +94,7 @@ function pruneDirectory() {
     'node_modules/@firebase/analytics-types',
     'node_modules/@firebase/performance',
     'node_modules/@firebase/performance-compat',
-    'node_modules/@firebase/ performance-types',
+    'node_modules/@firebase/performance-types',
     'node_modules/@firebase/remote-config',
     'node_modules/@firebase/remote-config-compat',
     'node_modules/@firebase/remote-config-types',

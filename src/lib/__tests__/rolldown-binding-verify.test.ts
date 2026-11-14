@@ -294,3 +294,84 @@ test('Rolldown Hotfix 5 — Real extraction & verification of @rolldown/binding-
     fs.rmSync(tempWorkspace, { recursive: true, force: true });
   }
 });
+
+test('Rolldown Hotfix 6 — TypeScript @typescript/typescript-win32-x64 lib/tsc.exe verification & safe Windows extraction', () => {
+  const {
+    ensurePackageBinding,
+    ensurePlatformToolchainBindings,
+  } = verifyModule as any;
+
+  // 1. Host toolchain bindings (linux-x64 on this container, win32-x64 on Windows) must verify cleanly
+  const hostToolchain = ensurePlatformToolchainBindings({ rootDir: process.cwd() });
+  assert.equal(hostToolchain.typescript?.ok, true, 'Host TypeScript native binary must be present');
+  assert.equal(hostToolchain['tailwindcss-oxide']?.ok, true, 'Host Tailwind Oxide binary must be present');
+  assert.equal(hostToolchain.lightningcss?.ok, true, 'Host LightningCSS binary must be present');
+
+  // 2. Real npm pack + relative tar extraction for @typescript/typescript-win32-x64@7.0.2 in isolated workspace
+  const tempWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'ts-win32-extract-'));
+  try {
+    const tsDir = path.join(tempWorkspace, 'node_modules', 'typescript');
+    fs.mkdirSync(tsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tsDir, 'package.json'),
+      JSON.stringify({ name: 'typescript', version: '7.0.2' })
+    );
+
+    const winTsResult = ensurePackageBinding({
+      rootDir: tempWorkspace,
+      parentPkg: 'typescript',
+      pkgName: '@typescript/typescript-win32-x64',
+      binaryFile: 'lib/tsc.exe',
+      platform: 'win32',
+      arch: 'x64',
+      checkNativeLoad: false,
+    });
+
+    assert.equal(winTsResult.ok, true);
+    assert.equal(winTsResult.repaired, true);
+    assert.equal(winTsResult.version, '7.0.2');
+
+    const tscExePath = path.join(
+      tempWorkspace,
+      'node_modules',
+      '@typescript',
+      'typescript-win32-x64',
+      'lib',
+      'tsc.exe'
+    );
+    assert.equal(fs.existsSync(tscExePath), true, 'lib/tsc.exe must exist after extraction');
+    const stat = fs.statSync(tscExePath);
+    assert.ok(stat.size > 10_000_000, `Expected >10MB tsc.exe binary, got ${stat.size} bytes`);
+
+    const fd = fs.openSync(tscExePath, 'r');
+    const header = Buffer.alloc(2);
+    fs.readSync(fd, header, 0, 2, 0);
+    fs.closeSync(fd);
+    assert.equal(header.toString('ascii'), 'MZ', 'Extracted tsc.exe must have valid Windows PE MZ header');
+  } finally {
+    fs.rmSync(tempWorkspace, { recursive: true, force: true });
+  }
+});
+
+test('Rolldown Hotfix 7 — package-lock.json includes all required win32-x64 and linux-x64 native bindings', () => {
+  const lockPath = path.join(process.cwd(), 'package-lock.json');
+  const lock = JSON.parse(fs.readFileSync(lockPath, 'utf-8'));
+
+  const requiredPlatformKeys = [
+    'node_modules/@rolldown/binding-win32-x64-msvc',
+    'node_modules/@rolldown/binding-linux-x64-gnu',
+    'node_modules/@typescript/typescript-win32-x64',
+    'node_modules/@typescript/typescript-linux-x64',
+    'node_modules/@tailwindcss/oxide-win32-x64-msvc',
+    'node_modules/@tailwindcss/oxide-linux-x64-gnu',
+    'node_modules/lightningcss-win32-x64-msvc',
+    'node_modules/lightningcss-linux-x64-gnu',
+  ];
+
+  for (const pkgKey of requiredPlatformKeys) {
+    assert.ok(
+      lock.packages[pkgKey] && typeof lock.packages[pkgKey].version === 'string',
+      `package-lock.json must include "${pkgKey}" so npm ci installs it reliably`
+    );
+  }
+});
