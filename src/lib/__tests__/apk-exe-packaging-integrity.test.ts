@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-test('APK & Windows EXE Packaging Integrity — package.json includes react-is, electron devDependencies, verify:rolldown, and exe:stage-ui', () => {
+test('APK & Windows EXE Packaging Integrity — package.json includes react-is, verify:rolldown, exe:stage-ui, and excludes 500MB+ desktop binaries from cloud bundle', () => {
   const pkgPath = path.join(process.cwd(), 'package.json');
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
 
@@ -17,13 +17,15 @@ test('APK & Windows EXE Packaging Integrity — package.json includes react-is, 
     pkg.dependencies && typeof pkg.dependencies['react-is'] === 'string',
     'package.json dependencies must explicitly include react-is for Recharts + Vite Rolldown under --legacy-peer-deps'
   );
-  assert.ok(
-    pkg.devDependencies && typeof pkg.devDependencies['electron'] === 'string',
-    'package.json devDependencies must include electron so a second npm install is never required in CI'
+  assert.equal(
+    Boolean(pkg.devDependencies?.['electron'] || pkg.dependencies?.['electron']),
+    false,
+    'package.json must not bundle 266MB electron in cloud dependencies (exceeds 250MB limit)'
   );
-  assert.ok(
-    pkg.devDependencies && typeof pkg.devDependencies['electron-builder'] === 'string',
-    'package.json devDependencies must include electron-builder so a second npm install is never required in CI'
+  assert.equal(
+    Boolean(pkg.devDependencies?.['electron-builder'] || pkg.dependencies?.['electron-builder']),
+    false,
+    'package.json must not bundle 254MB electron-builder in cloud dependencies (exceeds 250MB limit)'
   );
   assert.ok(
     pkg.scripts && typeof pkg.scripts['verify:rolldown'] === 'string',
@@ -126,22 +128,21 @@ test('APK & Windows EXE Packaging Integrity — Separate GitHub Actions workflow
     'build-apk.yml must be strictly dedicated to Android (no windows-latest jobs)'
   );
 
-  // Verify Windows dedicated workflow
+  // Verify Windows dedicated workflow builds frontend BEFORE installing electron-builder
   assert.ok(
     windowsWf.includes('runs-on: windows-latest'),
     'build-windows-exe.yml must run on windows-latest'
   );
+  const buildIdx = windowsWf.indexOf('npm run build');
+  const stageIdx = windowsWf.indexOf('npm run exe:stage-ui');
+  const electronInstallIdx = windowsWf.indexOf('electron@33.4.0');
   assert.ok(
-    !windowsWf.includes('npm install --no-save'),
-    'build-windows-exe.yml must NEVER run a second npm install --no-save that prunes @rolldown/binding-win32-x64-msvc'
+    buildIdx > 0 && stageIdx > buildIdx && electronInstallIdx > stageIdx,
+    'build-windows-exe.yml must complete npm run build and npm run exe:stage-ui BEFORE installing electron/electron-builder'
   );
   assert.ok(
     windowsWf.includes('npm run verify:rolldown'),
     'build-windows-exe.yml must verify Rolldown native binding before running Vite build'
-  );
-  assert.ok(
-    windowsWf.includes('npm run exe:stage-ui'),
-    'build-windows-exe.yml must stage dist/* into electron/www/ via npm run exe:stage-ui before packaging Windows EXE'
   );
   assert.ok(
     windowsWf.includes('tag_name: latest-windows-exe'),

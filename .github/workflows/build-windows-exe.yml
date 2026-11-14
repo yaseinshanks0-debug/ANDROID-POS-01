@@ -69,11 +69,13 @@ jobs:
           test -f electron/www/index.html
           test -f dist-server/server.cjs
 
-      - name: 4. Package Windows Installer & Portable EXE (Electron Builder)
+      - name: 4. Install Electron Packager & Build Windows Installer/Portable EXE
         shell: bash
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
+          echo "Installing Electron & Electron Builder after Vite/Rolldown build has already completed..."
+          npm install --no-save --legacy-peer-deps --no-audit --no-fund electron@33.4.0 electron-builder@25.1.8
           echo "Attempt 1: Building Windows EXE via default Electron CDN..."
           if npx electron-builder --win --x64 --config electron-builder.json --publish never; then
             echo "Windows EXE build succeeded on Attempt 1."

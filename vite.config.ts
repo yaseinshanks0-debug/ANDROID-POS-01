@@ -19,6 +19,7 @@ export default defineConfig(() => {
     },
     build: {
       target: 'es2022',
+      sourcemap: false,
       chunkSizeWarningLimit: 900,
       rollupOptions: {
         output: {
@@ -26,9 +27,6 @@ export default defineConfig(() => {
             if (id.includes('node_modules')) {
               if (id.includes('barcode-detector') || id.includes('@zxing')) {
                 return 'vendor-scanner';
-              }
-              if (id.includes('d3-') || id.includes('/d3/')) {
-                return 'vendor-d3';
               }
               if (id.includes('motion') || id.includes('framer-motion')) {
                 return 'vendor-motion';
