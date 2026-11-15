@@ -177,6 +177,8 @@ export const INITIAL_SETTINGS: AppSettings = {
     EUR: 2950,
     GBP: 3450,
   },
+  autoAdjustSdgPricesOnRateIncrease: true,
+  sdgPriceAdjustmentPolicy: 'increase_only',
   taxRatePercent: 8.5,
   isTaxInclusive: false,
   soundEnabled: true,

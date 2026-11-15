@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,6 +15,15 @@ const {
   verifyExtractedBinding,
   ensureRolldownBinding,
 } = verifyModule as any;
+
+function removeTempDirSafe(dirPath: string) {
+  fs.rmSync(dirPath, {
+    recursive: true,
+    force: true,
+    maxRetries: 12,
+    retryDelay: 100,
+  });
+}
 
 test('Rolldown Hotfix 1 — Windows D:\\ paths are converted to safe relative POSIX paths without drive colons', () => {
   const winProjectRoot = 'D:\\a\\ANDROID-POS-01\\ANDROID-POS-01';
@@ -213,7 +223,7 @@ test('Rolldown Hotfix 4 — verifyExtractedBinding rejects missing package, vers
     assert.equal(validCheck.version, '1.2.15');
     assert.ok((validCheck.binarySize || 0) > 0);
   } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
+    removeTempDirSafe(tempRoot);
   }
 });
 
@@ -247,8 +257,8 @@ test('Rolldown Hotfix 5 — Real extraction & verification of @rolldown/binding-
       rootDir: tempWorkspace,
       platform: 'win32',
       arch: 'x64',
-      // On non-Windows hosts, PE .node DLLs cannot be dlopen'd by Linux ELF Node, so verify PE header on Linux and full dlopen on Windows
-      checkNativeLoad: process.platform === 'win32',
+      // Verify native loading in an isolated child process below so Windows never keeps the temp .node DLL locked in this test runner process
+      checkNativeLoad: false,
     });
 
     assert.equal(winExtractResult.ok, true);
@@ -290,8 +300,26 @@ test('Rolldown Hotfix 5 — Real extraction & verification of @rolldown/binding-
     fs.readSync(fd, header, 0, 2, 0);
     fs.closeSync(fd);
     assert.equal(header.toString('ascii'), 'MZ', 'Extracted .node binary must have valid Windows PE MZ header');
+
+    if (process.platform === 'win32') {
+      const extractedPkgDir = path.join(tempWorkspace, 'node_modules', '@rolldown', 'binding-win32-x64-msvc');
+      const loadCheck = spawnSync(
+        process.execPath,
+        [
+          '-e',
+          'const mod = require(process.argv[1]); if (!mod || (typeof mod !== "object" && typeof mod !== "function")) process.exit(1);',
+          extractedPkgDir,
+        ],
+        { encoding: 'utf-8', windowsHide: true }
+      );
+      assert.equal(
+        loadCheck.status,
+        0,
+        `Child Node process failed to load extracted Windows binding: ${loadCheck.stderr || loadCheck.stdout}`
+      );
+    }
   } finally {
-    fs.rmSync(tempWorkspace, { recursive: true, force: true });
+    removeTempDirSafe(tempWorkspace);
   }
 });
 
@@ -349,7 +377,7 @@ test('Rolldown Hotfix 6 — TypeScript @typescript/typescript-win32-x64 lib/tsc.
     fs.closeSync(fd);
     assert.equal(header.toString('ascii'), 'MZ', 'Extracted tsc.exe must have valid Windows PE MZ header');
   } finally {
-    fs.rmSync(tempWorkspace, { recursive: true, force: true });
+    removeTempDirSafe(tempWorkspace);
   }
 });
 

@@ -460,6 +460,8 @@ export interface ExchangeRateHistoryEntry {
   note?: string;
 }
 
+export type SdgPriceAdjustmentPolicy = 'increase_only' | 'proportional';
+
 export interface AppSettings {
   storeName: string;
   storeNameAr: string;
@@ -474,6 +476,8 @@ export interface AppSettings {
   receiptFooterAr: string;
   currency: SupportedCurrency;
   exchangeRates?: Record<string, number>;
+  autoAdjustSdgPricesOnRateIncrease?: boolean;
+  sdgPriceAdjustmentPolicy?: SdgPriceAdjustmentPolicy;
   taxRatePercent: number;
   isTaxInclusive: boolean;
   soundEnabled: boolean;

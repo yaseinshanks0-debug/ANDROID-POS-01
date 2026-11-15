@@ -3,33 +3,74 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef } from 'react';
 import {
   AppSettings,
+  CartItem,
   Currency,
   ExchangeRateItem,
   ExchangeRateHistoryEntry,
   WorkspaceMode,
   CompanyProfile,
   POSUser,
+  Product,
+  SdgPriceAdjustmentPolicy,
 } from '../../lib/types';
 import {
   savePersistedCurrencies,
   savePersistedExchangeRates,
   savePersistedExchangeRateItems,
 } from '../../lib/exchange-rate-storage';
+import { repriceSdgProductsOnExchangeRateChange } from '../../lib/exchange-rate-repricing';
 import { playSuccessChime, triggerHaptic } from '../../lib/sound-fx';
 import { api } from '../../services/api';
 import { STORAGE_KEYS, getCompanyStorageKey } from '../pos-storage-helpers';
+
+export type SaveCurrencyInput = {
+  code: string;
+  name: string;
+  nameAr?: string;
+  symbol: string;
+  decimalPlaces?: number;
+  initialRateToBase?: number;
+  isBase?: boolean;
+  adjustSdgPrices?: boolean;
+  sdgPriceAdjustmentPolicy?: SdgPriceAdjustmentPolicy;
+};
+
+export type SaveCurrencyResult = Currency & {
+  adjustedSdgProductsCount?: number;
+  priceChangePercent?: number;
+};
+
+export type UpdateExchangeRateInput = {
+  sourceCurrency: string;
+  targetCurrency: string;
+  rate: number;
+  effectiveFrom?: string;
+  expiryDate?: string | null;
+  adjustSdgPrices?: boolean;
+  sdgPriceAdjustmentPolicy?: SdgPriceAdjustmentPolicy;
+};
+
+export type UpdateExchangeRateResult = ExchangeRateItem & {
+  adjustedSdgProductsCount?: number;
+  priceChangePercent?: number;
+};
 
 interface UseCurrenciesAndSettingsDomainParams {
   settings: AppSettings;
   setSettings: React.Dispatch<React.SetStateAction<AppSettings>>;
   currencies: Currency[];
   setCurrencies: React.Dispatch<React.SetStateAction<Currency[]>>;
+  exchangeRates: Record<string, number>;
   setExchangeRates: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  exchangeRateItems: ExchangeRateItem[];
   setExchangeRateItems: React.Dispatch<React.SetStateAction<ExchangeRateItem[]>>;
   setExchangeRateHistory: React.Dispatch<React.SetStateAction<ExchangeRateHistoryEntry[]>>;
+  products: Product[];
+  setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
+  setCart: React.Dispatch<React.SetStateAction<CartItem[]>>;
   workspaceMode: WorkspaceMode;
   currentCompany: CompanyProfile;
   currentCompanyId: string;
@@ -41,14 +82,150 @@ export function useCurrenciesAndSettingsDomain({
   setSettings,
   currencies,
   setCurrencies,
+  exchangeRates,
   setExchangeRates,
+  exchangeRateItems,
   setExchangeRateItems,
   setExchangeRateHistory,
+  products,
+  setProducts,
+  setCart,
   workspaceMode,
   currentCompany,
   currentCompanyId,
   currentUser,
 }: UseCurrenciesAndSettingsDomainParams) {
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const currenciesRef = useRef(currencies);
+  currenciesRef.current = currencies;
+  const exchangeRatesRef = useRef(exchangeRates);
+  exchangeRatesRef.current = exchangeRates;
+  const exchangeRateItemsRef = useRef(exchangeRateItems);
+  exchangeRateItemsRef.current = exchangeRateItems;
+  const productsRef = useRef(products);
+  productsRef.current = products;
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
+
+  const syncRepricedProductsToApi = useCallback(
+    async (changedProducts: Product[]) => {
+      if (!changedProducts || changedProducts.length === 0) return;
+      if (workspaceMode === 'PRACTICE') return;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      let hasSessionToken = false;
+      try {
+        hasSessionToken =
+          typeof window !== 'undefined' &&
+          Boolean(window.localStorage?.getItem('dqnamo_pos_session_token_v1'));
+      } catch {}
+      if (!hasSessionToken && currentCompany.id === 'comp-clean-store') return;
+      try {
+        await api.batchUpdateProductPrices(
+          changedProducts.map((prod) => ({
+            id: prod.id,
+            costPrice: prod.costPrice,
+            sellingPrice: prod.sellingPrice,
+            packCostPrice: prod.packCostPrice,
+            packSellingPrice: prod.packSellingPrice,
+            previousCostPrice: prod.previousCostPrice,
+            previousSellingPrice: prod.previousSellingPrice,
+            priceUpdatedAt: prod.priceUpdatedAt,
+            priceHistory: prod.priceHistory,
+            modificationHistory: prod.modificationHistory,
+            customFields: prod.customFields,
+          })),
+          {
+            workspaceMode,
+            companyId: currentCompanyId,
+          }
+        );
+      } catch {
+        // Offline-first: local state and IndexedDB/SQLite remain authoritative when server is unreachable
+      }
+    },
+    [workspaceMode, currentCompany.id, currentCompanyId]
+  );
+
+  const applySdgProductRepricing = useCallback(
+    (params: {
+      foreignCode: string;
+      previousRate: number;
+      newRate: number;
+      explicitAdjustFlag?: boolean;
+      explicitPolicy?: SdgPriceAdjustmentPolicy;
+      timestampIso: string;
+    }): { affectedCount: number; priceChangePercent: number } => {
+      const activeSettings = settingsRef.current;
+      const shouldAdjust =
+        params.explicitAdjustFlag !== undefined
+          ? params.explicitAdjustFlag
+          : activeSettings.autoAdjustSdgPricesOnRateIncrease ?? true;
+
+      if (!shouldAdjust || !params.foreignCode || params.foreignCode === 'SDG') {
+        return { affectedCount: 0, priceChangePercent: 0 };
+      }
+
+      const user = currentUserRef.current;
+      const canEditPrices =
+        workspaceMode === 'PRACTICE' ||
+        user.id === 'unassigned-operator' ||
+        user.permissions?.canEditPrices !== false;
+      if (!canEditPrices) {
+        return { affectedCount: 0, priceChangePercent: 0 };
+      }
+
+      const policy: SdgPriceAdjustmentPolicy =
+        params.explicitPolicy ||
+        activeSettings.sdgPriceAdjustmentPolicy ||
+        'increase_only';
+      const actorName =
+        activeSettings.language === 'ar'
+          ? user.nameAr || user.name || 'مدير النظام'
+          : user.name || 'POS Operator';
+
+      const preview = repriceSdgProductsOnExchangeRateChange({
+        products: productsRef.current,
+        currencyCode: params.foreignCode,
+        previousRate: params.previousRate,
+        newRate: params.newRate,
+        policy,
+        changedBy: actorName,
+        nowIso: params.timestampIso,
+      });
+
+      if (preview.affectedCount > 0) {
+        setProducts((prev) =>
+          repriceSdgProductsOnExchangeRateChange({
+            products: prev,
+            currencyCode: params.foreignCode,
+            previousRate: params.previousRate,
+            newRate: params.newRate,
+            policy,
+            changedBy: actorName,
+            nowIso: params.timestampIso,
+          }).updatedProducts
+        );
+
+        const changedById = new Map(preview.changedProducts.map((p) => [p.id, p]));
+        setCart((prevCart) =>
+          prevCart.map((item) => {
+            const updatedProd = changedById.get(item.product.id);
+            return updatedProd ? { ...item, product: updatedProd } : item;
+          })
+        );
+
+        void syncRepricedProductsToApi(preview.changedProducts);
+      }
+
+      return {
+        affectedCount: preview.affectedCount,
+        priceChangePercent: preview.changePercent,
+      };
+    },
+    [setCart, setProducts, syncRepricedProductsToApi, workspaceMode]
+  );
+
   const updateSettings = useCallback(
     (updates: Partial<AppSettings>) => {
       setSettings((prev) => {
@@ -76,15 +253,7 @@ export function useCurrenciesAndSettingsDomain({
   );
 
   const saveCurrency = useCallback(
-    async (data: {
-      code: string;
-      name: string;
-      nameAr?: string;
-      symbol: string;
-      decimalPlaces?: number;
-      initialRateToBase?: number;
-      isBase?: boolean;
-    }): Promise<Currency> => {
+    async (data: SaveCurrencyInput): Promise<SaveCurrencyResult> => {
       const code = data.code.toUpperCase().trim();
       const name = data.name.trim() || code;
       const nameAr = data.nameAr?.trim() || name;
@@ -95,6 +264,21 @@ export function useCurrenciesAndSettingsDomain({
           ? Number(data.initialRateToBase)
           : undefined;
       const shouldBeBase = Boolean(data.isBase) || code === 'SDG';
+
+      const currentCurrencies = currenciesRef.current || [];
+      const currencyAlreadyExists = currentCurrencies.some(
+        (c) => c.code.toUpperCase() === code
+      );
+      const currentBase = currentCurrencies.find((c) => c.isBase);
+      const targetCode = currentBase?.code || 'SDG';
+      const existingRateRecord = exchangeRateItemsRef.current.find(
+        (i) =>
+          i.sourceCurrency.toUpperCase() === code &&
+          i.targetCurrency.toUpperCase() === targetCode
+      );
+      const previousForeignRate = Number(
+        exchangeRatesRef.current?.[code] || existingRateRecord?.rate || 0
+      );
 
       let savedCurrency: Currency = {
         code,
@@ -164,6 +348,9 @@ export function useCurrenciesAndSettingsDomain({
         return nextList;
       });
 
+      let adjustedSdgProductsCount = 0;
+      let priceChangePercent = 0;
+
       if (shouldBeBase) {
         setExchangeRates((prev) => {
           const nextMap = { ...prev, [code]: 1, SDG: prev.SDG || 1 };
@@ -176,11 +363,40 @@ export function useCurrenciesAndSettingsDomain({
           exchangeRates: { ...(prevSettings.exchangeRates || {}), [code]: 1, SDG: 1 },
         }));
       } else if (initialRate && initialRate > 0) {
-        const currentBase = currencies.find((c) => c.isBase);
-        const targetCode = currentBase?.code || 'SDG';
         const targetSymbol = currentBase?.symbol || 'ج.س';
         const targetName = currentBase?.name || 'Sudanese Pound';
         const nowIso = new Date().toISOString();
+
+        if (
+          currencyAlreadyExists &&
+          previousForeignRate > 0 &&
+          Math.abs(initialRate - previousForeignRate) > 0.0001
+        ) {
+          const pct =
+            Math.round(((initialRate - previousForeignRate) / previousForeignRate) * 1000) / 10;
+          setExchangeRateHistory((prevHist) => [
+            ...prevHist,
+            {
+              id: `hist-${code.toLowerCase()}-${Date.now()}`,
+              currency: code,
+              previousRate: previousForeignRate,
+              newRate: initialRate,
+              changePercent: pct,
+              timestamp: nowIso,
+            },
+          ]);
+          const repriced = applySdgProductRepricing({
+            foreignCode: code,
+            previousRate: previousForeignRate,
+            newRate: initialRate,
+            explicitAdjustFlag: data.adjustSdgPrices,
+            explicitPolicy: data.sdgPriceAdjustmentPolicy,
+            timestampIso: nowIso,
+          });
+          adjustedSdgProductsCount = repriced.affectedCount;
+          priceChangePercent = repriced.priceChangePercent;
+        }
+
         setExchangeRates((prev) => {
           const nextMap = { ...prev, [code]: initialRate, SDG: prev.SDG || 1 };
           savePersistedExchangeRates(nextMap);
@@ -224,15 +440,20 @@ export function useCurrenciesAndSettingsDomain({
         });
       }
 
-      return savedCurrency;
+      return {
+        ...savedCurrency,
+        adjustedSdgProductsCount,
+        priceChangePercent,
+      };
     },
     [
-      currencies,
+      applySdgProductRepricing,
       workspaceMode,
       currentCompany.id,
       currentUser.id,
       setCurrencies,
       setExchangeRates,
+      setExchangeRateHistory,
       setSettings,
       setExchangeRateItems,
     ]
@@ -376,17 +597,23 @@ export function useCurrenciesAndSettingsDomain({
   );
 
   const updateExchangeRate = useCallback(
-    async (data: {
-      sourceCurrency: string;
-      targetCurrency: string;
-      rate: number;
-      effectiveFrom?: string;
-      expiryDate?: string | null;
-    }): Promise<ExchangeRateItem> => {
+    async (data: UpdateExchangeRateInput): Promise<UpdateExchangeRateResult> => {
       const source = data.sourceCurrency.toUpperCase().trim();
       const target = data.targetCurrency.toUpperCase().trim();
       const rateNum = Number(data.rate);
       const effectiveIso = data.effectiveFrom || new Date().toISOString();
+
+      const foreignCodePre = target === 'SDG' ? source : source === 'SDG' ? target : null;
+      const existingRateItemPre = foreignCodePre
+        ? exchangeRateItemsRef.current.find(
+            (i) =>
+              i.sourceCurrency.toUpperCase() === foreignCodePre &&
+              i.targetCurrency.toUpperCase() === 'SDG'
+          )
+        : undefined;
+      const prevRateBeforeSave = foreignCodePre
+        ? Number(exchangeRatesRef.current?.[foreignCodePre] || existingRateItemPre?.rate || 0)
+        : 0;
 
       let savedRecord: ExchangeRateItem;
       try {
@@ -417,28 +644,48 @@ export function useCurrenciesAndSettingsDomain({
           ? 1 / savedRecord.rate
           : null;
 
+      let adjustedSdgProductsCount = 0;
+      let priceChangePercent = 0;
+
       if (computedRateToSdg && computedRateToSdg > 0) {
         const foreignCode = target === 'SDG' ? source : target;
+        const prevRate = prevRateBeforeSave > 0 ? prevRateBeforeSave : computedRateToSdg;
+
+        if (prevRateBeforeSave > 0 && Math.abs(computedRateToSdg - prevRateBeforeSave) > 0.0001) {
+          const pct =
+            Math.round(((computedRateToSdg - prevRateBeforeSave) / prevRateBeforeSave) * 1000) / 10;
+          setExchangeRateHistory((prevHist) => [
+            ...prevHist,
+            {
+              id: `hist-${foreignCode.toLowerCase()}-${Date.now()}`,
+              currency: foreignCode,
+              previousRate: prevRateBeforeSave,
+              newRate: computedRateToSdg,
+              changePercent: pct,
+              timestamp: effectiveIso,
+            },
+          ]);
+
+          const repriced = applySdgProductRepricing({
+            foreignCode,
+            previousRate: prevRateBeforeSave,
+            newRate: computedRateToSdg,
+            explicitAdjustFlag: data.adjustSdgPrices,
+            explicitPolicy: data.sdgPriceAdjustmentPolicy,
+            timestampIso: effectiveIso,
+          });
+          adjustedSdgProductsCount = repriced.affectedCount;
+          priceChangePercent = repriced.priceChangePercent || pct;
+        }
+
         setExchangeRates((prev) => {
-          const prevRate = Number(prev[foreignCode] || computedRateToSdg);
-          if (Math.abs(computedRateToSdg - prevRate) > 0.0001) {
-            const pct =
-              prevRate > 0
-                ? Math.round(((computedRateToSdg - prevRate) / prevRate) * 1000) / 10
-                : 0;
-            setExchangeRateHistory((prevHist) => [
-              ...prevHist,
-              {
-                id: `hist-${foreignCode.toLowerCase()}-${Date.now()}`,
-                currency: foreignCode,
-                previousRate: prevRate,
-                newRate: computedRateToSdg,
-                changePercent: pct,
-                timestamp: effectiveIso,
-              },
-            ]);
-          }
-          const nextMap = { ...prev, [foreignCode]: computedRateToSdg, SDG: 1 };
+          const prevFromMap = Number(prev[foreignCode] || prevRate || computedRateToSdg);
+          const nextMap = {
+            ...prev,
+            [foreignCode]: computedRateToSdg,
+            SDG: 1,
+          };
+          void prevFromMap;
           savePersistedExchangeRates(nextMap);
           return nextMap;
         });
@@ -470,9 +717,19 @@ export function useCurrenciesAndSettingsDomain({
         return nextItems;
       });
 
-      return savedRecord;
+      return {
+        ...savedRecord,
+        adjustedSdgProductsCount,
+        priceChangePercent,
+      };
     },
-    [setExchangeRates, setExchangeRateHistory, setSettings, setExchangeRateItems]
+    [
+      applySdgProductRepricing,
+      setExchangeRates,
+      setExchangeRateHistory,
+      setSettings,
+      setExchangeRateItems,
+    ]
   );
 
   return {

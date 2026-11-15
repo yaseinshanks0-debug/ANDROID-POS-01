@@ -151,17 +151,22 @@ export const ReportsView: React.FC = () => {
     const parsed = parseFloat(rateInputDraft);
     if (!Number.isFinite(parsed) || parsed <= 0) return;
 
-    await updateExchangeRate({
+    const saved = await updateExchangeRate({
       sourceCurrency: selectedRateChartCurrency,
       targetCurrency: 'SDG',
       rate: parsed,
     });
+    const adjustedCount = saved.adjustedSdgProductsCount || 0;
     setRateFeedback(
-      isAr
+      adjustedCount > 0
+        ? isAr
+          ? `تم تحديث سعر ${selectedRateChartCurrency} إلى ${parsed} ج.س وتعديل ${adjustedCount} منتج بالجنيه وجميع الشارتات`
+          : `Updated ${selectedRateChartCurrency} to ${parsed} SDG (${adjustedCount} SDG products updated) & refreshed charts`
+        : isAr
         ? `تم تحديث سعر ${selectedRateChartCurrency} إلى ${parsed} ج.س وتحديث جميع الشارتات`
         : `Updated ${selectedRateChartCurrency} to ${parsed} SDG & refreshed charts`
     );
-    setTimeout(() => setRateFeedback(null), 3000);
+    setTimeout(() => setRateFeedback(null), 3500);
   };
 
   // Helper to style performance badges

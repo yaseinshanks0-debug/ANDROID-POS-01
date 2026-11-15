@@ -10,6 +10,12 @@ import {
   ExchangeRateItem,
   ExchangeRateHistoryEntry,
 } from '../lib/types';
+import type {
+  SaveCurrencyInput,
+  SaveCurrencyResult,
+  UpdateExchangeRateInput,
+  UpdateExchangeRateResult,
+} from './domains/useCurrenciesAndSettingsDomain';
 
 export interface SettingsContextType {
   settings: AppSettings;
@@ -18,26 +24,12 @@ export interface SettingsContextType {
   exchangeRateItems: ExchangeRateItem[];
   exchangeRateHistory: ExchangeRateHistoryEntry[];
   updateSettings: (updates: Partial<AppSettings>) => void;
-  saveCurrency: (data: {
-    code: string;
-    name: string;
-    nameAr?: string;
-    symbol: string;
-    decimalPlaces?: number;
-    initialRateToBase?: number;
-    isBase?: boolean;
-  }) => Promise<Currency>;
+  saveCurrency: (data: SaveCurrencyInput) => Promise<SaveCurrencyResult>;
   removeCurrency: (code: string) => Promise<void>;
   clearAllCurrencies: () => void;
   setBaseCurrencyCode: (code: string) => void;
   syncCurrenciesState: (list: Currency[]) => void;
-  updateExchangeRate: (data: {
-    sourceCurrency: string;
-    targetCurrency: string;
-    rate: number;
-    effectiveFrom?: string;
-    expiryDate?: string | null;
-  }) => Promise<ExchangeRateItem>;
+  updateExchangeRate: (data: UpdateExchangeRateInput) => Promise<UpdateExchangeRateResult>;
   syncExchangeRatesState: (items: ExchangeRateItem[]) => void;
 }
 

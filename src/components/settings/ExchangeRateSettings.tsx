@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../../services/api';
-import { Currency, ExchangeRateItem } from '../../lib/types';
+import { Currency, ExchangeRateItem, SdgPriceAdjustmentPolicy } from '../../lib/types';
 import { AppCard } from '../ui/AppCard';
 import { AppBadge } from '../ui/AppBadge';
 import { AppModal } from '../ui/AppModal';
@@ -13,6 +13,7 @@ import { TactileButton } from '../ui/TactileButton';
 import { playTactileClick, playSuccessChime } from '../../lib/sound-fx';
 import { usePOS } from '../../context/POSContext';
 import { normalizeNumberInput, parseNormalizedNumber } from '../../lib/number-utils';
+import { previewSdgRepricingImpact } from '../../lib/exchange-rate-repricing';
 import {
   RateEditFormState,
   CURRENCY_TEMPLATES,
@@ -42,6 +43,7 @@ import {
   Trash2,
   Edit2,
   X,
+  TrendingUp,
 } from 'lucide-react';
 
 export interface ExchangeRateSettingsProps {
@@ -53,11 +55,13 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
 }) => {
   const {
     settings,
+    products,
     workspaceMode,
     currentCompany,
     currencies: contextCurrencies,
     exchangeRates: contextExchangeRates,
     exchangeRateItems: contextRateItems,
+    updateSettings,
     saveCurrency,
     removeCurrency,
     clearAllCurrencies,
@@ -68,6 +72,9 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
   } = usePOS();
   const activeCompanyId = currentCompany?.id || '';
   const isAr = settings.language === 'ar';
+  const autoAdjustSdgEnabled = settings.autoAdjustSdgPricesOnRateIncrease ?? true;
+  const sdgPricePolicy: SdgPriceAdjustmentPolicy =
+    settings.sdgPriceAdjustmentPolicy || 'increase_only';
 
   const onCurrenciesUpdatedRef = useRef(onCurrenciesUpdated);
   useEffect(() => {
@@ -203,6 +210,11 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
   const [newRateError, setNewRateError] = useState<string | null>(null);
   const [confirmDeleteRateId, setConfirmDeleteRateId] = useState<string | null>(null);
 
+  // Per-currency opt-in/out overrides for adjusting SDG product prices when saving a rate
+  const [adjustProductsOverrides, setAdjustProductsOverrides] = useState<Record<string, boolean>>({});
+  const [editCurrAdjustOverride, setEditCurrAdjustOverride] = useState<boolean | null>(null);
+  const [newRateAdjustOverride, setNewRateAdjustOverride] = useState<boolean | null>(null);
+
   // Synchronize currencies and exchange rates (100% offline-first; Production companies only show user-entered currencies/rates)
   const fetchData = useCallback(
     async (forceResetAll: boolean = false, forceOverwriteCurrencies: string[] = []) => {
@@ -334,6 +346,7 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
     setCurrInitialRate('');
     setCurrIsBase(false);
     setCurrencyError(null);
+    setEditCurrAdjustOverride(null);
     setCurrencyModalOpen(true);
   };
 
@@ -354,6 +367,7 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
         (activeRate ? activeRate.rate.toString() : persistedRate ? persistedRate.toString() : '')
     );
     setCurrencyError(null);
+    setEditCurrAdjustOverride(null);
     setCurrencyModalOpen(true);
   };
 
@@ -393,7 +407,36 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
     setCurrencyError(null);
 
     try {
-      playTactileClick(settings.soundEnabled);
+      const isEditingExistingForeign =
+        Boolean(editingCurrency) && !isSdgOrBase && parsedInitialRate > 0;
+      const previousExistingRate = isEditingExistingForeign
+        ? Number(
+            contextExchangeRates?.[cleanCode] ||
+              rates.find((r) => r.sourceCurrency.toUpperCase() === cleanCode)?.rate ||
+              0
+          )
+        : 0;
+      const editCurrPreview =
+        isEditingExistingForeign && previousExistingRate > 0
+          ? previewSdgRepricingImpact({
+              products,
+              currencyCode: cleanCode,
+              previousRate: previousExistingRate,
+              newRate: parsedInitialRate,
+              policy: sdgPricePolicy,
+            })
+          : null;
+      const shouldAdjustOnCurrencySave =
+        editCurrPreview && editCurrPreview.metrics.direction !== 'unchanged'
+          ? editCurrAdjustOverride !== null
+            ? editCurrAdjustOverride
+            : autoAdjustSdgEnabled && editCurrPreview.willAdjust
+          : false;
+      const effectiveCurrSavePolicy: SdgPriceAdjustmentPolicy =
+        shouldAdjustOnCurrencySave && editCurrPreview?.metrics.direction === 'decrease'
+          ? 'proportional'
+          : sdgPricePolicy;
+
       const savedCurr = await saveCurrency({
         code: cleanCode,
         name: resolved.name,
@@ -402,7 +445,10 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
         decimalPlaces: 2,
         isBase: isSdgOrBase,
         initialRateToBase: !isSdgOrBase ? parsedInitialRate : undefined,
+        adjustSdgPrices: shouldAdjustOnCurrencySave,
+        sdgPriceAdjustmentPolicy: effectiveCurrSavePolicy,
       });
+      setEditCurrAdjustOverride(null);
 
       // Immediately update local currencies list (and ensure SDG base currency is included when adding a foreign currency)
       setCurrencies((prev) => {
@@ -468,11 +514,20 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
 
       playSuccessChime(settings.soundEnabled);
       setCurrencyModalOpen(false);
+      const adjustedCount = savedCurr.adjustedSdgProductsCount || 0;
+      const pctText =
+        savedCurr.priceChangePercent && savedCurr.priceChangePercent > 0
+          ? `+${savedCurr.priceChangePercent}%`
+          : `${savedCurr.priceChangePercent || 0}%`;
       setSuccessBanner(
         isSdgOrBase
           ? isAr
             ? `تمت إضافة/حفظ العملة الأساسية (${cleanCode} - ${resolved.nameAr}) بنجاح!`
             : `Base currency (${cleanCode} - ${resolved.name}) saved successfully!`
+          : adjustedCount > 0
+          ? isAr
+            ? `تم حفظ العملة (${cleanCode}) بسعر ${parsedInitialRate} ج.س، وتعديل أسعار ${adjustedCount} منتج بالجنيه السوداني (${pctText})!`
+            : `Currency (${cleanCode}) saved at ${parsedInitialRate} SDG, and ${adjustedCount} SDG product prices adjusted (${pctText})!`
           : isAr
             ? `تمت إضافة/حفظ العملة (${cleanCode} - ${resolved.nameAr}) بسعر صرف ${parsedInitialRate} ج.س بنجاح!`
             : `Currency (${cleanCode} - ${resolved.name}) saved with rate ${parsedInitialRate} SDG!`
@@ -644,17 +699,49 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
           ? new Date().toISOString()
           : new Date(form.effectiveFrom).toISOString();
 
-      // Save via POSContext so LocalStorage and PostgreSQL are both updated immediately
+      const existingRateValue = Number(
+        existingRate?.rate || contextExchangeRates?.[sourceCurrency] || 0
+      );
+      const previewForSave =
+        targetCurrency.toUpperCase() === 'SDG' && existingRateValue > 0
+          ? previewSdgRepricingImpact({
+              products,
+              currencyCode: sourceCurrency,
+              previousRate: existingRateValue,
+              newRate: numRate,
+              policy: sdgPricePolicy,
+            })
+          : null;
+      const overrideFlag = adjustProductsOverrides[sourceCurrency];
+      const shouldAdjustProducts =
+        previewForSave && previewForSave.metrics.direction !== 'unchanged'
+          ? overrideFlag !== undefined
+            ? overrideFlag
+            : autoAdjustSdgEnabled && previewForSave.willAdjust
+          : false;
+      const effectivePolicy: SdgPriceAdjustmentPolicy =
+        shouldAdjustProducts && previewForSave?.metrics.direction === 'decrease'
+          ? 'proportional'
+          : sdgPricePolicy;
+
+      // Save via POSContext so LocalStorage, SDG product catalog, and PostgreSQL update immediately
       const saved = await updateExchangeRate({
         sourceCurrency,
         targetCurrency,
         rate: numRate,
         effectiveFrom: effectiveIso,
         expiryDate: form.expiryDate ? new Date(form.expiryDate).toISOString() : null,
+        adjustSdgPrices: shouldAdjustProducts,
+        sdgPriceAdjustmentPolicy: effectivePolicy,
       });
 
       playSuccessChime(settings.soundEnabled);
       dirtyRatesRef.current.delete(sourceCurrency);
+      setAdjustProductsOverrides((prev) => {
+        const next = { ...prev };
+        delete next[sourceCurrency];
+        return next;
+      });
 
       // Immediately update local rates list and form state with the saved record
       setRates((prev) =>
@@ -673,12 +760,21 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
         },
       }));
 
+      const adjustedCount = saved.adjustedSdgProductsCount || 0;
+      const pctText =
+        saved.priceChangePercent && saved.priceChangePercent > 0
+          ? `+${saved.priceChangePercent}%`
+          : `${saved.priceChangePercent || 0}%`;
       setSuccessBanner(
-        isAr
-          ? `تم تحديث سعر الصرف: 1 ${sourceCurrency} = ${saved.rate} ${targetCurrency} وحفظه في قاعدة البيانات والتخزين المحلي.`
-          : `Exchange rate updated and persisted: 1 ${sourceCurrency} = ${saved.rate} ${targetCurrency}.`
+        adjustedCount > 0
+          ? isAr
+            ? `تم تحديث سعر الصرف: 1 ${sourceCurrency} = ${saved.rate} ${targetCurrency}، وتم تعديل أسعار ${adjustedCount} منتج بالجنيه السوداني (${pctText}).`
+            : `Exchange rate updated: 1 ${sourceCurrency} = ${saved.rate} ${targetCurrency}. Adjusted ${adjustedCount} SDG product prices (${pctText}).`
+          : isAr
+            ? `تم تحديث سعر الصرف: 1 ${sourceCurrency} = ${saved.rate} ${targetCurrency} وحفظه في قاعدة البيانات والتخزين المحلي.`
+            : `Exchange rate updated and persisted: 1 ${sourceCurrency} = ${saved.rate} ${targetCurrency}.`
       );
-      setTimeout(() => setSuccessBanner(null), 4000);
+      setTimeout(() => setSuccessBanner(null), 5000);
     } catch (err: any) {
       console.error('Failed to save exchange rate:', err);
       setEditForms((prev) => ({
@@ -739,6 +835,46 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
 
     try {
       playTactileClick(settings.soundEnabled);
+      const foreignCode =
+        newTarget.toUpperCase() === 'SDG'
+          ? newSource.toUpperCase()
+          : newSource.toUpperCase() === 'SDG'
+          ? newTarget.toUpperCase()
+          : null;
+      const newRateInSdg =
+        newTarget.toUpperCase() === 'SDG'
+          ? num
+          : newSource.toUpperCase() === 'SDG' && num > 0
+          ? 1 / num
+          : 0;
+      const prevPairRate = foreignCode
+        ? Number(
+            contextExchangeRates?.[foreignCode] ||
+              rates.find((r) => r.sourceCurrency.toUpperCase() === foreignCode)?.rate ||
+              0
+          )
+        : 0;
+      const pairPreview =
+        foreignCode && prevPairRate > 0 && newRateInSdg > 0
+          ? previewSdgRepricingImpact({
+              products,
+              currencyCode: foreignCode,
+              previousRate: prevPairRate,
+              newRate: newRateInSdg,
+              policy: sdgPricePolicy,
+            })
+          : null;
+      const shouldAdjustPair =
+        pairPreview && pairPreview.metrics.direction !== 'unchanged'
+          ? newRateAdjustOverride !== null
+            ? newRateAdjustOverride
+            : autoAdjustSdgEnabled && pairPreview.willAdjust
+          : false;
+      const effectivePairPolicy: SdgPriceAdjustmentPolicy =
+        shouldAdjustPair && pairPreview?.metrics.direction === 'decrease'
+          ? 'proportional'
+          : sdgPricePolicy;
+
       const saved = await updateExchangeRate({
         sourceCurrency: newSource,
         targetCurrency: newTarget,
@@ -747,18 +883,30 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
           ? new Date(newEffectiveFrom).toISOString()
           : new Date().toISOString(),
         expiryDate: newExpiryDate ? new Date(newExpiryDate).toISOString() : null,
+        adjustSdgPrices: shouldAdjustPair,
+        sdgPriceAdjustmentPolicy: effectivePairPolicy,
       });
 
       playSuccessChime(settings.soundEnabled);
       setNewRateModalOpen(false);
       setNewRateValue('');
       setNewExpiryDate('');
+      setNewRateAdjustOverride(null);
+      const adjustedCount = saved.adjustedSdgProductsCount || 0;
+      const pctText =
+        saved.priceChangePercent && saved.priceChangePercent > 0
+          ? `+${saved.priceChangePercent}%`
+          : `${saved.priceChangePercent || 0}%`;
       setSuccessBanner(
-        isAr
-          ? `تم حفظ سعر الصرف لزوج ${newSource}/${newTarget}: 1 ${newSource} = ${saved.rate} ${newTarget}`
-          : `Successfully configured rate for ${newSource}/${newTarget}: 1 ${newSource} = ${saved.rate} ${newTarget}`
+        adjustedCount > 0
+          ? isAr
+            ? `تم حفظ سعر الصرف (${newSource}/${newTarget}: ${saved.rate}) وتعديل أسعار ${adjustedCount} منتج بالجنيه السوداني (${pctText}).`
+            : `Saved rate ${newSource}/${newTarget}: ${saved.rate}, and adjusted ${adjustedCount} SDG product prices (${pctText}).`
+          : isAr
+            ? `تم حفظ سعر الصرف لزوج ${newSource}/${newTarget}: 1 ${newSource} = ${saved.rate} ${newTarget}`
+            : `Successfully configured rate for ${newSource}/${newTarget}: 1 ${newSource} = ${saved.rate} ${newTarget}`
       );
-      setTimeout(() => setSuccessBanner(null), 4000);
+      setTimeout(() => setSuccessBanner(null), 5000);
       await fetchData(false, [newSource]);
     } catch (err: any) {
       setNewRateError(err.message || 'Failed to create exchange rate');
@@ -1088,6 +1236,69 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
                     </button>
                   ))}
                 </div>
+
+                {/* Live SDG product repricing preview when editing an existing foreign currency */}
+                {(() => {
+                  const cleanEditCode = currCode.trim().toUpperCase();
+                  const parsedEditRate = parseNormalizedNumber(currInitialRate, 0);
+                  const prevEditRate = editingCurrency
+                    ? Number(
+                        contextExchangeRates?.[cleanEditCode] ||
+                          rates.find((r) => r.sourceCurrency.toUpperCase() === cleanEditCode)?.rate ||
+                          0
+                      )
+                    : 0;
+                  if (!editingCurrency || prevEditRate <= 0 || parsedEditRate <= 0) return null;
+                  const modalPreview = previewSdgRepricingImpact({
+                    products,
+                    currencyCode: cleanEditCode,
+                    previousRate: prevEditRate,
+                    newRate: parsedEditRate,
+                    policy: sdgPricePolicy,
+                  });
+                  if (modalPreview.metrics.direction === 'unchanged') return null;
+                  const checked =
+                    editCurrAdjustOverride !== null
+                      ? editCurrAdjustOverride
+                      : autoAdjustSdgEnabled && modalPreview.willAdjust;
+                  return (
+                    <div className="mt-2 p-2.5 rounded-xl bg-neutral-950/80 border border-neutral-800 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="font-semibold text-neutral-200 flex items-center gap-1.5">
+                          <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>
+                            {isAr
+                              ? `أثر تعديل ${cleanEditCode} على أسعار المنتجات بالجنيه:`
+                              : `SDG Catalog Price Impact (${cleanEditCode}):`}
+                          </span>
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-md font-mono text-[11px] font-bold ${
+                            modalPreview.metrics.direction === 'increase'
+                              ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                              : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+                          }`}
+                        >
+                          {modalPreview.metrics.changePercent > 0 ? '↑ +' : '↓ '}
+                          {modalPreview.metrics.changePercent}%
+                        </span>
+                      </div>
+                      <label className="flex items-start gap-2 cursor-pointer text-[11px] text-neutral-300">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => setEditCurrAdjustOverride(e.target.checked)}
+                          className="mt-0.5 rounded border-neutral-700 text-amber-500 focus:ring-amber-500"
+                        />
+                        <span>
+                          {isAr
+                            ? `تعديل أسعار ${modalPreview.eligibleSdgProductCount} منتج مسعّر بالجنيه السوداني عند الحفظ (مثال: ${modalPreview.sample.oldSellingPrice.toLocaleString()} ← ${modalPreview.sample.newSellingPrice.toLocaleString()} ج.س)`
+                            : `Adjust ${modalPreview.eligibleSdgProductCount} SDG product prices on save (e.g. ${modalPreview.sample.oldSellingPrice.toLocaleString()} → ${modalPreview.sample.newSellingPrice.toLocaleString()} SDG)`}
+                        </span>
+                      </label>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -1274,6 +1485,88 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
         )}
       </div>
 
+      {/* Section 1.5: Automatic SDG Price Repricing Policy */}
+      <div
+        data-testid="sdg-repricing-policy-bar"
+        className="mt-4 p-3.5 rounded-2xl bg-neutral-950/70 border border-neutral-800 space-y-3"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-white block">
+                {isAr
+                  ? 'تعديل أسعار المنتجات بالجنيه السوداني تلقائياً مع سعر الصرف'
+                  : 'Auto-adjust SDG product prices when exchange rate increases'}
+              </span>
+              <span className="text-[11px] text-neutral-400 block">
+                {isAr
+                  ? 'عند زيادة سعر الدولار أو الريال أو أي عملة أجنبية، تزيد أسعار المنتجات المسعّرة بالجنيه السوداني تلقائياً بنفس نسبة الزيادة (المنتجات المسعّرة بعملة أجنبية تتحول تلقائياً دون مضاعفة).'
+                  : 'When USD, SAR, or any foreign rate rises, SDG-priced products scale up proportionally (foreign-priced items already convert live).'}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={autoAdjustSdgEnabled}
+            data-testid="toggle-auto-adjust-sdg-prices"
+            onClick={() => {
+              playTactileClick(settings.soundEnabled);
+              updateSettings({
+                autoAdjustSdgPricesOnRateIncrease: !autoAdjustSdgEnabled,
+              });
+            }}
+            className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors shrink-0 ${
+              autoAdjustSdgEnabled ? 'bg-emerald-500 justify-end' : 'bg-neutral-800 justify-start'
+            }`}
+          >
+            <div className="bg-white w-4 h-4 rounded-full shadow-md" />
+          </button>
+        </div>
+
+        {autoAdjustSdgEnabled && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-neutral-800/80">
+            <span className="text-[11px] font-semibold text-neutral-400">
+              {isAr ? 'نطاق التعديل التلقائي:' : 'Adjustment trigger:'}
+            </span>
+            <button
+              type="button"
+              data-testid="sdg-policy-increase-only"
+              onClick={() => {
+                playTactileClick(settings.soundEnabled);
+                updateSettings({ sdgPriceAdjustmentPolicy: 'increase_only' });
+              }}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
+                sdgPricePolicy === 'increase_only'
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-neutral-200'
+              }`}
+            >
+              {isAr ? 'عند زيادة سعر الصرف فقط (موصى به)' : 'On rate increase only (Recommended)'}
+            </button>
+            <button
+              type="button"
+              data-testid="sdg-policy-proportional"
+              onClick={() => {
+                playTactileClick(settings.soundEnabled);
+                updateSettings({ sdgPriceAdjustmentPolicy: 'proportional' });
+              }}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
+                sdgPricePolicy === 'proportional'
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-neutral-200'
+              }`}
+            >
+              {isAr ? 'عند الزيادة والنقصان (تناسبي)' : 'Both increase & decrease'}
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Section 2: Exchange Rates Grid / List */}
       {loading ? (
         <div className="py-8 flex items-center justify-center gap-2 text-xs text-neutral-400">
@@ -1306,6 +1599,24 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
             const inverse = parsedVal > 0 ? (1 / parsedVal).toFixed(6) : '—';
             const isModified = form.rate !== rateItem.rate.toString();
             const isUsd = rateItem.sourceCurrency === 'USD';
+            const ratePreview =
+              isModified &&
+              parsedVal > 0 &&
+              rateItem.targetCurrency.toUpperCase() === 'SDG'
+                ? previewSdgRepricingImpact({
+                    products,
+                    currencyCode: rateItem.sourceCurrency,
+                    previousRate: rateItem.rate,
+                    newRate: parsedVal,
+                    policy: sdgPricePolicy,
+                  })
+                : null;
+            const adjustCheckedForCard =
+              ratePreview && ratePreview.metrics.direction !== 'unchanged'
+                ? adjustProductsOverrides[rateItem.sourceCurrency] !== undefined
+                  ? adjustProductsOverrides[rateItem.sourceCurrency]
+                  : autoAdjustSdgEnabled && ratePreview.willAdjust
+                : false;
 
             return (
               <div
@@ -1338,7 +1649,7 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-mono text-neutral-400">
+                    <span dir="ltr" className="text-[11px] font-mono text-neutral-400">
                       1 {rateItem.targetCurrency} ≈ {inverse} {rateItem.sourceCurrency}
                     </span>
                     <button
@@ -1398,15 +1709,11 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
                         type="text"
                         inputMode="decimal"
                         dir="ltr"
+                        data-testid={`rate-input-${rateItem.sourceCurrency}`}
                         value={form.rate}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
-                            handleSaveRate(rateItem.sourceCurrency, rateItem.targetCurrency);
-                          }
-                        }}
-                        onBlur={() => {
-                          if (isModified && parsedVal > 0 && !form.isSaving) {
                             handleSaveRate(rateItem.sourceCurrency, rateItem.targetCurrency);
                           }
                         }}
@@ -1530,6 +1837,7 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
                     <TactileButton
                       variant={isModified ? 'amber' : 'secondary'}
                       size="sm"
+                      data-testid={`save-rate-btn-${rateItem.sourceCurrency}`}
                       onClick={() =>
                         handleSaveRate(rateItem.sourceCurrency, rateItem.targetCurrency)
                       }
@@ -1553,6 +1861,82 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
                     </TactileButton>
                   </div>
                 </div>
+
+                {/* Live SDG Product Price Adjustment Preview */}
+                {ratePreview && ratePreview.metrics.direction !== 'unchanged' && (
+                  <div
+                    data-testid={`rate-impact-preview-${rateItem.sourceCurrency}`}
+                    className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+                      ratePreview.metrics.direction === 'increase'
+                        ? 'bg-emerald-950/35 border-emerald-700/50 text-emerald-100'
+                        : 'bg-neutral-900/80 border-neutral-700 text-neutral-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <label className="flex items-center gap-2 cursor-pointer font-semibold">
+                        <input
+                          type="checkbox"
+                          data-testid={`adjust-sdg-checkbox-${rateItem.sourceCurrency}`}
+                          checked={adjustCheckedForCard}
+                          onChange={(e) =>
+                            setAdjustProductsOverrides((prev) => ({
+                              ...prev,
+                              [rateItem.sourceCurrency]: e.target.checked,
+                            }))
+                          }
+                          className="rounded border-neutral-600 text-emerald-500 focus:ring-emerald-500"
+                        />
+                        <span>
+                          {ratePreview.eligibleSdgProductCount > 0
+                            ? isAr
+                              ? `تعديل أسعار ${ratePreview.eligibleSdgProductCount} منتج بالجنيه السوداني عند الحفظ`
+                              : `Adjust ${ratePreview.eligibleSdgProductCount} SDG product prices on save`
+                            : isAr
+                            ? 'لا توجد منتجات مسعّرة بالجنيه السوداني لتعديلها حالياً'
+                            : 'No SDG-priced products in catalog to adjust'}
+                        </span>
+                      </label>
+
+                      <span
+                        className={`px-2 py-0.5 rounded-lg font-mono text-[11px] font-bold ${
+                          ratePreview.metrics.direction === 'increase'
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                        }`}
+                      >
+                        {ratePreview.metrics.changePercent > 0 ? '↑ +' : '↓ '}
+                        {ratePreview.metrics.changePercent}%
+                      </span>
+                    </div>
+
+                    {ratePreview.eligibleSdgProductCount > 0 && adjustCheckedForCard && (
+                      <div className="text-[11px] text-neutral-300 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono">
+                        <span>
+                          {isAr
+                            ? `مثال (${ratePreview.sample.productNameAr}): ${ratePreview.sample.oldSellingPrice.toLocaleString()} ← ${ratePreview.sample.newSellingPrice.toLocaleString()} ج.س`
+                            : `Sample (${ratePreview.sample.productName}): ${ratePreview.sample.oldSellingPrice.toLocaleString()} → ${ratePreview.sample.newSellingPrice.toLocaleString()} SDG`}
+                        </span>
+                        {ratePreview.foreignPricedProductCount > 0 && (
+                          <span className="text-neutral-400">
+                            {isAr
+                              ? `• (${ratePreview.foreignPricedProductCount} منتج بعملة أجنبية يتحدث تلقائياً دون مضاعفة)`
+                              : `• (${ratePreview.foreignPricedProductCount} foreign-priced items convert live without scaling)`}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {ratePreview.metrics.direction === 'decrease' &&
+                      sdgPricePolicy === 'increase_only' &&
+                      !adjustCheckedForCard && (
+                        <div className="text-[11px] text-neutral-400">
+                          {isAr
+                            ? 'سعر الصرف انخفض — سياسة "عند الزيادة فقط" مفعّلة لذا لن تنخفض أسعار المنتجات ما لم تحدد الخيار أعلاه.'
+                            : 'Rate decreased — "On increase only" policy is active so SDG prices will stay unchanged unless checked above.'}
+                        </div>
+                      )}
+                  </div>
+                )}
 
                 {/* Form-specific error */}
                 {form.error && (
@@ -1792,7 +2176,7 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
 
           {/* Live Preview Display */}
           {parsedNewRate > 0 && (
-            <div className="p-3 bg-neutral-950/80 border border-neutral-800 rounded-xl space-y-1">
+            <div className="p-3 bg-neutral-950/80 border border-neutral-800 rounded-xl space-y-2">
               <div className="text-xs text-neutral-300 font-medium flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                 <span>{isAr ? 'معاينة التحويل المباشر' : 'Conversion Preview'}</span>
@@ -1804,6 +2188,56 @@ export const ExchangeRateSettings: React.FC<ExchangeRateSettingsProps> = ({
                 </span>{' '}
                 {newTarget}
               </div>
+
+              {(() => {
+                const pairForeign =
+                  newTarget.toUpperCase() === 'SDG'
+                    ? newSource.toUpperCase()
+                    : newSource.toUpperCase() === 'SDG'
+                    ? newTarget.toUpperCase()
+                    : null;
+                const pairRateSdg =
+                  newTarget.toUpperCase() === 'SDG'
+                    ? parsedNewRate
+                    : newSource.toUpperCase() === 'SDG' && parsedNewRate > 0
+                    ? 1 / parsedNewRate
+                    : 0;
+                const prevPairRate = pairForeign
+                  ? Number(
+                      contextExchangeRates?.[pairForeign] ||
+                        rates.find((r) => r.sourceCurrency.toUpperCase() === pairForeign)?.rate ||
+                        0
+                    )
+                  : 0;
+                if (!pairForeign || prevPairRate <= 0 || pairRateSdg <= 0) return null;
+                const modalPairPreview = previewSdgRepricingImpact({
+                  products,
+                  currencyCode: pairForeign,
+                  previousRate: prevPairRate,
+                  newRate: pairRateSdg,
+                  policy: sdgPricePolicy,
+                });
+                if (modalPairPreview.metrics.direction === 'unchanged') return null;
+                const pairChecked =
+                  newRateAdjustOverride !== null
+                    ? newRateAdjustOverride
+                    : autoAdjustSdgEnabled && modalPairPreview.willAdjust;
+                return (
+                  <label className="flex items-start gap-2 pt-2 border-t border-neutral-800/80 cursor-pointer text-[11px] text-neutral-300">
+                    <input
+                      type="checkbox"
+                      checked={pairChecked}
+                      onChange={(e) => setNewRateAdjustOverride(e.target.checked)}
+                      className="mt-0.5 rounded border-neutral-700 text-emerald-500 focus:ring-emerald-500"
+                    />
+                    <span>
+                      {isAr
+                        ? `تعديل أسعار ${modalPairPreview.eligibleSdgProductCount} منتج بالجنيه السوداني تلقائياً (${modalPairPreview.metrics.changePercent > 0 ? '+' : ''}${modalPairPreview.metrics.changePercent}%)`
+                        : `Adjust ${modalPairPreview.eligibleSdgProductCount} SDG product prices automatically (${modalPairPreview.metrics.changePercent > 0 ? '+' : ''}${modalPairPreview.metrics.changePercent}%)`}
+                    </span>
+                  </label>
+                );
+              })()}
             </div>
           )}
 

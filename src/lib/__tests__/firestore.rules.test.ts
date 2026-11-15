@@ -10,11 +10,14 @@ import path from 'node:path';
 
 describe('Firestore Security Rules — Dirty Dozen & Eight Pillars Verification', () => {
   const rulesPath = path.resolve(process.cwd(), 'firestore.rules');
-  const rulesContent = fs.readFileSync(rulesPath, 'utf-8');
+  const rulesContent = fs.readFileSync(rulesPath, 'utf-8').replace(/\r\n/g, '\n');
 
   it('enforces rules_version = 2 and global default-deny safety net', () => {
     assert.ok(rulesContent.includes("rules_version = '2';"));
-    assert.ok(rulesContent.includes('match /{document=**} {\n      allow read, write: if false;\n    }'));
+    assert.match(
+      rulesContent,
+      /match\s+\/\{document=\*\*\}\s*\{\s*allow\s+read,\s*write:\s*if\s+false;\s*\}/
+    );
   });
 
   it('requires verified email on all user and workspace operations (blocks Email Spoofing)', () => {

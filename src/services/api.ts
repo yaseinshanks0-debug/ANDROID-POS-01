@@ -173,6 +173,29 @@ export const api = {
     return res.json();
   },
 
+  async batchUpdateProductPrices(
+    updates: Array<{ id: string } & Partial<Product>>,
+    context?: { workspaceMode?: string; companyId?: string }
+  ): Promise<{ updatedCount: number }> {
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return { updatedCount: 0 };
+    }
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (context?.workspaceMode) headers['x-workspace-mode'] = context.workspaceMode;
+    if (context?.companyId) headers['x-company-id'] = context.companyId;
+    const res = await fetchWithTimeout('/api/products/batch-prices', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ updates, workspaceMode: context?.workspaceMode }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Failed to batch update product prices: ${res.statusText}`);
+    }
+    invalidateApiCache('/api/products');
+    return res.json();
+  },
+
   async deleteProduct(id: string): Promise<void> {
     const res = await fetchWithTimeout(`/api/products/${id}`, {
       method: 'DELETE',

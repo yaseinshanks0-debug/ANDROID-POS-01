@@ -146,18 +146,23 @@ export const SalesView: React.FC = () => {
     if (!Number.isFinite(parsed) || parsed <= 0) return;
 
     setAnchorCurrency(rateEditCurrency);
-    await updateExchangeRate({
+    const saved = await updateExchangeRate({
       sourceCurrency: rateEditCurrency,
       targetCurrency: 'SDG',
       rate: parsed,
     });
 
+    const adjustedCount = saved.adjustedSdgProductsCount || 0;
     setRateSaveFeedback(
-      isAr
+      adjustedCount > 0
+        ? isAr
+          ? `تم تحديث سعر الصرف: 1 ${rateEditCurrency} = ${parsed} ج.س وتعديل ${adjustedCount} منتج بالجنيه`
+          : `Updated rate: 1 ${rateEditCurrency} = ${parsed} SDG (${adjustedCount} SDG products updated)`
+        : isAr
         ? `تم تحديث سعر الصرف: 1 ${rateEditCurrency} = ${parsed} ج.س`
         : `Updated rate: 1 ${rateEditCurrency} = ${parsed} SDG`
     );
-    setTimeout(() => setRateSaveFeedback(null), 3000);
+    setTimeout(() => setRateSaveFeedback(null), 3500);
   };
 
   const filteredTransactions = useMemo(() => {

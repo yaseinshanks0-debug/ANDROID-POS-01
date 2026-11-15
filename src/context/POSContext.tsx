@@ -103,7 +103,13 @@ import { ProductContext, ProductContextType, useProductContext } from './Product
 import { CartContext, CartContextType, useCartContext } from './CartContext';
 import { ExpenseContext, ExpenseContextType, useExpenseContext } from './ExpenseContext';
 
-import { useCurrenciesAndSettingsDomain } from './domains/useCurrenciesAndSettingsDomain';
+import {
+  useCurrenciesAndSettingsDomain,
+  type SaveCurrencyInput,
+  type SaveCurrencyResult,
+  type UpdateExchangeRateInput,
+  type UpdateExchangeRateResult,
+} from './domains/useCurrenciesAndSettingsDomain';
 import { useUserAccountsDomain } from './domains/useUserAccountsDomain';
 import { useTrainingAndDemandDomain } from './domains/useTrainingAndDemandDomain';
 import { useBackupHydrationDomain } from './domains/useBackupHydrationDomain';
@@ -285,26 +291,12 @@ export interface POSContextType {
 
   // Settings, Currencies, Exchange Rates & Sync
   updateSettings: (updates: Partial<AppSettings>) => void;
-  saveCurrency: (data: {
-    code: string;
-    name: string;
-    nameAr?: string;
-    symbol: string;
-    decimalPlaces?: number;
-    initialRateToBase?: number;
-    isBase?: boolean;
-  }) => Promise<Currency>;
+  saveCurrency: (data: SaveCurrencyInput) => Promise<SaveCurrencyResult>;
   removeCurrency: (code: string) => Promise<void>;
   clearAllCurrencies: () => void;
   setBaseCurrencyCode: (code: string) => void;
   syncCurrenciesState: (list: Currency[]) => void;
-  updateExchangeRate: (data: {
-    sourceCurrency: string;
-    targetCurrency: string;
-    rate: number;
-    effectiveFrom?: string;
-    expiryDate?: string | null;
-  }) => Promise<ExchangeRateItem>;
+  updateExchangeRate: (data: UpdateExchangeRateInput) => Promise<UpdateExchangeRateResult>;
   syncExchangeRatesState: (items: ExchangeRateItem[]) => void;
   resetAllData: () => void;
   executeAuthorizedFactoryReset: (params: {
@@ -1193,9 +1185,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSettings,
     currencies,
     setCurrencies,
+    exchangeRates,
     setExchangeRates,
+    exchangeRateItems,
     setExchangeRateItems,
     setExchangeRateHistory,
+    products,
+    setProducts,
+    setCart,
     workspaceMode,
     currentCompany,
     currentCompanyId,

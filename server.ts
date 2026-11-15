@@ -542,6 +542,60 @@ app.put(
   }
 );
 
+app.post(
+  '/api/products/batch-prices',
+  requireServerCapability('products.edit', { allowInternalDefaultIfNoHeader: true }),
+  async (req: Request, res: Response) => {
+    try {
+      const updates = Array.isArray(req.body?.updates) ? req.body.updates : [];
+      if (updates.length === 0) {
+        return res.json({ updatedCount: 0 });
+      }
+
+      if (isPracticeModeRequest(req)) {
+        const practice = readPracticeSandboxState();
+        const updatesById = new Map<string, any>();
+        for (const item of updates) {
+          if (item && typeof item.id === 'string') {
+            updatesById.set(item.id, item);
+          }
+        }
+        let updatedCount = 0;
+        const nextProducts = (practice.products || []).map((p: any) => {
+          const patch = updatesById.get(p.id);
+          if (!patch) return p;
+          updatedCount += 1;
+          return { ...p, ...patch };
+        });
+        if (updatedCount > 0) {
+          writePracticeSandboxState({
+            ...practice,
+            products: nextProducts,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        return res.json({ updatedCount, practiceModeIsolated: true });
+      }
+
+      let updatedCount = 0;
+      for (const item of updates) {
+        if (!item || typeof item.id !== 'string' || !item.id.trim()) continue;
+        const { id, ...fields } = item;
+        try {
+          await updateProduct(id, fields);
+          updatedCount += 1;
+        } catch {
+          // Skip client-only products that have not been pushed to PostgreSQL yet
+        }
+      }
+      res.json({ updatedCount });
+    } catch (error: any) {
+      console.error('Failed to batch update product prices:', error);
+      res.status(400).json({ error: error.message || 'Failed to batch update product prices' });
+    }
+  }
+);
+
 app.delete(
   '/api/products/:id',
   requireServerCapability('products.delete', { allowInternalDefaultIfNoHeader: true }),
