@@ -30,6 +30,7 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { buildSafeCloudSnapshotPayload } from './cloud-snapshot-utils';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -235,18 +236,15 @@ export async function pushWorkspaceToFirestoreCloud(params: {
   );
   const customersCount = Math.min(100000, Math.max(0, (params.payload.customers || []).length));
 
-  // Clean undefined values so Firestore maps never reject undefined properties
-  const cleanSnapshotPayload = JSON.parse(
-    JSON.stringify({
-      products: (params.payload.products || []).slice(0, 500),
-      transactions: (params.payload.transactions || []).slice(0, 500),
-      customers: (params.payload.customers || []).slice(0, 500),
-      stockMovements: (params.payload.stockMovements || []).slice(0, 500),
-      currencies: (params.payload.currencies || []).slice(0, 50),
-      settings: params.payload.settings || {},
-      pushedAtIso: new Date().toISOString(),
-    })
-  );
+  // Sort newest-first, remove undefined fields, and strip oversized inline base64 media if approaching Firestore's 1 MiB limit
+  const cleanSnapshotPayload = buildSafeCloudSnapshotPayload({
+    products: params.payload.products,
+    transactions: params.payload.transactions,
+    customers: params.payload.customers,
+    stockMovements: params.payload.stockMovements,
+    currencies: params.payload.currencies,
+    settings: params.payload.settings,
+  });
 
   let existsWs = false;
   try {

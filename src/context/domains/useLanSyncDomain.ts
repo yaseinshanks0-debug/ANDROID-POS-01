@@ -506,9 +506,37 @@ export function useLanSyncDomain({
       return;
     }
 
-    setLanConnectionStatus('connecting');
+    setLanConnectionStatus((prev) => (prev === 'connecting' ? prev : 'connecting'));
     let eventSource: EventSource | null = null;
     let isDisposed = false;
+    let isSseOpen = false;
+    let lastDevicesSig = '';
+    let lastEventsSig = '';
+    let lastAddressesSig = '';
+    let lastPrimaryUrl = '';
+
+    const applyDevicesIfChanged = (devices: any[]) => {
+      const sig = devices
+        .map((d) => `${d?.deviceId || ''}:${d?.lastSeenAt || ''}:${d?.ipAddress || ''}`)
+        .join('|');
+      if (sig === lastDevicesSig) return;
+      lastDevicesSig = sig;
+      setLanConnectedDevices(devices);
+    };
+
+    const applyEventsIfChanged = (events: any[]) => {
+      const sig = events.map((e) => `${e?.id || ''}:${e?.revision || ''}`).join('|');
+      if (sig === lastEventsSig) return;
+      lastEventsSig = sig;
+      setLanRecentEvents(events);
+    };
+
+    const applyAddressesIfChanged = (addresses: any[]) => {
+      const sig = addresses.map((a) => `${a?.url || ''}:${a?.interfaceName || ''}`).join('|');
+      if (sig === lastAddressesSig) return;
+      lastAddressesSig = sig;
+      setLanNetworkAddresses(addresses);
+    };
 
     const streamParams = new URLSearchParams({
       companyId: currentCompany.id,
@@ -522,35 +550,41 @@ export function useLanSyncDomain({
 
       eventSource.onopen = () => {
         if (isDisposed) return;
-        setLanConnectionStatus('connected');
-        setLanLastSyncError(null);
+        isSseOpen = true;
+        setLanConnectionStatus((prev) => (prev === 'connected' ? prev : 'connected'));
+        setLanLastSyncError((prev) => (prev === null ? prev : null));
       };
 
       eventSource.onmessage = (ev) => {
         if (isDisposed || !ev.data) return;
         try {
           const payload = JSON.parse(ev.data);
-          setLanConnectionStatus('connected');
-          setLanLastSyncError(null);
+          isSseOpen = true;
+          setLanConnectionStatus((prev) => (prev === 'connected' ? prev : 'connected'));
+          setLanLastSyncError((prev) => (prev === null ? prev : null));
 
           if (payload.type === 'init' || payload.type === 'sync_update') {
             if (payload.state) {
               applyIncomingLanSyncState(payload.state, payload.sourceDeviceId);
             }
             if (Array.isArray(payload.connectedDevices)) {
-              setLanConnectedDevices(payload.connectedDevices);
+              applyDevicesIfChanged(payload.connectedDevices);
             }
             if (Array.isArray(payload.recentEvents)) {
-              setLanRecentEvents(payload.recentEvents);
+              applyEventsIfChanged(payload.recentEvents);
             } else if (payload.event) {
-              setLanRecentEvents((prev) => [
-                payload.event,
-                ...prev.filter((e) => e.id !== payload.event.id).slice(0, 29),
-              ]);
+              setLanRecentEvents((prev) => {
+                const next = [
+                  payload.event,
+                  ...prev.filter((e) => e.id !== payload.event.id).slice(0, 29),
+                ];
+                lastEventsSig = next.map((e) => `${e?.id || ''}:${e?.revision || ''}`).join('|');
+                return next;
+              });
             }
           } else if (payload.type === 'presence') {
             if (Array.isArray(payload.connectedDevices)) {
-              setLanConnectedDevices(payload.connectedDevices);
+              applyDevicesIfChanged(payload.connectedDevices);
             }
           }
         } catch {}
@@ -558,11 +592,18 @@ export function useLanSyncDomain({
 
       eventSource.onerror = () => {
         if (isDisposed) return;
+        isSseOpen = false;
       };
     } catch {}
 
+    let tickCount = 0;
     const fetchLanInfoAndState = async () => {
       if (isDisposed) return;
+      tickCount += 1;
+      // When SSE is healthy, only run a light fallback poll every 3rd tick (12s) instead of every 4s
+      if (isSseOpen && tickCount > 1 && tickCount % 3 !== 0) {
+        return;
+      }
       try {
         const [infoRes, stateRes] = await Promise.all([
           fetch(`${baseUrl}/api/lan-sync/info?companyId=${encodeURIComponent(currentCompany.id)}`),
@@ -580,36 +621,39 @@ export function useLanSyncDomain({
         if (infoRes.ok) {
           const infoData = await infoRes.json();
           if (Array.isArray(infoData?.addresses)) {
-            setLanNetworkAddresses(infoData.addresses);
+            applyAddressesIfChanged(infoData.addresses);
           }
-          if (infoData?.primaryUrl) {
+          if (infoData?.primaryUrl && infoData.primaryUrl !== lastPrimaryUrl) {
+            lastPrimaryUrl = infoData.primaryUrl;
             setLanPrimaryHostUrl(infoData.primaryUrl);
           }
           if (Array.isArray(infoData?.connectedDevices)) {
-            setLanConnectedDevices(infoData.connectedDevices);
+            applyDevicesIfChanged(infoData.connectedDevices);
           }
           if (Array.isArray(infoData?.recentEvents)) {
-            setLanRecentEvents(infoData.recentEvents);
+            applyEventsIfChanged(infoData.recentEvents);
           }
         }
 
         if (stateRes.ok) {
           const stateData = await stateRes.json();
-          setLanConnectionStatus('connected');
-          setLanLastSyncError(null);
+          setLanConnectionStatus((prev) => (prev === 'connected' ? prev : 'connected'));
+          setLanLastSyncError((prev) => (prev === null ? prev : null));
           if (stateData?.hasUpdates && stateData?.state) {
             applyIncomingLanSyncState(stateData.state);
           }
           if (Array.isArray(stateData?.connectedDevices)) {
-            setLanConnectedDevices(stateData.connectedDevices);
+            applyDevicesIfChanged(stateData.connectedDevices);
           }
         } else {
-          setLanConnectionStatus('disconnected');
+          setLanConnectionStatus((prev) => (prev === 'disconnected' ? prev : 'disconnected'));
         }
       } catch (err: any) {
         if (!isDisposed) {
-          setLanConnectionStatus('disconnected');
-          setLanLastSyncError(err?.message || 'Unable to reach Wi-Fi LAN Host');
+          isSseOpen = false;
+          setLanConnectionStatus((prev) => (prev === 'disconnected' ? prev : 'disconnected'));
+          const msg = err?.message || 'Unable to reach Wi-Fi LAN Host';
+          setLanLastSyncError((prev) => (prev === msg ? prev : msg));
         }
       }
     };
@@ -703,10 +747,8 @@ export function useLanSyncDomain({
     unmetDemandRequests,
     currencies,
     exchangeRates,
-    exchangeRateItems,
     branches,
     users,
-    settings,
     lanSyncConfig.enabled,
     lanSyncConfig.autoSyncOnEveryAction,
     pushLiveLanSyncNow,

@@ -39,6 +39,18 @@ export const InventoryView: React.FC = () => {
   const [movementType, setMovementType] = useState<StockMovementType>('restock');
   const [amountInput, setAmountInput] = useState('10');
   const [reasonInput, setReasonInput] = useState('');
+  const [visibleProductCount, setVisibleProductCount] = useState<number>(48);
+  const [visibleMovementCount, setVisibleMovementCount] = useState<number>(50);
+
+  const visibleProducts = useMemo(
+    () => products.slice(0, visibleProductCount),
+    [products, visibleProductCount]
+  );
+
+  const visibleMovements = useMemo(
+    () => stockMovements.slice(0, visibleMovementCount),
+    [stockMovements, visibleMovementCount]
+  );
 
   // Valuation computations converted into active store currency
   const valuation = useMemo(() => {
@@ -172,7 +184,7 @@ export const InventoryView: React.FC = () => {
         </div>
 
         <div className="divide-y divide-neutral-800/80 mt-1">
-          {products.map((p) => {
+          {visibleProducts.map((p) => {
             const isLow = p.stock <= p.minStockAlert;
             const isOut = p.stock <= 0;
             const productImg = p.image || p.imageUrl || p.customFields?.image;
@@ -256,6 +268,19 @@ export const InventoryView: React.FC = () => {
             );
           })}
         </div>
+        {products.length > visibleProductCount && (
+          <div className="flex justify-center pt-3">
+            <button
+              type="button"
+              onClick={() => setVisibleProductCount((prev) => prev + 48)}
+              className="px-4 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-xs font-bold text-amber-400 transition-colors"
+            >
+              {isAr
+                ? `عرض المزيد (${products.length - visibleProductCount} متبقية)`
+                : `Show More (${products.length - visibleProductCount} remaining)`}
+            </button>
+          </div>
+        )}
       </AppCard>
 
       {/* Stock Movements Journal */}
@@ -272,7 +297,7 @@ export const InventoryView: React.FC = () => {
         </div>
 
         <div className="divide-y divide-neutral-800/80 mt-1 max-h-80 overflow-y-auto pr-1">
-          {stockMovements.map((mov) => {
+          {visibleMovements.map((mov) => {
             const isPositive = mov.quantityChange >= 0;
             return (
               <div key={mov.id} className="py-2.5 flex items-center justify-between gap-3 text-xs">
@@ -349,6 +374,19 @@ export const InventoryView: React.FC = () => {
             );
           })}
         </div>
+        {stockMovements.length > visibleMovementCount && (
+          <div className="flex justify-center pt-3">
+            <button
+              type="button"
+              onClick={() => setVisibleMovementCount((prev) => prev + 50)}
+              className="px-4 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-xs font-bold text-amber-400 transition-colors"
+            >
+              {isAr
+                ? `عرض المزيد (${stockMovements.length - visibleMovementCount} حركة متبقية)`
+                : `Show More (${stockMovements.length - visibleMovementCount} remaining)`}
+            </button>
+          </div>
+        )}
       </AppCard>
 
       {/* Goods Receipt / Supplier Purchase Invoice Modal */}

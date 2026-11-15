@@ -26,7 +26,9 @@ import {
   getProductSerialNumber,
   formatProductSerialNumber,
   getNextProductSerialNumber,
-  matchesProductSearchQuery,
+  buildProductSearchIndexMap,
+  tokenizeProductSearchQuery,
+  matchesProductSearchIndexEntry,
   normalizeCategorySearchText,
   mergeAndDeduplicateCategories,
   filterCategoriesByQuery,
@@ -119,6 +121,7 @@ export const ProductsView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 120);
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [visibleCount, setVisibleCount] = useState<number>(48);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -314,13 +317,37 @@ export const ProductsView: React.FC = () => {
     setIsCategoryDropdownOpen(false);
   };
 
+  const productIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    products.forEach((p, idx) => map.set(p.id, idx));
+    return map;
+  }, [products]);
+
+  const searchIndexMap = useMemo(() => buildProductSearchIndexMap(products), [products]);
+
   const filteredProducts = useMemo(() => {
-    return products.filter((p, idx) => {
-      const matchesSearch = matchesProductSearchQuery(p, debouncedSearchQuery, idx);
-      const matchesCat = categoryFilter === 'all' || p.category === categoryFilter;
-      return matchesSearch && matchesCat;
+    const tokens = tokenizeProductSearchQuery(debouncedSearchQuery);
+    if (tokens.length === 0 && categoryFilter === 'all') {
+      return products;
+    }
+    return products.filter((p) => {
+      if (categoryFilter !== 'all' && p.category !== categoryFilter) {
+        return false;
+      }
+      if (tokens.length === 0) return true;
+      const entry = searchIndexMap.get(p.id);
+      return entry ? matchesProductSearchIndexEntry(entry, tokens) : true;
     });
-  }, [products, debouncedSearchQuery, categoryFilter]);
+  }, [products, searchIndexMap, debouncedSearchQuery, categoryFilter]);
+
+  useEffect(() => {
+    setVisibleCount(48);
+  }, [debouncedSearchQuery, categoryFilter]);
+
+  const visibleProducts = useMemo(
+    () => filteredProducts.slice(0, visibleCount),
+    [filteredProducts, visibleCount]
+  );
 
   // Combined deduplicated barcodes in modal
   const allModalBarcodes = useMemo(() => {
@@ -1260,9 +1287,9 @@ export const ProductsView: React.FC = () => {
         </select>
       </div>
 
-      {/* Products Grid */}
+      {/* Products Grid (paginated for large catalogs) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {filteredProducts.map((p, idx) => {
+        {visibleProducts.map((p, idx) => {
           const isLow = p.stock <= p.minStockAlert;
           const isOut = p.stock <= 0;
           const allCodes = getAllProductBarcodes(p);
@@ -1273,7 +1300,7 @@ export const ProductsView: React.FC = () => {
           const unitLabel = isAr ? pkg.unitNameAr : pkg.unitName;
           const packLabel = isAr ? pkg.packNameAr : pkg.packName;
           const productImg = p.image || p.imageUrl || p.customFields?.image;
-          const serialNum = getProductSerialNumber(p, idx);
+          const serialNum = getProductSerialNumber(p, productIndexMap.get(p.id) ?? idx);
           const serialBadge = formatProductSerialNumber(serialNum);
           const prodDesc =
             isAr
@@ -1557,6 +1584,20 @@ export const ProductsView: React.FC = () => {
           );
         })}
       </div>
+
+      {filteredProducts.length > visibleCount && (
+        <div className="flex justify-center pt-2">
+          <button
+            type="button"
+            onClick={() => setVisibleCount((prev) => prev + 48)}
+            className="px-4 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-xs font-bold text-amber-400 transition-colors"
+          >
+            {isAr
+              ? `عرض المزيد (${filteredProducts.length - visibleCount} متبقية)`
+              : `Load More (${filteredProducts.length - visibleCount} remaining)`}
+          </button>
+        </div>
+      )}
 
       {/* Product Edit/Create Modal */}
       <AppModal

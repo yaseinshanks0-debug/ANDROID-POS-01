@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AppModal } from '../ui/AppModal';
 import { DynamicButton, DynamicButtonStatus } from '../ui/DynamicButton';
 import { TactileButton } from '../ui/TactileButton';
@@ -152,35 +152,41 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
 
   // Reset modal state on open
   useEffect(() => {
-    if (isOpen) {
-      setTenderCurrency(settings.currency);
-      setTenderedInput(formatAmountForInput(cartTotals.grandTotal));
-      setPaymentStatus('paid');
-      setFulfillmentType('goods_and_invoice');
-      setTransferReference('');
-      setTransferReceiptImage('');
-      setButtonStatus('ready');
-      setErrorMessage(null);
+    if (!isOpen) return;
+    let isCancelled = false;
 
-      Promise.all([api.getCurrencies(), api.getExchangeRates(true)])
-        .then(([currData, rates]) => {
-          if (currData.currencies && currData.currencies.length > 0) {
-            setAvailableCurrencies(currData.currencies.map((c) => c.code));
+    setTenderCurrency(settings.currency);
+    setTenderedInput(formatAmountForInput(cartTotals.grandTotal));
+    setPaymentStatus('paid');
+    setFulfillmentType('goods_and_invoice');
+    setTransferReference('');
+    setTransferReceiptImage('');
+    setButtonStatus('ready');
+    setErrorMessage(null);
+
+    Promise.all([api.getCurrencies(), api.getExchangeRates(true)])
+      .then(([currData, rates]) => {
+        if (isCancelled) return;
+        if (currData.currencies && currData.currencies.length > 0) {
+          setAvailableCurrencies(currData.currencies.map((c) => c.code));
+        }
+        const map: Record<string, number> = { SDG: 1 };
+        for (const r of rates) {
+          if (r.targetCurrency === 'SDG') {
+            map[r.sourceCurrency] = r.rate;
+          } else if (r.sourceCurrency === 'SDG' && r.rate > 0) {
+            map[r.targetCurrency] = 1 / r.rate;
           }
-          const map: Record<string, number> = { SDG: 1 };
-          for (const r of rates) {
-            if (r.targetCurrency === 'SDG') {
-              map[r.sourceCurrency] = r.rate;
-            } else if (r.sourceCurrency === 'SDG' && r.rate > 0) {
-              map[r.targetCurrency] = 1 / r.rate;
-            }
-          }
-          setExchangeRatesMap((prev) => ({ ...prev, ...map }));
-        })
-        .catch(() => {
-          // Keep defaults if network fails
-        });
-    }
+        }
+        setExchangeRatesMap((prev) => ({ ...prev, ...map }));
+      })
+      .catch(() => {
+        // Keep defaults if network fails
+      });
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isOpen, cartTotals.grandTotal, settings.currency]);
 
   // Converted total in selected tender currency
@@ -253,8 +259,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
     paymentMethod === 'cash' &&
     tenderedInBaseCurrency < cartTotals.grandTotal - 0.01;
 
-  // Generate dynamic cash presets based on currency
-  const getCashPresets = () => {
+  // Generate dynamic cash presets based on currency (memoized to avoid recalculating on input keystrokes)
+  const cashPresets = useMemo(() => {
     const exact = { label: t.exactAmount, value: totalInTenderCurrency };
     const needed = totalInTenderCurrency;
 
@@ -289,9 +295,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
     }
 
     return [exact];
-  };
-
-  const cashPresets = getCashPresets();
+  }, [tenderCurrency, totalInTenderCurrency, t.exactAmount]);
 
   const handleCashPreset = (val: number) => {
     playTactileClick(settings.soundEnabled);

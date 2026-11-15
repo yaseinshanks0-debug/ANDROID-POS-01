@@ -1,5 +1,1508 @@
 [
   {
+    "name": "Persistent Pastry 1794736240179",
+    "sku": "SKU-PERSIST-1794736240179",
+    "barcode": "444736240179",
+    "category": "Bakery",
+    "costPrice": 1.2,
+    "sellingPrice": 3.5,
+    "stock": 30,
+    "minStockAlert": 5,
+    "id": "prod-1794736240227-4ouw",
+    "serialNumber": 145,
+    "description": null,
+    "descriptionAr": null,
+    "expiryDate": null,
+    "barcodes": [
+      "444736240179"
+    ],
+    "priceCurrency": "SDG",
+    "priceUpdatedAt": "2026-11-15T09:50:40.227Z",
+    "priceHistory": [
+      {
+        "id": "ph_1794736240227_cmuq",
+        "timestamp": "2026-11-15T09:50:40.227Z",
+        "previousCostPrice": 1.2,
+        "newCostPrice": 1.2,
+        "previousSellingPrice": 3.5,
+        "newSellingPrice": 3.5,
+        "currency": "SDG",
+        "changedBy": "Main Terminal",
+        "note": "Initial price / السعر الابتدائي"
+      }
+    ],
+    "modificationHistory": [
+      {
+        "id": "mod_1794736240227_klnq",
+        "timestamp": "2026-11-15T09:50:40.227Z",
+        "action": "created",
+        "summaryEn": "Product created with selling price 3.5 SDG",
+        "summaryAr": "تمت إضافة المنتج بسعر بيع 3.5 SDG",
+        "changedFields": [
+          "created"
+        ],
+        "changedBy": "Main Terminal"
+      }
+    ],
+    "imageUrl": null,
+    "customFields": {
+      "serialNumber": 145,
+      "description": null,
+      "descriptionAr": null,
+      "expiryDate": null,
+      "barcodes": [
+        "444736240179"
+      ],
+      "priceCurrency": "SDG",
+      "createdAt": "2026-11-15T09:50:40.227Z",
+      "priceUpdatedAt": "2026-11-15T09:50:40.227Z",
+      "priceHistory": [
+        {
+          "id": "ph_1794736240227_cmuq",
+          "timestamp": "2026-11-15T09:50:40.227Z",
+          "previousCostPrice": 1.2,
+          "newCostPrice": 1.2,
+          "previousSellingPrice": 3.5,
+          "newSellingPrice": 3.5,
+          "currency": "SDG",
+          "changedBy": "Main Terminal",
+          "note": "Initial price / السعر الابتدائي"
+        }
+      ],
+      "modificationHistory": [
+        {
+          "id": "mod_1794736240227_klnq",
+          "timestamp": "2026-11-15T09:50:40.227Z",
+          "action": "created",
+          "summaryEn": "Product created with selling price 3.5 SDG",
+          "summaryAr": "تمت إضافة المنتج بسعر بيع 3.5 SDG",
+          "changedFields": [
+            "created"
+          ],
+          "changedBy": "Main Terminal"
+        }
+      ]
+    },
+    "isActive": true,
+    "createdAt": "2026-11-15T09:50:40.227Z",
+    "updatedAt": "2026-11-15T09:50:40.227Z"
+  },
+  {
+    "id": "prod-1794736239761-pgzl",
+    "serialNumber": 144,
+    "name": "Post-update Name 1794736239705",
+    "nameAr": null,
+    "description": null,
+    "descriptionAr": null,
+    "sku": "SKU-UPDATE-1794736239705",
+    "barcode": "666736239705",
+    "barcodes": [
+      "666736239705"
+    ],
+    "categoryId": null,
+    "category": "Coffee",
+    "categoryAr": null,
+    "costPrice": 3,
+    "sellingPrice": 8.5,
+    "previousCostPrice": 3,
+    "previousSellingPrice": 7,
+    "priceUpdatedAt": "2026-11-15T09:50:39.905Z",
+    "priceHistory": [
+      {
+        "id": "ph_1794736239905_mpg7",
+        "timestamp": "2026-11-15T09:50:39.905Z",
+        "previousCostPrice": 3,
+        "newCostPrice": 3,
+        "previousSellingPrice": 7,
+        "newSellingPrice": 8.5,
+        "currency": "SDG",
+        "changedBy": "Main Terminal"
+      },
+      {
+        "id": "ph_1794736239761_r0uf",
+        "timestamp": "2026-11-15T09:50:39.761Z",
+        "previousCostPrice": 3,
+        "newCostPrice": 3,
+        "previousSellingPrice": 7,
+        "newSellingPrice": 7,
+        "currency": "SDG",
+        "changedBy": "Main Terminal",
+        "note": "Initial price / السعر الابتدائي"
+      }
+    ],
+    "modificationHistory": [
+      {
+        "id": "mod_1794736239905_2h70",
+        "timestamp": "2026-11-15T09:50:39.905Z",
+        "action": "price_changed",
+        "summaryEn": "Name: \"Pre-update Name 1794736239705\" → \"Post-update Name 1794736239705\" • Selling Price: 7 → 8.5 SDG • Stock: 10 → 25",
+        "summaryAr": "الاسم: \"Pre-update Name 1794736239705\" ← \"Post-update Name 1794736239705\" • سعر البيع: 7 ← 8.5 SDG • المخزون: 10 ← 25",
+        "changedFields": [
+          "name",
+          "sellingPrice",
+          "stock"
+        ],
+        "changedBy": "Main Terminal"
+      },
+      {
+        "id": "mod_1794736239761_29z2",
+        "timestamp": "2026-11-15T09:50:39.761Z",
+        "action": "created",
+        "summaryEn": "Product created with selling price 7 SDG",
+        "summaryAr": "تمت إضافة المنتج بسعر بيع 7 SDG",
+        "changedFields": [
+          "created"
+        ],
+        "changedBy": "Main Terminal"
+      }
+    ],
+    "priceCurrency": "SDG",
+    "stock": 25,
+    "minStockAlert": 2,
+    "expiryDate": null,
+    "imageUrl": null,
+    "emoji": "📦",
+    "colorHex": "#d97706",
+    "baseUomId": null,
+    "defaultSellingUomId": null,
+    "customFields": {
+      "serialNumber": 144,
+      "description": null,
+      "descriptionAr": null,
+      "expiryDate": null,
+      "barcodes": [
+        "666736239705"
+      ],
+      "priceCurrency": "SDG",
+      "createdAt": "2026-11-15T09:50:39.761Z",
+      "priceUpdatedAt": "2026-11-15T09:50:39.905Z",
+      "priceHistory": [
+        {
+          "id": "ph_1794736239905_mpg7",
+          "timestamp": "2026-11-15T09:50:39.905Z",
+          "previousCostPrice": 3,
+          "newCostPrice": 3,
+          "previousSellingPrice": 7,
+          "newSellingPrice": 8.5,
+          "currency": "SDG",
+          "changedBy": "Main Terminal"
+        },
+        {
+          "id": "ph_1794736239761_r0uf",
+          "timestamp": "2026-11-15T09:50:39.761Z",
+          "previousCostPrice": 3,
+          "newCostPrice": 3,
+          "previousSellingPrice": 7,
+          "newSellingPrice": 7,
+          "currency": "SDG",
+          "changedBy": "Main Terminal",
+          "note": "Initial price / السعر الابتدائي"
+        }
+      ],
+      "modificationHistory": [
+        {
+          "id": "mod_1794736239905_2h70",
+          "timestamp": "2026-11-15T09:50:39.905Z",
+          "action": "price_changed",
+          "summaryEn": "Name: \"Pre-update Name 1794736239705\" → \"Post-update Name 1794736239705\" • Selling Price: 7 → 8.5 SDG • Stock: 10 → 25",
+          "summaryAr": "الاسم: \"Pre-update Name 1794736239705\" ← \"Post-update Name 1794736239705\" • سعر البيع: 7 ← 8.5 SDG • المخزون: 10 ← 25",
+          "changedFields": [
+            "name",
+            "sellingPrice",
+            "stock"
+          ],
+          "changedBy": "Main Terminal"
+        },
+        {
+          "id": "mod_1794736239761_29z2",
+          "timestamp": "2026-11-15T09:50:39.761Z",
+          "action": "created",
+          "summaryEn": "Product created with selling price 7 SDG",
+          "summaryAr": "تمت إضافة المنتج بسعر بيع 7 SDG",
+          "changedFields": [
+            "created"
+          ],
+          "changedBy": "Main Terminal"
+        }
+      ],
+      "previousCostPrice": 3,
+      "previousSellingPrice": 7
+    },
+    "isActive": true,
+    "createdAt": "2026-11-15T09:50:39.761Z",
+    "updatedAt": "2026-11-15T09:50:39.905Z"
+  },
+  {
+    "name": "Unique SKU Item",
+    "sku": "SKU-UNIQUE-1794736239549",
+    "barcode": "777736239549",
+    "category": "Bakery",
+    "costPrice": 1.5,
+    "sellingPrice": 4,
+    "stock": 20,
+    "minStockAlert": 5,
+    "id": "prod-1794736239602-kh59",
+    "serialNumber": 143,
+    "description": null,
+    "descriptionAr": null,
+    "expiryDate": null,
+    "barcodes": [
+      "777736239549"
+    ],
+    "priceCurrency": "SDG",
+    "priceUpdatedAt": "2026-11-15T09:50:39.602Z",
+    "priceHistory": [
+      {
+        "id": "ph_1794736239602_c2rw",
+        "timestamp": "2026-11-15T09:50:39.602Z",
+        "previousCostPrice": 1.5,
+        "newCostPrice": 1.5,
+        "previousSellingPrice": 4,
+        "newSellingPrice": 4,
+        "currency": "SDG",
+        "changedBy": "Main Terminal",
+        "note": "Initial price / السعر الابتدائي"
+      }
+    ],
+    "modificationHistory": [
+      {
+        "id": "mod_1794736239602_8p0y",
+        "timestamp": "2026-11-15T09:50:39.602Z",
+        "action": "created",
+        "summaryEn": "Product created with selling price 4 SDG",
+        "summaryAr": "تمت إضافة المنتج بسعر بيع 4 SDG",
+        "changedFields": [
+          "created"
+        ],
+        "changedBy": "Main Terminal"
+      }
+    ],
+    "imageUrl": null,
+    "customFields": {
+      "serialNumber": 143,
+      "description": null,
+      "descriptionAr": null,
+      "expiryDate": null,
+      "barcodes": [
+        "777736239549"
+      ],
+      "priceCurrency": "SDG",
+      "createdAt": "2026-11-15T09:50:39.602Z",
+      "priceUpdatedAt": "2026-11-15T09:50:39.602Z",
+      "priceHistory": [
+        {
+          "id": "ph_1794736239602_c2rw",
+          "timestamp": "2026-11-15T09:50:39.602Z",
+          "previousCostPrice": 1.5,
+          "newCostPrice": 1.5,
+          "previousSellingPrice": 4,
+          "newSellingPrice": 4,
+          "currency": "SDG",
+          "changedBy": "Main Terminal",
+          "note": "Initial price / السعر الابتدائي"
+        }
+      ],
+      "modificationHistory": [
+        {
+          "id": "mod_1794736239602_8p0y",
+          "timestamp": "2026-11-15T09:50:39.602Z",
+          "action": "created",
+          "summaryEn": "Product created with selling price 4 SDG",
+          "summaryAr": "تمت إضافة المنتج بسعر بيع 4 SDG",
+          "changedFields": [
+            "created"
+          ],
+          "changedBy": "Main Terminal"
+        }
+      ]
+    },
+    "isActive": true,
+    "createdAt": "2026-11-15T09:50:39.602Z",
+    "updatedAt": "2026-11-15T09:50:39.602Z"
+  },
+  {
+    "name": "Original Item A",
+    "sku": "SKU-ORIG-1794736239373",
+    "barcode": "888736239373",
+    "category": "Retail",
+    "costPrice": 5,
+    "sellingPrice": 10,
+    "stock": 15,
+    "minStockAlert": 3,
+    "id": "prod-1794736239438-qtl2",
+    "serialNumber": 142,
+    "description": null,
+    "descriptionAr": null,
+    "expiryDate": null,
+    "barcodes": [
+      "888736239373"
+    ],
+    "priceCurrency": "SDG",
+    "priceUpdatedAt": "2026-11-15T09:50:39.438Z",
+    "priceHistory": [
+      {
+        "id": "ph_1794736239438_iuqb",
+        "timestamp": "2026-11-15T09:50:39.438Z",
+        "previousCostPrice": 5,
+        "newCostPrice": 5,
+        "previousSellingPrice": 10,
+        "newSellingPrice": 10,
+        "currency": "SDG",
+        "changedBy": "Main Terminal",
+        "note": "Initial price / السعر الابتدائي"
+      }
+    ],
+    "modificationHistory": [
+      {
+        "id": "mod_1794736239438_eowb",
+        "timestamp": "2026-11-15T09:50:39.438Z",
+        "action": "created",
+        "summaryEn": "Product created with selling price 10 SDG",
+        "summaryAr": "تمت إضافة المنتج بسعر بيع 10 SDG",
+        "changedFields": [
+          "created"
+        ],
+        "changedBy": "Main Terminal"
+      }
+    ],
+    "imageUrl": null,
+    "customFields": {
+      "serialNumber": 142,
+      "description": null,
+      "descriptionAr": null,
+      "expiryDate": null,
+      "barcodes": [
+        "888736239373"
+      ],
+      "priceCurrency": "SDG",
+      "createdAt": "2026-11-15T09:50:39.438Z",
+      "priceUpdatedAt": "2026-11-15T09:50:39.438Z",
+      "priceHistory": [
+        {
+          "id": "ph_1794736239438_iuqb",
+          "timestamp": "2026-11-15T09:50:39.438Z",
+          "previousCostPrice": 5,
+          "newCostPrice": 5,
+          "previousSellingPrice": 10,
+          "newSellingPrice": 10,
+          "currency": "SDG",
+          "changedBy": "Main Terminal",
+          "note": "Initial price / السعر الابتدائي"
+        }
+      ],
+      "modificationHistory": [
+        {
+          "id": "mod_1794736239438_eowb",
+          "timestamp": "2026-11-15T09:50:39.438Z",
+          "action": "created",
+          "summaryEn": "Product created with selling price 10 SDG",
+          "summaryAr": "تمت إضافة المنتج بسعر بيع 10 SDG",
+          "changedFields": [
+            "created"
+          ],
+          "changedBy": "Main Terminal"
+        }
+      ]
+    },
+    "isActive": true,
+    "createdAt": "2026-11-15T09:50:39.438Z",
+    "updatedAt": "2026-11-15T09:50:39.438Z"
+  },
+  {
+    "name": "Test Matcha Latte 1794736239127",
+    "nameAr": "ماتشا لاتيه تجريبي 1794736239127",
+    "sku": "SKU-MATCHA-1794736239127",
+    "barcode": "999736239127",
+    "category": "Beverages",
+    "categoryAr": "مشروبات",
+    "costPrice": 2.1,
+    "sellingPrice": 5.75,
+    "stock": 40,
+    "minStockAlert": 5,
+    "emoji": "🍵",
+    "colorHex": "#10b981",
+    "id": "prod-1794736239217-6p25",
+    "serialNumber": 141,
+    "description": null,
+    "descriptionAr": null,
+    "expiryDate": null,
+    "barcodes": [
+      "999736239127"
+    ],
+    "priceCurrency": "SDG",
+    "priceUpdatedAt": "2026-11-15T09:50:39.217Z",
+    "priceHistory": [
+      {
+        "id": "ph_1794736239217_u29u",
+        "timestamp": "2026-11-15T09:50:39.217Z",
+        "previousCostPrice": 2.1,
+        "newCostPrice": 2.1,
+        "previousSellingPrice": 5.75,
+        "newSellingPrice": 5.75,
+        "currency": "SDG",
+        "changedBy": "Main Terminal",
+        "note": "Initial price / السعر الابتدائي"
+      }
+    ],
+    "modificationHistory": [
+      {
+        "id": "mod_1794736239217_0d5j",
+        "timestamp": "2026-11-15T09:50:39.217Z",
+        "action": "created",
+        "summaryEn": "Product created with selling price 5.75 SDG",
+        "summaryAr": "تمت إضافة المنتج بسعر بيع 5.75 SDG",
+        "changedFields": [
+          "created"
+        ],
+        "changedBy": "Main Terminal"
+      }
+    ],
+    "imageUrl": null,
+    "customFields": {
+      "serialNumber": 141,
+      "description": null,
+      "descriptionAr": null,
+      "expiryDate": null,
+      "barcodes": [
+        "999736239127"
+      ],
+      "priceCurrency": "SDG",
+      "createdAt": "2026-11-15T09:50:39.217Z",
+      "priceUpdatedAt": "2026-11-15T09:50:39.217Z",
+      "priceHistory": [
+        {
+          "id": "ph_1794736239217_u29u",
+          "timestamp": "2026-11-15T09:50:39.217Z",
+          "previousCostPrice": 2.1,
+          "newCostPrice": 2.1,
+          "previousSellingPrice": 5.75,
+          "newSellingPrice": 5.75,
+          "currency": "SDG",
+          "changedBy": "Main Terminal",
+          "note": "Initial price / السعر الابتدائي"
+        }
+      ],
+      "modificationHistory": [
+        {
+          "id": "mod_1794736239217_0d5j",
+          "timestamp": "2026-11-15T09:50:39.217Z",
+          "action": "created",
+          "summaryEn": "Product created with selling price 5.75 SDG",
+          "summaryAr": "تمت إضافة المنتج بسعر بيع 5.75 SDG",
+          "changedFields": [
+            "created"
+          ],
+          "changedBy": "Main Terminal"
+        }
+      ]
+    },
+    "isActive": true,
+    "createdAt": "2026-11-15T09:50:39.217Z",
+    "updatedAt": "2026-11-15T09:50:39.217Z"
+  },
+  {
+    "name": "Persistent Pastry 1794735982985",
+    "sku": "SKU-PERSIST-1794735982985",
+    "barcode": "444735982985",
+    "category": "Bakery",
+    "costPrice": 1.2,
+    "sellingPrice": 3.5,
+    "stock": 30,
+    "minStockAlert": 5,
+    "id": "prod-1794735983026-jru5",
+    "serialNumber": 140,
+    "description": null,
+    "descriptionAr": null,
+    "expiryDate": null,
+    "barcodes": [
+      "444735982985"
+    ],
+    "priceCurrency": "SDG",
+    "priceUpdatedAt": "2026-11-15T09:46:23.026Z",
+    "priceHistory": [
+      {
+        "id": "ph_1794735983026_3w5w",
+        "timestamp": "2026-11-15T09:46:23.026Z",
+        "previousCostPrice": 1.2,
+        "newCostPrice": 1.2,
+        "previousSellingPrice": 3.5,
+        "newSellingPrice": 3.5,
+        "currency": "SDG",
+        "changedBy": "Main Terminal",
+        "note": "Initial price / السعر الابتدائي"
+      }
+    ],
+    "modificationHistory": [
+      {
+        "id": "mod_1794735983026_joco",
+        "timestamp": "2026-11-15T09:46:23.026Z",
+        "action": "created",
+        "summaryEn": "Product created with selling price 3.5 SDG",
+        "summaryAr": "تمت إضافة المنتج بسعر بيع 3.5 SDG",
+        "changedFields": [
+          "created"
+        ],
+        "changedBy": "Main Terminal"
+      }
+    ],
+    "imageUrl": null,
+    "customFields": {
+      "serialNumber": 140,
+      "description": null,
+      "descriptionAr": null,
+      "expiryDate": null,
+      "barcodes": [
+        "444735982985"
+      ],
+      "priceCurrency": "SDG",
+      "createdAt": "2026-11-15T09:46:23.026Z",
+      "priceUpdatedAt": "2026-11-15T09:46:23.026Z",
+      "priceHistory": [
+        {
+          "id": "ph_1794735983026_3w5w",
+          "timestamp": "2026-11-15T09:46:23.026Z",
+          "previousCostPrice": 1.2,
+          "newCostPrice": 1.2,
+          "previousSellingPrice": 3.5,
+          "newSellingPrice": 3.5,
+          "currency": "SDG",
+          "changedBy": "Main Terminal",
+          "note": "Initial price / السعر الابتدائي"
+        }
+      ],
+      "modificationHistory": [
+        {
+          "id": "mod_1794735983026_joco",
+          "timestamp": "2026-11-15T09:46:23.026Z",
+          "action": "created",
+          "summaryEn": "Product created with selling price 3.5 SDG",
+          "summaryAr": "تمت إضافة المنتج بسعر بيع 3.5 SDG",
+          "changedFields": [
+            "created"
+          ],
+          "changedBy": "Main Terminal"
+        }
+      ]
+    },
+    "isActive": true,
+    "createdAt": "2026-11-15T09:46:23.026Z",
+    "updatedAt": "2026-11-15T09:46:23.026Z"
+  },
+  {
+    "id": "prod-1794735982568-hfu6",
+    "serialNumber": 139,
+    "name": "Post-update Name 1794735982519",
+    "nameAr": null,
+    "description": null,
+    "descriptionAr": null,
+    "sku": "SKU-UPDATE-1794735982519",
+    "barcode": "666735982519",
+    "barcodes": [
+      "666735982519"
+    ],
+    "categoryId": null,
+    "category": "Coffee",
+    "categoryAr": null,
+    "costPrice": 3,
+    "sellingPrice": 8.5,
+    "previousCostPrice": 3,
+    "previousSellingPrice": 7,
+    "priceUpdatedAt": "2026-11-15T09:46:22.713Z",
+    "priceHistory": [
+      {
+        "id": "ph_1794735982713_s85h",
+        "timestamp": "2026-11-15T09:46:22.713Z",
+        "previousCostPrice": 3,
+        "newCostPrice": 3,
+        "previousSellingPrice": 7,
+        "newSellingPrice": 8.5,
+        "currency": "SDG",
+        "changedBy": "Main Terminal"
+      },
+      {
+        "id": "ph_1794735982568_b7v5",
+        "timestamp": "2026-11-15T09:46:22.568Z",
+        "previousCostPrice": 3,
+        "newCostPrice": 3,
+        "previousSellingPrice": 7,
+        "newSellingPrice": 7,
+        "currency": "SDG",
+        "changedBy": "Main Terminal",
+        "note": "Initial price / السعر الابتدائي"
+      }
+    ],
+    "modificationHistory": [
+      {
+        "id": "mod_1794735982713_e4wi",
+        "timestamp": "2026-11-15T09:46:22.713Z",
+        "action": "price_changed",
+        "summaryEn": "Name: \"Pre-update Name 1794735982519\" → \"Post-update Name 1794735982519\" • Selling Price: 7 → 8.5 SDG • Stock: 10 → 25",
+        "summaryAr": "الاسم: \"Pre-update Name 1794735982519\" ← \"Post-update Name 1794735982519\" • سعر البيع: 7 ← 8.5 SDG • المخزون: 10 ← 25",
+        "changedFields": [
+          "name",
+          "sellingPrice",
+          "stock"
+        ],
+        "changedBy": "Main Terminal"
+      },
+      {
+        "id": "mod_1794735982568_4mjb",
+        "timestamp": "2026-11-15T09:46:22.568Z",
+        "action": "created",
+        "summaryEn": "Product created with selling price 7 SDG",
+        "summaryAr": "تمت إضافة المنتج بسعر بيع 7 SDG",
+        "changedFields": [
+          "created"
+        ],
+        "changedBy": "Main Terminal"
+      }
+    ],
+    "priceCurrency": "SDG",
+    "stock": 25,
+    "minStockAlert": 2,
+    "expiryDate": null,
+    "imageUrl": null,
+    "emoji": "📦",
+    "colorHex": "#d97706",
+    "baseUomId": null,
+    "defaultSellingUomId": null,
+    "customFields": {
+      "serialNumber": 139,
+      "description": null,
+      "descriptionAr": null,
+      "expiryDate": null,
+      "barcodes": [
+        "666735982519"
+      ],
+      "priceCurrency": "SDG",
+      "createdAt": "2026-11-15T09:46:22.568Z",
+      "priceUpdatedAt": "2026-11-15T09:46:22.713Z",
+      "priceHistory": [
+        {
+          "id": "ph_1794735982713_s85h",
+          "timestamp": "2026-11-15T09:46:22.713Z",
+          "previousCostPrice": 3,
+          "newCostPrice": 3,
+          "previousSellingPrice": 7,
+          "newSellingPrice": 8.5,
+          "currency": "SDG",
+          "changedBy": "Main Terminal"
+        },
+        {
+          "id": "ph_1794735982568_b7v5",
+          "timestamp": "2026-11-15T09:46:22.568Z",
+          "previousCostPrice": 3,
+          "newCostPrice": 3,
+          "previousSellingPrice": 7,
+          "newSellingPrice": 7,
+          "currency": "SDG",
+          "changedBy": "Main Terminal",
+          "note": "Initial price / السعر الابتدائي"
+        }
+      ],
+      "modificationHistory": [
+        {
+          "id": "mod_1794735982713_e4wi",
+          "timestamp": "2026-11-15T09:46:22.713Z",
+          "action": "price_changed",
+          "summaryEn": "Name: \"Pre-update Name 1794735982519\" → \"Post-update Name 1794735982519\" • Selling Price: 7 → 8.5 SDG • Stock: 10 → 25",
+          "summaryAr": "الاسم: \"Pre-update Name 1794735982519\" ← \"Post-update Name 1794735982519\" • سعر البيع: 7 ← 8.5 SDG • المخزون: 10 ← 25",
+          "changedFields": [
+            "name",
+            "sellingPrice",
+            "stock"
+          ],
+          "changedBy": "Main Terminal"
+        },
+        {
+          "id": "mod_1794735982568_4mjb",
+          "timestamp": "2026-11-15T09:46:22.568Z",
+          "action": "created",
+          "summaryEn": "Product created with selling price 7 SDG",
+          "summaryAr": "تمت إضافة المنتج بسعر بيع 7 SDG",
+          "changedFields": [
+            "created"
+          ],
+          "changedBy": "Main Terminal"
+        }
+      ],
+      "previousCostPrice": 3,
+      "previousSellingPrice": 7
+    },
+    "isActive": true,
+    "createdAt": "2026-11-15T09:46:22.568Z",
+    "updatedAt": "2026-11-15T09:46:22.713Z"
+  },
+  {
+    "name": "Unique SKU Item",
+    "sku": "SKU-UNIQUE-1794735982378",
+    "barcode": "777735982378",
+    "category": "Bakery",
+    "costPrice": 1.5,
+    "sellingPrice": 4,
+    "stock": 20,
+    "minStockAlert": 5,
+    "id": "prod-1794735982423-qd8n",
+    "serialNumber": 138,
+    "description": null,
+    "descriptionAr": null,
+    "expiryDate": null,
+    "barcodes": [
+      "777735982378"
+    ],
+    "priceCurrency": "SDG",
+    "priceUpdatedAt": "2026-11-15T09:46:22.423Z",
+    "priceHistory": [
+      {
+        "id": "ph_1794735982423_jotu",
+        "timestamp": "2026-11-15T09:46:22.423Z",
+        "previousCostPrice": 1.5,
+        "newCostPrice": 1.5,
+        "previousSellingPrice": 4,
+        "newSellingPrice": 4,
+        "currency": "SDG",
+        "changedBy": "Main Terminal",
+        "note": "Initial price / السعر الابتدائي"
+      }
+    ],
+    "modificationHistory": [
+      {
+        "id": "mod_1794735982423_97o4",
+        "timestamp": "2026-11-15T09:46:22.423Z",
+        "action": "created",
+        "summaryEn": "Product created with selling price 4 SDG",
+        "summaryAr": "تمت إضافة المنتج بسعر بيع 4 SDG",
+        "changedFields": [
+          "created"
+        ],
+        "changedBy": "Main Terminal"
+      }
+    ],
+    "imageUrl": null,
+    "customFields": {
+      "serialNumber": 138,
+      "description": null,
+      "descriptionAr": null,
+      "expiryDate": null,
+      "barcodes": [
+        "777735982378"
+      ],
+      "priceCurrency": "SDG",
+      "createdAt": "2026-11-15T09:46:22.423Z",
+      "priceUpdatedAt": "2026-11-15T09:46:22.423Z",
+      "priceHistory": [
+        {
+          "id": "ph_1794735982423_jotu",
+          "timestamp": "2026-11-15T09:46:22.423Z",
+          "previousCostPrice": 1.5,
+          "newCostPrice": 1.5,
+          "previousSellingPrice": 4,
+          "newSellingPrice": 4,
+          "currency": "SDG",
+          "changedBy": "Main Terminal",
+          "note": "Initial price / السعر الابتدائي"
+        }
+      ],
+      "modificationHistory": [
+        {
+          "id": "mod_1794735982423_97o4",
+          "timestamp": "2026-11-15T09:46:22.423Z",
+          "action": "created",
+          "summaryEn": "Product created with selling price 4 SDG",
+          "summaryAr": "تمت إضافة المنتج بسعر بيع 4 SDG",
+          "changedFields": [
+            "created"
+          ],
+          "changedBy": "Main Terminal"
+        }
+      ]
+    },
+    "isActive": true,
+    "createdAt": "2026-11-15T09:46:22.423Z",
+    "updatedAt": "2026-11-15T09:46:22.423Z"
+  },
+  {
+    "name": "Original Item A",
+    "sku": "SKU-ORIG-1794735982201",
+    "barcode": "888735982201",
+    "category": "Retail",
+    "costPrice": 5,
+    "sellingPrice": 10,
+    "stock": 15,
+    "minStockAlert": 3,
+    "id": "prod-1794735982260-4t7e",
+    "serialNumber": 137,
+    "description": null,
+    "descriptionAr": null,
+    "expiryDate": null,
+    "barcodes": [
+      "888735982201"
+    ],
+    "priceCurrency": "SDG",
+    "priceUpdatedAt": "2026-11-15T09:46:22.260Z",
+    "priceHistory": [
+      {
+        "id": "ph_1794735982260_68ui",
+        "timestamp": "2026-11-15T09:46:22.260Z",
+        "previousCostPrice": 5,
+        "newCostPrice": 5,
+        "previousSellingPrice": 10,
+        "newSellingPrice": 10,
+        "currency": "SDG",
+        "changedBy": "Main Terminal",
+        "note": "Initial price / السعر الابتدائي"
+      }
+    ],
+    "modificationHistory": [
+      {
+        "id": "mod_1794735982260_sz43",
+        "timestamp": "2026-11-15T09:46:22.260Z",
+        "action": "created",
+        "summaryEn": "Product created with selling price 10 SDG",
+        "summaryAr": "تمت إضافة المنتج بسعر بيع 10 SDG",
+        "changedFields": [
+          "created"
+        ],
+        "changedBy": "Main Terminal"
+      }
+    ],
+    "imageUrl": null,
+    "customFields": {
+      "serialNumber": 137,
+      "description": null,
+      "descriptionAr": null,
+      "expiryDate": null,
+      "barcodes": [
+        "888735982201"
+      ],
+      "priceCurrency": "SDG",
+      "createdAt": "2026-11-15T09:46:22.260Z",
+      "priceUpdatedAt": "2026-11-15T09:46:22.260Z",
+      "priceHistory": [
+        {
+          "id": "ph_1794735982260_68ui",
+          "timestamp": "2026-11-15T09:46:22.260Z",
+          "previousCostPrice": 5,
+          "newCostPrice": 5,
+          "previousSellingPrice": 10,
+          "newSellingPrice": 10,
+          "currency": "SDG",
+          "changedBy": "Main Terminal",
+          "note": "Initial price / السعر الابتدائي"
+        }
+      ],
+      "modificationHistory": [
+        {
+          "id": "mod_1794735982260_sz43",
+          "timestamp": "2026-11-15T09:46:22.260Z",
+          "action": "created",
+          "summaryEn": "Product created with selling price 10 SDG",
+          "summaryAr": "تمت إضافة المنتج بسعر بيع 10 SDG",
+          "changedFields": [
+            "created"
+          ],
+          "changedBy": "Main Terminal"
+        }
+      ]
+    },
+    "isActive": true,
+    "createdAt": "2026-11-15T09:46:22.260Z",
+    "updatedAt": "2026-11-15T09:46:22.260Z"
+  },
+  {
+    "name": "Test Matcha Latte 1794735981986",
+    "nameAr": "ماتشا لاتيه تجريبي 1794735981986",
+    "sku": "SKU-MATCHA-1794735981986",
+    "barcode": "999735981986",
+    "category": "Beverages",
+    "categoryAr": "مشروبات",
+    "costPrice": 2.1,
+    "sellingPrice": 5.75,
+    "stock": 40,
+    "minStockAlert": 5,
+    "emoji": "🍵",
+    "colorHex": "#10b981",
+    "id": "prod-1794735982067-5yh6",
+    "serialNumber": 136,
+    "description": null,
+    "descriptionAr": null,
+    "expiryDate": null,
+    "barcodes": [
+      "999735981986"
+    ],
+    "priceCurrency": "SDG",
+    "priceUpdatedAt": "2026-11-15T09:46:22.067Z",
+    "priceHistory": [
+      {
+        "id": "ph_1794735982067_wimo",
+        "timestamp": "2026-11-15T09:46:22.067Z",
+        "previousCostPrice": 2.1,
+        "newCostPrice": 2.1,
+        "previousSellingPrice": 5.75,
+        "newSellingPrice": 5.75,
+        "currency": "SDG",
+        "changedBy": "Main Terminal",
+        "note": "Initial price / السعر الابتدائي"
+      }
+    ],
+    "modificationHistory": [
+      {
+        "id": "mod_1794735982067_lvz9",
+        "timestamp": "2026-11-15T09:46:22.067Z",
+        "action": "created",
+        "summaryEn": "Product created with selling price 5.75 SDG",
+        "summaryAr": "تمت إضافة المنتج بسعر بيع 5.75 SDG",
+        "changedFields": [
+          "created"
+        ],
+        "changedBy": "Main Terminal"
+      }
+    ],
+    "imageUrl": null,
+    "customFields": {
+      "serialNumber": 136,
+      "description": null,
+      "descriptionAr": null,
+      "expiryDate": null,
+      "barcodes": [
+        "999735981986"
+      ],
+      "priceCurrency": "SDG",
+      "createdAt": "2026-11-15T09:46:22.067Z",
+      "priceUpdatedAt": "2026-11-15T09:46:22.067Z",
+      "priceHistory": [
+        {
+          "id": "ph_1794735982067_wimo",
+          "timestamp": "2026-11-15T09:46:22.067Z",
+          "previousCostPrice": 2.1,
+          "newCostPrice": 2.1,
+          "previousSellingPrice": 5.75,
+          "newSellingPrice": 5.75,
+          "currency": "SDG",
+          "changedBy": "Main Terminal",
+          "note": "Initial price / السعر الابتدائي"
+        }
+      ],
+      "modificationHistory": [
+        {
+          "id": "mod_1794735982067_lvz9",
+          "timestamp": "2026-11-15T09:46:22.067Z",
+          "action": "created",
+          "summaryEn": "Product created with selling price 5.75 SDG",
+          "summaryAr": "تمت إضافة المنتج بسعر بيع 5.75 SDG",
+          "changedFields": [
+            "created"
+          ],
+          "changedBy": "Main Terminal"
+        }
+      ]
+    },
+    "isActive": true,
+    "createdAt": "2026-11-15T09:46:22.067Z",
+    "updatedAt": "2026-11-15T09:46:22.067Z"
+  },
+  {
+    "name": "Persistent Pastry 1794735900347",
+    "sku": "SKU-PERSIST-1794735900347",
+    "barcode": "444735900347",
+    "category": "Bakery",
+    "costPrice": 1.2,
+    "sellingPrice": 3.5,
+    "stock": 30,
+    "minStockAlert": 5,
+    "id": "prod-1794735900413-l7rx",
+    "serialNumber": 135,
+    "description": null,
+    "descriptionAr": null,
+    "expiryDate": null,
+    "barcodes": [
+      "444735900347"
+    ],
+    "priceCurrency": "SDG",
+    "priceUpdatedAt": "2026-11-15T09:45:00.413Z",
+    "priceHistory": [
+      {
+        "id": "ph_1794735900414_psuc",
+        "timestamp": "2026-11-15T09:45:00.413Z",
+        "previousCostPrice": 1.2,
+        "newCostPrice": 1.2,
+        "previousSellingPrice": 3.5,
+        "newSellingPrice": 3.5,
+        "currency": "SDG",
+        "changedBy": "Main Terminal",
+        "note": "Initial price / السعر الابتدائي"
+      }
+    ],
+    "modificationHistory": [
+      {
+        "id": "mod_1794735900414_q41t",
+        "timestamp": "2026-11-15T09:45:00.413Z",
+        "action": "created",
+        "summaryEn": "Product created with selling price 3.5 SDG",
+        "summaryAr": "تمت إضافة المنتج بسعر بيع 3.5 SDG",
+        "changedFields": [
+          "created"
+        ],
+        "changedBy": "Main Terminal"
+      }
+    ],
+    "imageUrl": null,
+    "customFields": {
+      "serialNumber": 135,
+      "description": null,
+      "descriptionAr": null,
+      "expiryDate": null,
+      "barcodes": [
+        "444735900347"
+      ],
+      "priceCurrency": "SDG",
+      "createdAt": "2026-11-15T09:45:00.413Z",
+      "priceUpdatedAt": "2026-11-15T09:45:00.413Z",
+      "priceHistory": [
+        {
+          "id": "ph_1794735900414_psuc",
+          "timestamp": "2026-11-15T09:45:00.413Z",
+          "previousCostPrice": 1.2,
+          "newCostPrice": 1.2,
+          "previousSellingPrice": 3.5,
+          "newSellingPrice": 3.5,
+          "currency": "SDG",
+          "changedBy": "Main Terminal",
+          "note": "Initial price / السعر الابتدائي"
+        }
+      ],
+      "modificationHistory": [
+        {
+          "id": "mod_1794735900414_q41t",
+          "timestamp": "2026-11-15T09:45:00.413Z",
+          "action": "created",
+          "summaryEn": "Product created with selling price 3.5 SDG",
+          "summaryAr": "تمت إضافة المنتج بسعر بيع 3.5 SDG",
+          "changedFields": [
+            "created"
+          ],
+          "changedBy": "Main Terminal"
+        }
+      ]
+    },
+    "isActive": true,
+    "createdAt": "2026-11-15T09:45:00.413Z",
+    "updatedAt": "2026-11-15T09:45:00.413Z"
+  },
+  {
+    "id": "prod-1794735899803-1zhf",
+    "serialNumber": 134,
+    "name": "Post-update Name 1794735899744",
+    "nameAr": null,
+    "description": null,
+    "descriptionAr": null,
+    "sku": "SKU-UPDATE-1794735899744",
+    "barcode": "666735899744",
+    "barcodes": [
+      "666735899744"
+    ],
+    "categoryId": null,
+    "category": "Coffee",
+    "categoryAr": null,
+    "costPrice": 3,
+    "sellingPrice": 8.5,
+    "previousCostPrice": 3,
+    "previousSellingPrice": 7,
+    "priceUpdatedAt": "2026-11-15T09:44:59.984Z",
+    "priceHistory": [
+      {
+        "id": "ph_1794735899984_grzo",
+        "timestamp": "2026-11-15T09:44:59.984Z",
+        "previousCostPrice": 3,
+        "newCostPrice": 3,
+        "previousSellingPrice": 7,
+        "newSellingPrice": 8.5,
+        "currency": "SDG",
+        "changedBy": "Main Terminal"
+      },
+      {
+        "id": "ph_1794735899803_h6a8",
+        "timestamp": "2026-11-15T09:44:59.803Z",
+        "previousCostPrice": 3,
+        "newCostPrice": 3,
+        "previousSellingPrice": 7,
+        "newSellingPrice": 7,
+        "currency": "SDG",
+        "changedBy": "Main Terminal",
+        "note": "Initial price / السعر الابتدائي"
+      }
+    ],
+    "modificationHistory": [
+      {
+        "id": "mod_1794735899984_nqxe",
+        "timestamp": "2026-11-15T09:44:59.984Z",
+        "action": "price_changed",
+        "summaryEn": "Name: \"Pre-update Name 1794735899744\" → \"Post-update Name 1794735899744\" • Selling Price: 7 → 8.5 SDG • Stock: 10 → 25",
+        "summaryAr": "الاسم: \"Pre-update Name 1794735899744\" ← \"Post-update Name 1794735899744\" • سعر البيع: 7 ← 8.5 SDG • المخزون: 10 ← 25",
+        "changedFields": [
+          "name",
+          "sellingPrice",
+          "stock"
+        ],
+        "changedBy": "Main Terminal"
+      },
+      {
+        "id": "mod_1794735899803_f4z1",
+        "timestamp": "2026-11-15T09:44:59.803Z",
+        "action": "created",
+        "summaryEn": "Product created with selling price 7 SDG",
+        "summaryAr": "تمت إضافة المنتج بسعر بيع 7 SDG",
+        "changedFields": [
+          "created"
+        ],
+        "changedBy": "Main Terminal"
+      }
+    ],
+    "priceCurrency": "SDG",
+    "stock": 25,
+    "minStockAlert": 2,
+    "expiryDate": null,
+    "imageUrl": null,
+    "emoji": "📦",
+    "colorHex": "#d97706",
+    "baseUomId": null,
+    "defaultSellingUomId": null,
+    "customFields": {
+      "serialNumber": 134,
+      "description": null,
+      "descriptionAr": null,
+      "expiryDate": null,
+      "barcodes": [
+        "666735899744"
+      ],
+      "priceCurrency": "SDG",
+      "createdAt": "2026-11-15T09:44:59.803Z",
+      "priceUpdatedAt": "2026-11-15T09:44:59.984Z",
+      "priceHistory": [
+        {
+          "id": "ph_1794735899984_grzo",
+          "timestamp": "2026-11-15T09:44:59.984Z",
+          "previousCostPrice": 3,
+          "newCostPrice": 3,
+          "previousSellingPrice": 7,
+          "newSellingPrice": 8.5,
+          "currency": "SDG",
+          "changedBy": "Main Terminal"
+        },
+        {
+          "id": "ph_1794735899803_h6a8",
+          "timestamp": "2026-11-15T09:44:59.803Z",
+          "previousCostPrice": 3,
+          "newCostPrice": 3,
+          "previousSellingPrice": 7,
+          "newSellingPrice": 7,
+          "currency": "SDG",
+          "changedBy": "Main Terminal",
+          "note": "Initial price / السعر الابتدائي"
+        }
+      ],
+      "modificationHistory": [
+        {
+          "id": "mod_1794735899984_nqxe",
+          "timestamp": "2026-11-15T09:44:59.984Z",
+          "action": "price_changed",
+          "summaryEn": "Name: \"Pre-update Name 1794735899744\" → \"Post-update Name 1794735899744\" • Selling Price: 7 → 8.5 SDG • Stock: 10 → 25",
+          "summaryAr": "الاسم: \"Pre-update Name 1794735899744\" ← \"Post-update Name 1794735899744\" • سعر البيع: 7 ← 8.5 SDG • المخزون: 10 ← 25",
+          "changedFields": [
+            "name",
+            "sellingPrice",
+            "stock"
+          ],
+          "changedBy": "Main Terminal"
+        },
+        {
+          "id": "mod_1794735899803_f4z1",
+          "timestamp": "2026-11-15T09:44:59.803Z",
+          "action": "created",
+          "summaryEn": "Product created with selling price 7 SDG",
+          "summaryAr": "تمت إضافة المنتج بسعر بيع 7 SDG",
+          "changedFields": [
+            "created"
+          ],
+          "changedBy": "Main Terminal"
+        }
+      ],
+      "previousCostPrice": 3,
+      "previousSellingPrice": 7
+    },
+    "isActive": true,
+    "createdAt": "2026-11-15T09:44:59.803Z",
+    "updatedAt": "2026-11-15T09:44:59.984Z"
+  },
+  {
+    "name": "Unique SKU Item",
+    "sku": "SKU-UNIQUE-1794735899564",
+    "barcode": "777735899564",
+    "category": "Bakery",
+    "costPrice": 1.5,
+    "sellingPrice": 4,
+    "stock": 20,
+    "minStockAlert": 5,
+    "id": "prod-1794735899623-5h12",
+    "serialNumber": 133,
+    "description": null,
+    "descriptionAr": null,
+    "expiryDate": null,
+    "barcodes": [
+      "777735899564"
+    ],
+    "priceCurrency": "SDG",
+    "priceUpdatedAt": "2026-11-15T09:44:59.623Z",
+    "priceHistory": [
+      {
+        "id": "ph_1794735899623_bht9",
+        "timestamp": "2026-11-15T09:44:59.623Z",
+        "previousCostPrice": 1.5,
+        "newCostPrice": 1.5,
+        "previousSellingPrice": 4,
+        "newSellingPrice": 4,
+        "currency": "SDG",
+        "changedBy": "Main Terminal",
+        "note": "Initial price / السعر الابتدائي"
+      }
+    ],
+    "modificationHistory": [
+      {
+        "id": "mod_1794735899623_w0va",
+        "timestamp": "2026-11-15T09:44:59.623Z",
+        "action": "created",
+        "summaryEn": "Product created with selling price 4 SDG",
+        "summaryAr": "تمت إضافة المنتج بسعر بيع 4 SDG",
+        "changedFields": [
+          "created"
+        ],
+        "changedBy": "Main Terminal"
+      }
+    ],
+    "imageUrl": null,
+    "customFields": {
+      "serialNumber": 133,
+      "description": null,
+      "descriptionAr": null,
+      "expiryDate": null,
+      "barcodes": [
+        "777735899564"
+      ],
+      "priceCurrency": "SDG",
+      "createdAt": "2026-11-15T09:44:59.623Z",
+      "priceUpdatedAt": "2026-11-15T09:44:59.623Z",
+      "priceHistory": [
+        {
+          "id": "ph_1794735899623_bht9",
+          "timestamp": "2026-11-15T09:44:59.623Z",
+          "previousCostPrice": 1.5,
+          "newCostPrice": 1.5,
+          "previousSellingPrice": 4,
+          "newSellingPrice": 4,
+          "currency": "SDG",
+          "changedBy": "Main Terminal",
+          "note": "Initial price / السعر الابتدائي"
+        }
+      ],
+      "modificationHistory": [
+        {
+          "id": "mod_1794735899623_w0va",
+          "timestamp": "2026-11-15T09:44:59.623Z",
+          "action": "created",
+          "summaryEn": "Product created with selling price 4 SDG",
+          "summaryAr": "تمت إضافة المنتج بسعر بيع 4 SDG",
+          "changedFields": [
+            "created"
+          ],
+          "changedBy": "Main Terminal"
+        }
+      ]
+    },
+    "isActive": true,
+    "createdAt": "2026-11-15T09:44:59.623Z",
+    "updatedAt": "2026-11-15T09:44:59.623Z"
+  },
+  {
+    "name": "Original Item A",
+    "sku": "SKU-ORIG-1794735899276",
+    "barcode": "888735899276",
+    "category": "Retail",
+    "costPrice": 5,
+    "sellingPrice": 10,
+    "stock": 15,
+    "minStockAlert": 3,
+    "id": "prod-1794735899393-zno6",
+    "serialNumber": 132,
+    "description": null,
+    "descriptionAr": null,
+    "expiryDate": null,
+    "barcodes": [
+      "888735899276"
+    ],
+    "priceCurrency": "SDG",
+    "priceUpdatedAt": "2026-11-15T09:44:59.393Z",
+    "priceHistory": [
+      {
+        "id": "ph_1794735899394_go8y",
+        "timestamp": "2026-11-15T09:44:59.393Z",
+        "previousCostPrice": 5,
+        "newCostPrice": 5,
+        "previousSellingPrice": 10,
+        "newSellingPrice": 10,
+        "currency": "SDG",
+        "changedBy": "Main Terminal",
+        "note": "Initial price / السعر الابتدائي"
+      }
+    ],
+    "modificationHistory": [
+      {
+        "id": "mod_1794735899393_7cyh",
+        "timestamp": "2026-11-15T09:44:59.393Z",
+        "action": "created",
+        "summaryEn": "Product created with selling price 10 SDG",
+        "summaryAr": "تمت إضافة المنتج بسعر بيع 10 SDG",
+        "changedFields": [
+          "created"
+        ],
+        "changedBy": "Main Terminal"
+      }
+    ],
+    "imageUrl": null,
+    "customFields": {
+      "serialNumber": 132,
+      "description": null,
+      "descriptionAr": null,
+      "expiryDate": null,
+      "barcodes": [
+        "888735899276"
+      ],
+      "priceCurrency": "SDG",
+      "createdAt": "2026-11-15T09:44:59.393Z",
+      "priceUpdatedAt": "2026-11-15T09:44:59.393Z",
+      "priceHistory": [
+        {
+          "id": "ph_1794735899394_go8y",
+          "timestamp": "2026-11-15T09:44:59.393Z",
+          "previousCostPrice": 5,
+          "newCostPrice": 5,
+          "previousSellingPrice": 10,
+          "newSellingPrice": 10,
+          "currency": "SDG",
+          "changedBy": "Main Terminal",
+          "note": "Initial price / السعر الابتدائي"
+        }
+      ],
+      "modificationHistory": [
+        {
+          "id": "mod_1794735899393_7cyh",
+          "timestamp": "2026-11-15T09:44:59.393Z",
+          "action": "created",
+          "summaryEn": "Product created with selling price 10 SDG",
+          "summaryAr": "تمت إضافة المنتج بسعر بيع 10 SDG",
+          "changedFields": [
+            "created"
+          ],
+          "changedBy": "Main Terminal"
+        }
+      ]
+    },
+    "isActive": true,
+    "createdAt": "2026-11-15T09:44:59.393Z",
+    "updatedAt": "2026-11-15T09:44:59.393Z"
+  },
+  {
+    "name": "Test Matcha Latte 1794735898879",
+    "nameAr": "ماتشا لاتيه تجريبي 1794735898879",
+    "sku": "SKU-MATCHA-1794735898879",
+    "barcode": "999735898879",
+    "category": "Beverages",
+    "categoryAr": "مشروبات",
+    "costPrice": 2.1,
+    "sellingPrice": 5.75,
+    "stock": 40,
+    "minStockAlert": 5,
+    "emoji": "🍵",
+    "colorHex": "#10b981",
+    "id": "prod-1794735899019-z5ci",
+    "serialNumber": 131,
+    "description": null,
+    "descriptionAr": null,
+    "expiryDate": null,
+    "barcodes": [
+      "999735898879"
+    ],
+    "priceCurrency": "SDG",
+    "priceUpdatedAt": "2026-11-15T09:44:59.019Z",
+    "priceHistory": [
+      {
+        "id": "ph_1794735899019_l3xk",
+        "timestamp": "2026-11-15T09:44:59.019Z",
+        "previousCostPrice": 2.1,
+        "newCostPrice": 2.1,
+        "previousSellingPrice": 5.75,
+        "newSellingPrice": 5.75,
+        "currency": "SDG",
+        "changedBy": "Main Terminal",
+        "note": "Initial price / السعر الابتدائي"
+      }
+    ],
+    "modificationHistory": [
+      {
+        "id": "mod_1794735899019_ozlb",
+        "timestamp": "2026-11-15T09:44:59.019Z",
+        "action": "created",
+        "summaryEn": "Product created with selling price 5.75 SDG",
+        "summaryAr": "تمت إضافة المنتج بسعر بيع 5.75 SDG",
+        "changedFields": [
+          "created"
+        ],
+        "changedBy": "Main Terminal"
+      }
+    ],
+    "imageUrl": null,
+    "customFields": {
+      "serialNumber": 131,
+      "description": null,
+      "descriptionAr": null,
+      "expiryDate": null,
+      "barcodes": [
+        "999735898879"
+      ],
+      "priceCurrency": "SDG",
+      "createdAt": "2026-11-15T09:44:59.019Z",
+      "priceUpdatedAt": "2026-11-15T09:44:59.019Z",
+      "priceHistory": [
+        {
+          "id": "ph_1794735899019_l3xk",
+          "timestamp": "2026-11-15T09:44:59.019Z",
+          "previousCostPrice": 2.1,
+          "newCostPrice": 2.1,
+          "previousSellingPrice": 5.75,
+          "newSellingPrice": 5.75,
+          "currency": "SDG",
+          "changedBy": "Main Terminal",
+          "note": "Initial price / السعر الابتدائي"
+        }
+      ],
+      "modificationHistory": [
+        {
+          "id": "mod_1794735899019_ozlb",
+          "timestamp": "2026-11-15T09:44:59.019Z",
+          "action": "created",
+          "summaryEn": "Product created with selling price 5.75 SDG",
+          "summaryAr": "تمت إضافة المنتج بسعر بيع 5.75 SDG",
+          "changedFields": [
+            "created"
+          ],
+          "changedBy": "Main Terminal"
+        }
+      ]
+    },
+    "isActive": true,
+    "createdAt": "2026-11-15T09:44:59.019Z",
+    "updatedAt": "2026-11-15T09:44:59.019Z"
+  },
+  {
     "name": "Persistent Pastry 1794653052437",
     "sku": "SKU-PERSIST-1794653052437",
     "barcode": "444653052437",

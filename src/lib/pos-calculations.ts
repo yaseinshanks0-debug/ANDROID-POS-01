@@ -2021,18 +2021,37 @@ export function computeAtomicCheckoutStateTransition(
   const timestampIso = payload.nowIso || newTransaction.timestamp || new Date().toISOString();
   const createdMovements: StockMovement[] = [];
 
+  // Aggregate cart lines per productId in case multiple unit/pack or split lines share the same productId
+  const cartItemsByProductId = new Map<string, CartItem[]>();
+  for (const item of cart) {
+    const prodId = item?.product?.id;
+    if (!prodId) continue;
+    const list = cartItemsByProductId.get(prodId);
+    if (list) {
+      list.push(item);
+    } else {
+      cartItemsByProductId.set(prodId, [item]);
+    }
+  }
+
   const nextProducts = state.products.map((prod) => {
-    const cartItem = cart.find((item) => item.product.id === prod.id);
-    if (!cartItem) {
+    const matchingCartItems = cartItemsByProductId.get(prod.id);
+    if (!matchingCartItems || matchingCartItems.length === 0) {
       return prod;
     }
 
-    const { totalStockUnitsRequired, unitLabel } = getCartItemUnitPricing(
-      { ...cartItem, product: prod },
-      currency,
-      exchangeRates,
-      language
-    );
+    let totalStockUnitsRequired = 0;
+    const reasonSegments: string[] = [];
+    for (const cartItem of matchingCartItems) {
+      const pricing = getCartItemUnitPricing(
+        { ...cartItem, product: prod },
+        currency,
+        exchangeRates,
+        language
+      );
+      totalStockUnitsRequired += pricing.totalStockUnitsRequired;
+      reasonSegments.push(`${cartItem.quantity} × ${pricing.unitLabel}`);
+    }
     const updatedStock = Math.max(0, prod.stock - totalStockUnitsRequired);
 
     createdMovements.push({
@@ -2044,7 +2063,7 @@ export function computeAtomicCheckoutStateTransition(
       quantityChange: -totalStockUnitsRequired,
       previousStock: prod.stock,
       newStock: updatedStock,
-      reason: `POS Checkout (${newTransaction.id}) — ${cartItem.quantity} × ${unitLabel}`,
+      reason: `POS Checkout (${newTransaction.id}) — ${reasonSegments.join(', ')}`,
       referenceId: newTransaction.id,
     });
 
@@ -2109,12 +2128,22 @@ export function computeAtomicVoidTransactionStateTransition(
   const timestampIso = payload.nowIso || new Date().toISOString();
   const returnMovements: StockMovement[] = [];
 
+  // Aggregate restored units per productId so multi-line or duplicate-product invoices restore 100% of deducted stock
+  const unitsToRestoreByProductId = new Map<string, number>();
+  for (const item of txn.items) {
+    if (!item?.productId) continue;
+    const units = item.stockDeducted ?? item.quantity;
+    unitsToRestoreByProductId.set(
+      item.productId,
+      (unitsToRestoreByProductId.get(item.productId) || 0) + units
+    );
+  }
+
   const nextProducts = state.products.map((prod) => {
-    const item = txn.items.find((i) => i.productId === prod.id);
-    if (!item) {
+    const unitsToRestore = unitsToRestoreByProductId.get(prod.id);
+    if (unitsToRestore === undefined) {
       return prod;
     }
-    const unitsToRestore = item.stockDeducted ?? item.quantity;
     const restoredStock = prod.stock + unitsToRestore;
     returnMovements.push({
       id: `mov_void_${Date.parse(timestampIso) || Date.now()}_${prod.id}_${txn.id}`,

@@ -386,25 +386,29 @@ export function getNextProductSerialNumber(
   return maxSerial + 1;
 }
 
-/**
- * Multi-word tokenized search across product Name (EN/AR), Description (EN/AR),
- * Sequential Serial Number (e.g. "1", "#1", "0001", "#0001"), SKU, Category, or any Barcode.
- */
-export function matchesProductSearchQuery(
-  product: Partial<Product>,
-  query: string,
-  fallbackIndex?: number
-): boolean {
-  const cleanQuery = (query || '').trim().toLowerCase();
-  if (!cleanQuery) return true;
+export interface ProductSearchIndexEntry {
+  serial: number;
+  serialPlain: string;
+  serialPadded3: string;
+  serialPadded4: string;
+  serialHashPlain: string;
+  serialHashPadded3: string;
+  serialHashPadded4: string;
+  searchableText: string;
+}
 
+/**
+ * Precomputes lowercased searchable fields and serial tokens for a single product
+ * so repeated search keystrokes do not rebuild strings or barcode arrays.
+ */
+export function buildProductSearchIndexEntry(
+  product: Partial<Product>,
+  fallbackIndex?: number
+): ProductSearchIndexEntry {
   const serial = getProductSerialNumber(product, fallbackIndex);
   const serialPlain = String(serial);
-  const serialPadded3 = String(serial).padStart(3, '0');
-  const serialPadded4 = String(serial).padStart(4, '0');
-  const serialHashPlain = `#${serialPlain}`;
-  const serialHashPadded3 = `#${serialPadded3}`;
-  const serialHashPadded4 = `#${serialPadded4}`;
+  const serialPadded3 = serialPlain.padStart(3, '0');
+  const serialPadded4 = serialPlain.padStart(4, '0');
 
   const descEn = (product.description || product.customFields?.description || '').toString().toLowerCase();
   const descAr = (product.descriptionAr || product.customFields?.descriptionAr || '').toString().toLowerCase();
@@ -418,36 +422,90 @@ export function matchesProductSearchQuery(
     barcode: product.barcode || '',
     barcodes: product.barcodes,
     customFields: product.customFields,
-  }).map((b) => b.toLowerCase());
+  });
 
-  const tokens = cleanQuery.split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return true;
+  const parts = [nameEn, nameAr, descEn, descAr, sku, catEn, catAr];
+  if (expiryStr) parts.push(expiryStr);
+  for (const code of barcodes) {
+    if (code) parts.push(code.toLowerCase());
+  }
+
+  return {
+    serial,
+    serialPlain,
+    serialPadded3,
+    serialPadded4,
+    serialHashPlain: `#${serialPlain}`,
+    serialHashPadded3: `#${serialPadded3}`,
+    serialHashPadded4: `#${serialPadded4}`,
+    searchableText: parts.join('\n'),
+  };
+}
+
+/**
+ * Precomputes a search index map keyed by product ID for memoized O(1) filtering in UI lists.
+ */
+export function buildProductSearchIndexMap(
+  products: Array<Partial<Product> & { id?: string }>
+): Map<string, ProductSearchIndexEntry> {
+  const map = new Map<string, ProductSearchIndexEntry>();
+  products.forEach((product, idx) => {
+    const key = product.id || `__idx_${idx}`;
+    map.set(key, buildProductSearchIndexEntry(product, idx));
+  });
+  return map;
+}
+
+/**
+ * Splits a search string into normalized lowercase tokens once per filter pass.
+ */
+export function tokenizeProductSearchQuery(query: string): string[] {
+  const cleanQuery = (query || '').trim().toLowerCase();
+  if (!cleanQuery) return [];
+  return cleanQuery.split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Evaluates pre-tokenized search terms against a precomputed ProductSearchIndexEntry.
+ */
+export function matchesProductSearchIndexEntry(
+  entry: ProductSearchIndexEntry,
+  tokens: string[]
+): boolean {
+  if (!tokens || tokens.length === 0) return true;
 
   return tokens.every((token) => {
-    // Check serial number match (exact numeric token or #0001 prefix match)
     const strippedHash = token.startsWith('#') ? token.slice(1) : token;
     const isNumericToken = /^\d+$/.test(strippedHash);
     if (
-      token === serialPlain ||
-      token === serialPadded3 ||
-      token === serialPadded4 ||
-      token === serialHashPlain ||
-      token === serialHashPadded3 ||
-      token === serialHashPadded4 ||
-      (isNumericToken && parseInt(strippedHash, 10) === serial)
+      token === entry.serialPlain ||
+      token === entry.serialPadded3 ||
+      token === entry.serialPadded4 ||
+      token === entry.serialHashPlain ||
+      token === entry.serialHashPadded3 ||
+      token === entry.serialHashPadded4 ||
+      (isNumericToken && parseInt(strippedHash, 10) === entry.serial)
     ) {
       return true;
     }
 
-    if (nameEn.includes(token) || nameAr.includes(token)) return true;
-    if (descEn.includes(token) || descAr.includes(token)) return true;
-    if (sku.includes(token)) return true;
-    if (catEn.includes(token) || catAr.includes(token)) return true;
-    if (expiryStr && expiryStr.includes(token)) return true;
-    if (barcodes.some((code) => code.includes(token))) return true;
-
-    return false;
+    return entry.searchableText.includes(token);
   });
+}
+
+/**
+ * Multi-word tokenized search across product Name (EN/AR), Description (EN/AR),
+ * Sequential Serial Number (e.g. "1", "#1", "0001", "#0001"), SKU, Category, or any Barcode.
+ */
+export function matchesProductSearchQuery(
+  product: Partial<Product>,
+  query: string,
+  fallbackIndex?: number
+): boolean {
+  const tokens = tokenizeProductSearchQuery(query);
+  if (tokens.length === 0) return true;
+  const entry = buildProductSearchIndexEntry(product, fallbackIndex);
+  return matchesProductSearchIndexEntry(entry, tokens);
 }
 
 /**

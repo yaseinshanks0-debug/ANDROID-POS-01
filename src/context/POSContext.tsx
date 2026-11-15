@@ -457,9 +457,6 @@ const POSContext = createContext<POSContextType | null>(null);
 export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Run clean production migration strictly once on initial mount (never on re-renders)
   useState(() => ensureCleanProductionMigration());
-  useEffect(() => {
-    ensureCleanProductionMigration();
-  }, []);
 
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(() => {
     try {
@@ -953,6 +950,27 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     offlineSqliteStorage.getDiagnostics(sqliteCompanyScope)
   );
 
+  const updateSqliteDiagnosticsIfChanged = useCallback(
+    (nextDiag: OfflineSqliteDiagnostics) => {
+      setSqliteDiagnostics((prev) => {
+        if (
+          prev.engineType === nextDiag.engineType &&
+          prev.isInitialized === nextDiag.isInitialized &&
+          prev.isDeviceOnline === nextDiag.isDeviceOnline &&
+          prev.companyId === nextDiag.companyId &&
+          prev.totalPersistedTransactions === nextDiag.totalPersistedTransactions &&
+          prev.pendingOfflineTransactions === nextDiag.pendingOfflineTransactions &&
+          prev.pendingOutboxCount === nextDiag.pendingOutboxCount &&
+          prev.lastPersistedAt === nextDiag.lastPersistedAt
+        ) {
+          return prev;
+        }
+        return nextDiag;
+      });
+    },
+    []
+  );
+
   useEffect(() => {
     let active = true;
     offlineSqliteStorage
@@ -960,7 +978,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .then((sqliteTxs) => {
         if (!active || !Array.isArray(sqliteTxs) || sqliteTxs.length === 0) {
           if (active) {
-            setSqliteDiagnostics(offlineSqliteStorage.getDiagnostics(sqliteCompanyScope));
+            updateSqliteDiagnosticsIfChanged(offlineSqliteStorage.getDiagnostics(sqliteCompanyScope));
           }
           return;
         }
@@ -976,13 +994,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             (a, b) => (Date.parse(b.timestamp || '') || 0) - (Date.parse(a.timestamp || '') || 0)
           );
         });
-        setSqliteDiagnostics(offlineSqliteStorage.getDiagnostics(sqliteCompanyScope));
+        updateSqliteDiagnosticsIfChanged(offlineSqliteStorage.getDiagnostics(sqliteCompanyScope));
       })
       .catch(() => {});
     return () => {
       active = false;
     };
-  }, [sqliteCompanyScope]);
+  }, [sqliteCompanyScope, updateSqliteDiagnosticsIfChanged]);
 
   usePersistCompanyScopedSlice({
     value: transactions,
@@ -994,7 +1012,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       offlineSqliteStorage
         .persistTransactions(sqliteCompanyScope, txs)
         .then(() => {
-          setSqliteDiagnostics(offlineSqliteStorage.getDiagnostics(sqliteCompanyScope));
+          updateSqliteDiagnosticsIfChanged(offlineSqliteStorage.getDiagnostics(sqliteCompanyScope));
         })
         .catch(() => {});
     },

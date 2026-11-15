@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, memo } from 'react';
 import { usePOS } from '../../context/POSContext';
 import { getTranslation } from '../../lib/translations';
 import {
@@ -15,12 +15,14 @@ import {
 } from '../../lib/pos-calculations';
 import {
   matchesProductBarcode,
-  matchesProductSearchQuery,
   getProductSerialNumber,
   formatProductSerialNumber,
+  buildProductSearchIndexMap,
+  tokenizeProductSearchQuery,
+  matchesProductSearchIndexEntry,
 } from '../../lib/inventory-rules';
 import { normalizeNumberInput, parseNormalizedNumber } from '../../lib/number-utils';
-import { Product, Transaction } from '../../lib/types';
+import { Product, ProductSaleUnitMode, SupportedCurrency, Transaction } from '../../lib/types';
 import { TactileButton } from '../ui/TactileButton';
 import { DynamicButton } from '../ui/DynamicButton';
 import { HoldToConfirm } from '../ui/HoldToConfirm';
@@ -48,6 +50,228 @@ import { playTactileClick } from '../../lib/sound-fx';
 import { useDebouncedValue } from '../../lib/performance-monitor';
 
 const CHECKOUT_PAGE_SIZE = 48;
+
+interface CheckoutProductCardProps {
+  product: Product;
+  serialNum: number;
+  inCartQty: number;
+  inCartSaleUnit?: ProductSaleUnitMode;
+  currency: SupportedCurrency;
+  exchangeRates: Record<string, number>;
+  language: 'en' | 'ar';
+  onAddToCart: (product: Product, quantity?: number, saleUnit?: ProductSaleUnitMode) => void;
+  onOpenUnmetDemand: (productId: string) => void;
+}
+
+const CheckoutProductCard = memo<CheckoutProductCardProps>(
+  ({
+    product,
+    serialNum,
+    inCartQty,
+    inCartSaleUnit,
+    currency,
+    exchangeRates,
+    language,
+    onAddToCart,
+    onOpenUnmetDemand,
+  }) => {
+    const isAr = language === 'ar';
+    const isOutOfStock = product.stock <= 0;
+    const isLow = product.stock > 0 && product.stock <= product.minStockAlert;
+    const prices = getProductPricesInCurrency(product, currency, exchangeRates);
+    const convertedPrice = prices.sellingPrice;
+    const pkg = getProductPackaging(product);
+    const hasMultiUnit = pkg.enablePackaging && pkg.unitsPerPack > 1;
+    const unitLabel = isAr ? pkg.unitNameAr : pkg.unitName;
+    const packLabel = isAr ? pkg.packNameAr : pkg.packName;
+    const canAddPack = product.stock >= pkg.unitsPerPack && pkg.allowedSaleUnits !== 'unit_only';
+    const canAddUnit = product.stock >= 1 && pkg.allowedSaleUnits !== 'pack_only';
+    const productImg = product.image || product.imageUrl || product.customFields?.image;
+    const prodDesc = isAr && product.descriptionAr ? product.descriptionAr : product.description;
+
+    return (
+      <div
+        onClick={() => {
+          if (!isOutOfStock) {
+            onAddToCart(product, 1);
+          }
+        }}
+        role="button"
+        tabIndex={isOutOfStock ? -1 : 0}
+        onKeyDown={(e) => {
+          if ((e.key === 'Enter' || e.key === ' ') && !isOutOfStock) {
+            e.preventDefault();
+            onAddToCart(product, 1);
+          }
+        }}
+        className={`group relative flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all select-none focus:outline-none focus:ring-2 focus:ring-amber-500/50 ${
+          isOutOfStock
+            ? 'opacity-40 cursor-not-allowed bg-neutral-900/50 border-neutral-850'
+            : 'bg-neutral-900 hover:bg-neutral-850 border-neutral-800 hover:border-neutral-700 cursor-pointer shadow-sm hover:shadow-md active:scale-[0.99]'
+        }`}
+        aria-label={`Add ${product.name} to cart`}
+      >
+        {/* Visual Top Slot with Image / Emoji & Badges */}
+        <div className="flex items-start justify-between gap-1 mb-2 w-full">
+          {productImg ? (
+            <div className="w-11 h-11 rounded-xl overflow-hidden bg-neutral-800 border border-white/10 shrink-0">
+              <img
+                src={productImg}
+                alt={product.name}
+                loading="lazy"
+                decoding="async"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ) : (
+            <div
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shadow-inner border border-white/5"
+              style={{ backgroundColor: `${product.colorHex || '#d97706'}22` }}
+            >
+              <span>{product.emoji || '📦'}</span>
+            </div>
+          )}
+
+          <div className="flex flex-col items-end gap-1">
+            <span className="px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-amber-400 font-mono font-bold text-[10px] inline-flex items-center gap-0.5">
+              <Hash className="w-2.5 h-2.5" />
+              <span>{formatProductSerialNumber(serialNum).replace('#', '')}</span>
+            </span>
+            {inCartQty > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-amber-500 text-neutral-950 font-bold text-[10px]">
+                <span className="font-mono">{inCartQty}</span>{' '}
+                {hasMultiUnit
+                  ? inCartSaleUnit === 'pack'
+                    ? packLabel
+                    : unitLabel
+                  : isAr
+                  ? 'بالسلة'
+                  : 'in cart'}
+              </span>
+            )}
+            {hasMultiUnit && (
+              <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold flex items-center gap-1">
+                <Layers className="w-2.5 h-2.5 shrink-0" />
+                <span>
+                  {packLabel} = <span className="font-mono">{pkg.unitsPerPack}</span> {unitLabel}
+                </span>
+              </span>
+            )}
+            {isLow && (
+              <span className="text-[10px] text-amber-400 font-medium flex items-center gap-0.5">
+                <AlertTriangle className="w-2.5 h-2.5" />
+                <span>{formatProductStockBreakdown(product, language)}</span>
+              </span>
+            )}
+            {isOutOfStock && (
+              <span className="text-[10px] text-rose-400 font-medium">
+                {isAr ? 'نفد' : 'Out'}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Name, Description & SKU */}
+        <div className="mb-2 w-full">
+          <h4 className="text-sm font-semibold text-white group-hover:text-amber-200 transition-colors line-clamp-2 leading-snug">
+            {isAr && product.nameAr ? product.nameAr : product.name}
+          </h4>
+          {prodDesc && (
+            <p className="text-[10px] text-neutral-400 line-clamp-1 mt-0.5">{prodDesc}</p>
+          )}
+          <span className="text-[11px] font-mono text-neutral-500 block mt-0.5">{product.sku}</span>
+        </div>
+
+        {/* Price & Unit/Pack Quick Add Triggers */}
+        {hasMultiUnit ? (
+          <div className="pt-2 border-t border-neutral-800/80 w-full space-y-1.5">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-neutral-400">{unitLabel}:</span>
+              <span className="font-mono font-bold text-emerald-400 tabular-nums">
+                {formatCurrency(prices.sellingPrice, currency, language)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-amber-300 font-medium">
+                {packLabel} (<span className="font-mono">{pkg.unitsPerPack}</span>):
+              </span>
+              <span className="font-mono font-bold text-amber-400 tabular-nums">
+                {formatCurrency(prices.packSellingPrice, currency, language)}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 pt-1">
+              {canAddUnit && (
+                <button
+                  type="button"
+                  data-testid={`add-unit-${product.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddToCart(product, 1, 'unit');
+                  }}
+                  className="px-2 py-1.5 rounded-lg bg-neutral-800 hover:bg-emerald-500 hover:text-neutral-950 text-neutral-200 text-[11px] font-bold transition-colors flex items-center justify-center gap-1"
+                >
+                  <Plus className="w-3 h-3 shrink-0" />
+                  <span>{unitLabel}</span>
+                </button>
+              )}
+              {canAddPack && (
+                <button
+                  type="button"
+                  data-testid={`add-pack-${product.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddToCart(product, 1, 'pack');
+                  }}
+                  className="px-2 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 hover:text-neutral-950 border border-amber-500/40 text-amber-300 text-[11px] font-bold transition-colors flex items-center justify-center gap-1"
+                >
+                  <Plus className="w-3 h-3 shrink-0" />
+                  <span>{packLabel}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between pt-2 border-t border-neutral-800/80 w-full">
+            <span className="text-sm font-bold font-mono text-emerald-400 tabular-nums">
+              {formatCurrency(convertedPrice, currency, language)}
+            </span>
+            {isOutOfStock || isLow ? (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  data-testid={`record-unmet-${product.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenUnmetDemand(product.id);
+                  }}
+                  className="px-2 py-1 rounded-lg border border-rose-500/40 bg-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-300 text-[10px] font-bold transition-colors flex items-center gap-1"
+                  title={
+                    isAr
+                      ? 'تسجيل طلب عميل لهذا المنتج النافد أو المنخفض'
+                      : 'Record customer unmet demand for this item'
+                  }
+                >
+                  <PackageX className="w-3 h-3" />
+                  <span>{isAr ? 'طلب عميل' : 'Log Demand'}</span>
+                </button>
+                {!isOutOfStock && (
+                  <div className="w-7 h-7 rounded-lg bg-neutral-800 group-hover:bg-amber-500 group-hover:text-neutral-950 text-neutral-300 flex items-center justify-center transition-colors">
+                    <Plus className="w-4 h-4" />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="w-7 h-7 rounded-lg bg-neutral-800 group-hover:bg-amber-500 group-hover:text-neutral-950 text-neutral-300 flex items-center justify-center transition-colors">
+                <Plus className="w-4 h-4" />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+);
+CheckoutProductCard.displayName = 'CheckoutProductCard';
 
 export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDrawer?: () => void }> = ({
   isCartDrawerOpen = false,
@@ -99,6 +323,11 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
     return map;
   }, [cart]);
 
+  const searchIndexMap = useMemo(
+    () => buildProductSearchIndexMap(products),
+    [products]
+  );
+
   // Derive unique categories
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -109,20 +338,43 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
     return Array.from(set);
   }, [products, settings.language]);
 
-  // Filter products by category & debounced tokenized search query
+  // Filter products by category & debounced tokenized search query using precomputed index
   const filteredProducts = useMemo(() => {
+    const tokens = tokenizeProductSearchQuery(debouncedSearchQuery);
+    if (tokens.length === 0 && selectedCategory === 'all') {
+      return products;
+    }
     return products.filter((prod, idx) => {
-      const matchesSearch = matchesProductSearchQuery(prod, debouncedSearchQuery, idx);
       const prodCat = settings.language === 'ar' && prod.categoryAr ? prod.categoryAr : prod.category;
-      const matchesCat = selectedCategory === 'all' || prodCat === selectedCategory;
-
-      return matchesSearch && matchesCat;
+      if (selectedCategory !== 'all' && prodCat !== selectedCategory) {
+        return false;
+      }
+      if (tokens.length === 0) return true;
+      const entry = searchIndexMap.get(prod.id);
+      return entry ? matchesProductSearchIndexEntry(entry, tokens) : true;
     });
-  }, [products, debouncedSearchQuery, selectedCategory, settings.language]);
+  }, [products, searchIndexMap, debouncedSearchQuery, selectedCategory, settings.language]);
+
+  // Reset visible window whenever filter criteria change
+  useEffect(() => {
+    setVisibleCount(CHECKOUT_PAGE_SIZE);
+  }, [debouncedSearchQuery, selectedCategory]);
 
   const visibleProducts = useMemo(
     () => filteredProducts.slice(0, visibleCount),
     [filteredProducts, visibleCount]
+  );
+
+  const handleOpenProductUnmetDemand = useMemo(
+    () => (productId: string) => {
+      openUnmetDemandModal({
+        productId,
+        isRegisteredProduct: true,
+        unavailabilityReason: 'OUT_OF_STOCK',
+        sourceScreen: 'checkout',
+      });
+    },
+    [openUnmetDemandModal]
   );
 
   const handleBarcodeScanned = (code: string) => {
@@ -265,218 +517,25 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
           ))}
         </div>
 
-        {/* Product Grid */}
+        {/* Product Grid (paginated via visibleProducts & O(1) index/cart lookups) */}
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-          {filteredProducts.map((product) => {
-            const prodIndex = products.findIndex((p) => p.id === product.id);
-            const serialNum = getProductSerialNumber(product, prodIndex >= 0 ? prodIndex : 0);
-            const isOutOfStock = product.stock <= 0;
-            const isLow = product.stock > 0 && product.stock <= product.minStockAlert;
-            const inCartItem = cart.find((i) => i.product.id === product.id);
-            const inCartQty = inCartItem?.quantity || 0;
-            const prices = getProductPricesInCurrency(product, settings.currency, exchangeRates);
-            const convertedPrice = prices.sellingPrice;
-            const pkg = getProductPackaging(product);
-            const hasMultiUnit = pkg.enablePackaging && pkg.unitsPerPack > 1;
-            const unitLabel = isAr ? pkg.unitNameAr : pkg.unitName;
-            const packLabel = isAr ? pkg.packNameAr : pkg.packName;
-            const canAddPack = product.stock >= pkg.unitsPerPack && pkg.allowedSaleUnits !== 'unit_only';
-            const canAddUnit = product.stock >= 1 && pkg.allowedSaleUnits !== 'pack_only';
-            const productImg = product.image || product.imageUrl || product.customFields?.image;
-            const prodDesc = isAr && product.descriptionAr ? product.descriptionAr : product.description;
-
+          {visibleProducts.map((product) => {
+            const prodIndex = productIndexMap.get(product.id) ?? 0;
+            const serialNum = getProductSerialNumber(product, prodIndex);
+            const inCartItem = cartItemMap.get(product.id);
             return (
-              <div
+              <CheckoutProductCard
                 key={product.id}
-                onClick={() => {
-                  if (!isOutOfStock) {
-                    addToCart(product, 1);
-                  }
-                }}
-                role="button"
-                tabIndex={isOutOfStock ? -1 : 0}
-                onKeyDown={(e) => {
-                  if ((e.key === 'Enter' || e.key === ' ') && !isOutOfStock) {
-                    e.preventDefault();
-                    addToCart(product, 1);
-                  }
-                }}
-                className={`group relative flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all select-none focus:outline-none focus:ring-2 focus:ring-amber-500/50 ${
-                  isOutOfStock
-                    ? 'opacity-40 cursor-not-allowed bg-neutral-900/50 border-neutral-850'
-                    : 'bg-neutral-900 hover:bg-neutral-850 border-neutral-800 hover:border-neutral-700 cursor-pointer shadow-sm hover:shadow-md active:scale-[0.99]'
-                }`}
-                aria-label={`Add ${product.name} to cart`}
-              >
-                {/* Visual Top Slot with Image / Emoji & Badges */}
-                <div className="flex items-start justify-between gap-1 mb-2 w-full">
-                  {productImg ? (
-                    <div className="w-11 h-11 rounded-xl overflow-hidden bg-neutral-800 border border-white/10 shrink-0">
-                      <img
-                        src={productImg}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div
-                      className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shadow-inner border border-white/5"
-                      style={{ backgroundColor: `${product.colorHex || '#d97706'}22` }}
-                    >
-                      <span>{product.emoji || '📦'}</span>
-                    </div>
-                  )}
-
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-amber-400 font-mono font-bold text-[10px] inline-flex items-center gap-0.5">
-                      <Hash className="w-2.5 h-2.5" />
-                      <span>{formatProductSerialNumber(serialNum).replace('#', '')}</span>
-                    </span>
-                    {inCartQty > 0 && (
-                      <span className="px-2 py-0.5 rounded-full bg-amber-500 text-neutral-950 font-bold text-[10px]">
-                        <span className="font-mono">{inCartQty}</span>{' '}
-                        {hasMultiUnit
-                          ? inCartItem?.selectedSaleUnit === 'pack'
-                            ? packLabel
-                            : unitLabel
-                          : isAr
-                          ? 'بالسلة'
-                          : 'in cart'}
-                      </span>
-                    )}
-                    {hasMultiUnit && (
-                      <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold flex items-center gap-1">
-                        <Layers className="w-2.5 h-2.5 shrink-0" />
-                        <span>
-                          {packLabel} = <span className="font-mono">{pkg.unitsPerPack}</span>{' '}
-                          {unitLabel}
-                        </span>
-                      </span>
-                    )}
-                    {isLow && (
-                      <span className="text-[10px] text-amber-400 font-medium flex items-center gap-0.5">
-                        <AlertTriangle className="w-2.5 h-2.5" />
-                        <span>{formatProductStockBreakdown(product, settings.language)}</span>
-                      </span>
-                    )}
-                    {isOutOfStock && (
-                      <span className="text-[10px] text-rose-400 font-medium">
-                        {isAr ? 'نفد' : 'Out'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Name, Description & SKU */}
-                <div className="mb-2 w-full">
-                  <h4 className="text-sm font-semibold text-white group-hover:text-amber-200 transition-colors line-clamp-2 leading-snug">
-                    {isAr && product.nameAr ? product.nameAr : product.name}
-                  </h4>
-                  {prodDesc && (
-                    <p className="text-[10px] text-neutral-400 line-clamp-1 mt-0.5">
-                      {prodDesc}
-                    </p>
-                  )}
-                  <span className="text-[11px] font-mono text-neutral-500 block mt-0.5">
-                    {product.sku}
-                  </span>
-                </div>
-
-                {/* Price & Unit/Pack Quick Add Triggers */}
-                {hasMultiUnit ? (
-                  <div className="pt-2 border-t border-neutral-800/80 w-full space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-neutral-400">{unitLabel}:</span>
-                      <span className="font-mono font-bold text-emerald-400 tabular-nums">
-                        {formatCurrency(prices.sellingPrice, settings.currency, settings.language)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-amber-300 font-medium">
-                        {packLabel} (<span className="font-mono">{pkg.unitsPerPack}</span>):
-                      </span>
-                      <span className="font-mono font-bold text-amber-400 tabular-nums">
-                        {formatCurrency(
-                          prices.packSellingPrice,
-                          settings.currency,
-                          settings.language
-                        )}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1.5 pt-1">
-                      {canAddUnit && (
-                        <button
-                          type="button"
-                          data-testid={`add-unit-${product.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            addToCart(product, 1, 'unit');
-                          }}
-                          className="px-2 py-1.5 rounded-lg bg-neutral-800 hover:bg-emerald-500 hover:text-neutral-950 text-neutral-200 text-[11px] font-bold transition-colors flex items-center justify-center gap-1"
-                        >
-                          <Plus className="w-3 h-3 shrink-0" />
-                          <span>{unitLabel}</span>
-                        </button>
-                      )}
-                      {canAddPack && (
-                        <button
-                          type="button"
-                          data-testid={`add-pack-${product.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            addToCart(product, 1, 'pack');
-                          }}
-                          className="px-2 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 hover:text-neutral-950 border border-amber-500/40 text-amber-300 text-[11px] font-bold transition-colors flex items-center justify-center gap-1"
-                        >
-                          <Plus className="w-3 h-3 shrink-0" />
-                          <span>{packLabel}</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between pt-2 border-t border-neutral-800/80 w-full">
-                    <span className="text-sm font-bold font-mono text-emerald-400 tabular-nums">
-                      {formatCurrency(convertedPrice, settings.currency, settings.language)}
-                    </span>
-                    {isOutOfStock || isLow ? (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          data-testid={`record-unmet-${product.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openUnmetDemandModal({
-                              productId: product.id,
-                              isRegisteredProduct: true,
-                              unavailabilityReason: 'OUT_OF_STOCK',
-                              sourceScreen: 'checkout',
-                            });
-                          }}
-                          className="px-2 py-1 rounded-lg border border-rose-500/40 bg-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-300 text-[10px] font-bold transition-colors flex items-center gap-1"
-                          title={
-                            isAr
-                              ? 'تسجيل طلب عميل لهذا المنتج النافد أو المنخفض'
-                              : 'Record customer unmet demand for this item'
-                          }
-                        >
-                          <PackageX className="w-3 h-3" />
-                          <span>{isAr ? 'طلب عميل' : 'Log Demand'}</span>
-                        </button>
-                        {!isOutOfStock && (
-                          <div className="w-7 h-7 rounded-lg bg-neutral-800 group-hover:bg-amber-500 group-hover:text-neutral-950 text-neutral-300 flex items-center justify-center transition-colors">
-                            <Plus className="w-4 h-4" />
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="w-7 h-7 rounded-lg bg-neutral-800 group-hover:bg-amber-500 group-hover:text-neutral-950 text-neutral-300 flex items-center justify-center transition-colors">
-                        <Plus className="w-4 h-4" />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                product={product}
+                serialNum={serialNum}
+                inCartQty={inCartItem?.quantity || 0}
+                inCartSaleUnit={inCartItem?.selectedSaleUnit}
+                currency={settings.currency}
+                exchangeRates={exchangeRates}
+                language={settings.language}
+                onAddToCart={addToCart}
+                onOpenUnmetDemand={handleOpenProductUnmetDemand}
+              />
             );
           })}
         </div>

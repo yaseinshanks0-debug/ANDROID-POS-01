@@ -191,12 +191,12 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
 
   return (
     <header className="sticky top-0 z-30 w-full bg-neutral-950/95 backdrop-blur-md border-b border-neutral-800/80 px-2.5 sm:px-4 py-2.5 pt-safe">
-      <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-2">
+      <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-1.5 sm:gap-2 min-w-0">
         {/* Brand Zone */}
-        <div className="flex items-center gap-2 min-w-0 flex-1">
+        <div className="flex items-center gap-2 min-w-0 shrink-0 sm:shrink">
           <button
             onClick={() => setActiveTab('dashboard')}
-            className="flex items-center gap-2 text-start focus:outline-none group min-w-0"
+            className="flex items-center gap-2 text-start focus:outline-none group min-w-0 shrink-0"
             aria-label="Go to Dashboard"
           >
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center font-bold text-neutral-950 shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform overflow-hidden shrink-0">
@@ -210,9 +210,9 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
                 <span className="font-mono text-sm sm:text-base">DQ</span>
               )}
             </div>
-            <div className="min-w-0">
+            <div className="hidden sm:block min-w-0">
               <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-xs sm:text-base font-bold tracking-tight text-white truncate max-w-[105px] sm:max-w-[220px] md:max-w-none">
+                <span className="text-xs sm:text-base font-bold tracking-tight text-white truncate max-w-[150px] md:max-w-[220px] lg:max-w-none">
                   {settings.language === 'ar' ? settings.storeNameAr : settings.storeName}
                 </span>
               </div>
@@ -223,10 +223,11 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
           </button>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+        {/* Action Controls (scrollable middle strip on ultra-narrow viewports + pinned Cart) */}
+        <div className="flex items-center justify-end gap-1 sm:gap-2 min-w-0 flex-1">
+          <div className="flex items-center justify-end gap-1 sm:gap-2 min-w-0 overflow-x-auto sm:overflow-visible no-scrollbar py-0.5">
           {/* Active User & Multi-User Concurrent Sessions Switcher */}
-          <div className="relative" ref={userMenuRef}>
+          <div className="relative shrink-0" ref={userMenuRef}>
             <button
               type="button"
               data-testid="active-user-switcher-btn"
@@ -394,7 +395,7 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
 
           {/* Quick Currency Switcher */}
           {activeCurrencyCodes.length > 0 ? (
-            <div className="relative flex items-center">
+            <div className="relative flex items-center shrink-0">
               <Coins className="hidden sm:block w-3.5 h-3.5 text-amber-400 absolute start-2.5 pointer-events-none" />
               <select
                 aria-label="Active Currency"
@@ -419,7 +420,7 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
               data-testid="header-add-currency-shortcut-btn"
               onClick={() => setActiveTab('settings')}
               title={isAr ? 'إضافة عملات المتجر' : 'Add Store Currencies'}
-              className="min-h-[34px] sm:min-h-[36px] px-2 sm:px-2.5 py-1 rounded-xl bg-neutral-900 border border-neutral-800 hover:border-amber-500/60 text-[11px] sm:text-xs font-bold text-amber-400 flex items-center gap-1 transition-colors"
+              className="shrink-0 min-h-[34px] sm:min-h-[36px] px-2 sm:px-2.5 py-1 rounded-xl bg-neutral-900 border border-neutral-800 hover:border-amber-500/60 text-[11px] sm:text-xs font-bold text-amber-400 flex items-center gap-1 transition-colors"
             >
               <Coins className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span className="hidden md:inline">{isAr ? '+ عملة' : '+ Currency'}</span>
@@ -432,7 +433,7 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
             data-testid="header-workspace-onboarding-btn"
             onClick={() => openOnboardingModal('hub')}
             aria-label={isAr ? 'بوابة الشركات ووضع التدريب التجريبي' : 'Company Onboarding & Practice Mode'}
-            className={`min-h-[34px] sm:min-h-[36px] px-2 sm:px-2.5 py-1 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-colors ${
+            className={`shrink-0 min-h-[34px] sm:min-h-[36px] px-2 sm:px-2.5 py-1 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-colors ${
               workspaceMode === 'PRACTICE'
                 ? 'bg-amber-500/20 border-amber-400/60 text-amber-300'
                 : 'bg-neutral-900 hover:bg-neutral-800 border-neutral-800 text-emerald-400'
@@ -461,7 +462,7 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
             data-testid="launch-training-tour-btn"
             onClick={() => startTrainingTour(trainingTourProgress.completed ? 0 : trainingTourProgress.lastStepIndex)}
             aria-label={isAr ? 'بدء الجولة التدريبية للبرنامج' : 'Start Interactive Training Tour'}
-            className="min-h-[34px] sm:min-h-[36px] px-2 sm:px-2.5 py-1 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition-colors relative"
+            className="shrink-0 min-h-[34px] sm:min-h-[36px] px-2 sm:px-2.5 py-1 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition-colors relative"
             title={isAr ? 'بدء الجولة التدريبية التفاعلية للبرنامج' : 'Launch Interactive POS Training Tour'}
           >
             <GraduationCap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -486,7 +487,7 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
                 ? 'ربط ومزامنة حية عبر الواي فاي بين اللابتوب والأندرويد'
                 : 'Pair & Sync Live over Wi-Fi between Windows Laptop and Android'
             }
-            className={`min-h-[34px] sm:min-h-[36px] px-2 sm:px-2.5 py-1 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`shrink-0 min-h-[34px] sm:min-h-[36px] px-2 sm:px-2.5 py-1 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               lanConnectionStatus === 'connected'
                 ? 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/40 text-emerald-300'
                 : lanConnectionStatus === 'connecting'
@@ -518,7 +519,7 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
             }}
             aria-label={isAr ? 'جرس التنبيهات والإشعارات الذكية' : 'Smart Notifications & Alerts Bell'}
             title={isAr ? 'جرس التنبيهات (اضغط لعرض التفاصيل والتعامل معها)' : 'Notifications Bell (Click to view details & handle)'}
-            className={`relative min-h-[34px] sm:min-h-[36px] px-2.5 py-1 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`shrink-0 relative min-h-[34px] sm:min-h-[36px] px-2 sm:px-2.5 py-1 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               notificationCounts.criticalActive > 0
                 ? 'bg-rose-500/20 hover:bg-rose-500/30 border-rose-500/50 text-rose-300'
                 : notificationCounts.active > 0
@@ -553,14 +554,15 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
             variant="ghost"
             size="sm"
             onClick={toggleLanguage}
-            className="font-medium text-neutral-300 hover:text-white px-2 sm:px-2.5"
+            leftIcon={<Globe className="w-3.5 h-3.5 shrink-0" />}
+            className="shrink-0 whitespace-nowrap font-medium text-neutral-300 hover:text-white px-2 sm:px-2.5"
             aria-label={`Switch language to ${settings.language === 'en' ? 'Arabic' : 'English'}`}
           >
-            <Globe className="w-3.5 h-3.5 shrink-0" />
             <span className="font-mono text-[11px] sm:text-xs">{settings.language === 'en' ? 'عربي' : 'EN'}</span>
           </TactileButton>
+          </div>
 
-          {/* Quick Cart Trigger (especially on mobile/compact screens) */}
+          {/* Quick Cart Trigger (always pinned on end) */}
           <TactileButton
             variant={cart.length > 0 ? 'amber' : 'secondary'}
             size="sm"
@@ -568,10 +570,10 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
               if (activeTab !== 'checkout') setActiveTab('checkout');
               onOpenCart?.();
             }}
-            className="relative font-mono font-semibold px-2 sm:px-3"
+            leftIcon={<ShoppingBag className="w-4 h-4 shrink-0" />}
+            className="relative shrink-0 whitespace-nowrap font-mono font-semibold px-2 sm:px-3"
             aria-label={`Cart contains ${cartTotals.totalItemsCount} items`}
           >
-            <ShoppingBag className="w-4 h-4 shrink-0" />
             <span className="hidden sm:inline tabular-nums text-xs">
               {formatCurrency(cartTotals.grandTotal, settings.currency, settings.language)}
             </span>

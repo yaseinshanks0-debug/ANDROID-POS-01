@@ -51,6 +51,14 @@
   background: rgba(160, 160, 160, 0.4);
 }
 
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Tactile button active states and dynamic button glow */
 .tactile-shadow-dark {
   box-shadow: 0 4px 0 #18181b, 0 6px 12px rgba(0, 0, 0, 0.35);

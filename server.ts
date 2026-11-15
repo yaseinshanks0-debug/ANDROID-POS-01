@@ -599,7 +599,7 @@ function writeSharedStoreState(state: SharedStoreState) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(STORE_SYNC_FILE, JSON.stringify(state, null, 2), 'utf-8');
+    fs.writeFileSync(STORE_SYNC_FILE, JSON.stringify(state), 'utf-8');
   } catch (e) {
     console.warn('Could not write store-state.json:', e);
   }

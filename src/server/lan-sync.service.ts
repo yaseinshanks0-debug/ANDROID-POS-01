@@ -125,7 +125,7 @@ function savePersistedStore() {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(LAN_SYNC_FILE, JSON.stringify(memoryStore, null, 2), 'utf-8');
+    fs.writeFileSync(LAN_SYNC_FILE, JSON.stringify(memoryStore), 'utf-8');
   } catch (err) {
     console.warn('Could not write lan-sync-state.json:', err);
   }

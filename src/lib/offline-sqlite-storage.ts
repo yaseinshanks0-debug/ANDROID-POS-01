@@ -92,6 +92,8 @@ class OfflineSqlitePersistenceManager {
   private memoryTransactions = new Map<string, { companyId: string; tx: Transaction; updatedAt: string }>();
   private memoryKv = new Map<string, { companyId: string; payloadJson: string; updatedAt: string }>();
   private memoryOutbox = new Map<string, OfflineOutboxEntry>();
+  private idbPromise: Promise<IDBDatabase> | null = null;
+  private txSignatureCache = new Map<string, string>();
 
   public async initialize(): Promise<OfflineStorageEngineType> {
     if (this.initialized) return this.engineType;
@@ -153,7 +155,10 @@ class OfflineSqlitePersistenceManager {
   }
 
   private openIndexedDb(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
+    if (this.idbPromise) {
+      return this.idbPromise;
+    }
+    this.idbPromise = new Promise<IDBDatabase>((resolve, reject) => {
       const req = window.indexedDB.open(IDB_NAME, 1);
       req.onupgradeneeded = () => {
         const db = req.result;
@@ -169,31 +174,51 @@ class OfflineSqlitePersistenceManager {
           outboxStore.createIndex('companyId', 'companyId', { unique: false });
         }
       };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
+      req.onsuccess = () => {
+        const db = req.result;
+        db.onclose = () => {
+          this.idbPromise = null;
+        };
+        db.onversionchange = () => {
+          this.idbPromise = null;
+          db.close();
+        };
+        resolve(db);
+      };
+      req.onerror = () => {
+        this.idbPromise = null;
+        reject(req.error);
+      };
     });
+    return this.idbPromise;
+  }
+
+  private getTransactionWriteSignature(tx: Transaction, syncStatus: string): string {
+    return `${tx.status || ''}:${syncStatus}:${tx.amountPaid ?? 0}:${tx.debtAmount ?? 0}:${tx.grandTotal ?? 0}:${tx.paymentStatus || ''}:${tx.fulfillmentStatus || ''}:${tx.exchangeRateUsed ?? ''}:${tx.timestamp || ''}:${tx.debtPayments?.length || 0}`;
   }
 
   public async persistTransactions(companyId: string, transactions: Transaction[]): Promise<void> {
     await this.initialize();
     const safeCompanyId = String(companyId || 'comp-default');
     const nowIso = new Date().toISOString();
+    const dirtyTransactions: Array<{ tx: Transaction; syncStatus: string; signature: string }> = [];
 
-    // Always mirror to memory map for instant synchronous diagnostics
+    // Always mirror to memory map for instant synchronous diagnostics & track dirty delta
     for (const tx of transactions || []) {
       if (!tx?.id) continue;
-      const scopedTx: Transaction = {
-        ...tx,
-        syncStatus: tx.syncStatus || (this.isOnline() ? 'synced' : 'pending_sync'),
-      };
-      this.memoryTransactions.set(`${safeCompanyId}:${scopedTx.id}`, {
+      const resolvedSyncStatus = tx.syncStatus || (this.isOnline() ? 'synced' : 'pending_sync');
+      const scopedTx: Transaction =
+        tx.syncStatus === resolvedSyncStatus ? tx : { ...tx, syncStatus: resolvedSyncStatus };
+      const scopedKey = `${safeCompanyId}:${scopedTx.id}`;
+
+      this.memoryTransactions.set(scopedKey, {
         companyId: safeCompanyId,
         tx: scopedTx,
         updatedAt: nowIso,
       });
 
       const queueId = `${safeCompanyId}:tx:${scopedTx.id}`;
-      if (scopedTx.syncStatus !== 'synced') {
+      if (resolvedSyncStatus !== 'synced') {
         this.memoryOutbox.set(queueId, {
           queueId,
           companyId: safeCompanyId,
@@ -207,13 +232,20 @@ class OfflineSqlitePersistenceManager {
       } else {
         this.memoryOutbox.delete(queueId);
       }
+
+      const signature = this.getTransactionWriteSignature(scopedTx, resolvedSyncStatus);
+      if (this.txSignatureCache.get(scopedKey) !== signature) {
+        dirtyTransactions.push({ tx: scopedTx, syncStatus: resolvedSyncStatus, signature });
+      }
+    }
+
+    if (dirtyTransactions.length === 0) {
+      return;
     }
 
     if (this.engineType === 'capacitor-sqlite' && this.dbConnection) {
       try {
-        for (const tx of transactions || []) {
-          if (!tx?.id) continue;
-          const syncStatus = tx.syncStatus || 'pending_sync';
+        for (const { tx, syncStatus, signature } of dirtyTransactions) {
           const payloadStr = JSON.stringify(tx);
           await this.dbConnection.run(
             `INSERT OR REPLACE INTO offline_transactions (id, company_id, sync_status, timestamp, total, payment_method, payload_json, updated_at)
@@ -250,6 +282,7 @@ class OfflineSqlitePersistenceManager {
               [queueId]
             );
           }
+          this.txSignatureCache.set(`${safeCompanyId}:${tx.id}`, signature);
         }
       } catch (err) {
         console.warn('CapacitorSQLite persistTransactions error:', err);
@@ -262,9 +295,7 @@ class OfflineSqlitePersistenceManager {
           const store = txObj.objectStore(IDB_TX_STORE);
           const outbox = txObj.objectStore(IDB_OUTBOX_STORE);
 
-          for (const tx of transactions || []) {
-            if (!tx?.id) continue;
-            const syncStatus = tx.syncStatus || 'pending_sync';
+          for (const { tx, syncStatus } of dirtyTransactions) {
             store.put({
               id: `${safeCompanyId}:${tx.id}`,
               rawId: tx.id,
@@ -294,16 +325,21 @@ class OfflineSqlitePersistenceManager {
             }
           }
           txObj.oncomplete = () => {
-            db.close();
+            for (const { tx, signature } of dirtyTransactions) {
+              this.txSignatureCache.set(`${safeCompanyId}:${tx.id}`, signature);
+            }
             resolve();
           };
           txObj.onerror = () => {
-            db.close();
             reject(txObj.error);
           };
         });
       } catch (err) {
         console.warn('IndexedDB persistTransactions error:', err);
+      }
+    } else {
+      for (const { tx, signature } of dirtyTransactions) {
+        this.txSignatureCache.set(`${safeCompanyId}:${tx.id}`, signature);
       }
     }
 
@@ -352,20 +388,23 @@ class OfflineSqlitePersistenceManager {
             const list = (req.result || [])
               .map((r: any) => r.payload as Transaction)
               .filter((t: Transaction) => Boolean(t?.id));
-            db.close();
             resolve(list);
           };
           req.onerror = () => {
-            db.close();
             reject(req.error);
           };
         });
         for (const tx of records) {
-          this.memoryTransactions.set(`${safeCompanyId}:${tx.id}`, {
+          const key = `${safeCompanyId}:${tx.id}`;
+          this.memoryTransactions.set(key, {
             companyId: safeCompanyId,
             tx,
             updatedAt: new Date().toISOString(),
           });
+          this.txSignatureCache.set(
+            key,
+            this.getTransactionWriteSignature(tx, tx.syncStatus || 'synced')
+          );
         }
         return records.sort(
           (a, b) => (Date.parse(b.timestamp || '') || 0) - (Date.parse(a.timestamp || '') || 0)
@@ -449,6 +488,10 @@ class OfflineSqlitePersistenceManager {
     const safeCompanyId = String(companyId || 'comp-default');
     const storeKey = `${safeCompanyId}:${moduleKey}`;
     const payloadJson = JSON.stringify(data);
+    const prev = this.memoryKv.get(storeKey);
+    if (prev && prev.payloadJson === payloadJson) {
+      return;
+    }
     const nowIso = new Date().toISOString();
 
     this.memoryKv.set(storeKey, {
@@ -478,14 +521,8 @@ class OfflineSqlitePersistenceManager {
             payloadJson,
             updatedAt: nowIso,
           });
-          txObj.oncomplete = () => {
-            db.close();
-            resolve();
-          };
-          txObj.onerror = () => {
-            db.close();
-            reject(txObj.error);
-          };
+          txObj.oncomplete = () => resolve();
+          txObj.onerror = () => reject(txObj.error);
         });
       } catch {}
     }
@@ -518,14 +555,8 @@ class OfflineSqlitePersistenceManager {
         const raw = await new Promise<string | null>((resolve, reject) => {
           const txObj = db.transaction(IDB_KV_STORE, 'readonly');
           const req = txObj.objectStore(IDB_KV_STORE).get(storeKey);
-          req.onsuccess = () => {
-            db.close();
-            resolve(req.result?.payloadJson || null);
-          };
-          req.onerror = () => {
-            db.close();
-            reject(req.error);
-          };
+          req.onsuccess = () => resolve(req.result?.payloadJson || null);
+          req.onerror = () => reject(req.error);
         });
         if (raw) return JSON.parse(raw) as T;
       } catch {}
@@ -545,7 +576,10 @@ class OfflineSqlitePersistenceManager {
     const safeCompanyId = String(companyId || 'comp-default');
 
     for (const [key, entry] of this.memoryTransactions.entries()) {
-      if (entry.companyId === safeCompanyId) this.memoryTransactions.delete(key);
+      if (entry.companyId === safeCompanyId) {
+        this.memoryTransactions.delete(key);
+        this.txSignatureCache.delete(key);
+      }
     }
     for (const [key, entry] of this.memoryKv.entries()) {
       if (entry.companyId === safeCompanyId) this.memoryKv.delete(key);

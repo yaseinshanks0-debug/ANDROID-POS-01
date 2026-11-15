@@ -29,6 +29,7 @@ import {
   applyDebtSettlementPayment,
   calculateCartTotals,
   calculateDebtBreakdown,
+  calculateItemTotal,
   convertCurrencyAmount,
   getCartItemUnitPricing,
   getProductPackaging,
@@ -105,6 +106,21 @@ export function useCatalogAndCartDomain({
   const deletedProductIdsRef = useRef<Set<string>>(new Set());
   const deletedCustomerIdsRef = useRef<Set<string>>(new Set());
 
+  const productsByIdMap = useMemo(() => {
+    const map = new Map<string, Product>();
+    for (const p of products) {
+      map.set(p.id, p);
+    }
+    return map;
+  }, [products]);
+
+  const productsMapRef = useRef(productsByIdMap);
+  productsMapRef.current = productsByIdMap;
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
+  const hapticsEnabledRef = useRef(settings.hapticsEnabled);
+  hapticsEnabledRef.current = settings.hapticsEnabled;
+
   const cartTotals = useMemo(() => {
     return calculateCartTotals(
       cart,
@@ -127,9 +143,10 @@ export function useCatalogAndCartDomain({
 
   const addToCart = useCallback(
     (product: Product, quantity = 1, saleUnit?: ProductSaleUnitMode) => {
-      const currentProduct = products.find((p) => p.id === product.id) || product;
+      const currentProduct = productsMapRef.current.get(product.id) || product;
       const pkg = getProductPackaging(currentProduct);
-      const existingItem = cart.find((item) => item.product.id === currentProduct.id);
+      const prevCart = cartRef.current;
+      const existingItem = prevCart.find((item) => item.product.id === currentProduct.id);
 
       const resolvedUnit: ProductSaleUnitMode =
         pkg.enablePackaging && pkg.unitsPerPack > 1
@@ -146,13 +163,12 @@ export function useCatalogAndCartDomain({
       const requiredStock = newQty * stockPerItem;
 
       if (requiredStock > currentProduct.stock) {
-        triggerHaptic('warning', settings.hapticsEnabled);
+        triggerHaptic('warning', hapticsEnabledRef.current);
         return false;
       }
 
-      setCart((prev) => {
-        if (existingItem) {
-          return prev.map((item) =>
+      const nextCart: CartItem[] = existingItem
+        ? prevCart.map((item) =>
             item.product.id === currentProduct.id
               ? {
                   ...item,
@@ -161,32 +177,34 @@ export function useCatalogAndCartDomain({
                   selectedSaleUnit: resolvedUnit,
                 }
               : item
-          );
-        }
-        return [
-          ...prev,
-          {
-            product: currentProduct,
-            quantity,
-            itemDiscountPercent: 0,
-            selectedSaleUnit: resolvedUnit,
-          },
-        ];
-      });
+          )
+        : [
+            ...prevCart,
+            {
+              product: currentProduct,
+              quantity,
+              itemDiscountPercent: 0,
+              selectedSaleUnit: resolvedUnit,
+            },
+          ];
 
-      triggerHaptic('light', settings.hapticsEnabled);
+      // Update ref synchronously so rapid barcode scanner bursts within one frame never drop increments
+      cartRef.current = nextCart;
+      setCart(nextCart);
+
+      triggerHaptic('light', hapticsEnabledRef.current);
       return true;
     },
-    [cart, products, settings.hapticsEnabled, setCart]
+    [setCart]
   );
 
   const updateCartQuantity = useCallback(
     (productId: string, delta: number) => {
       setCart((prev) => {
-        return prev
+        const next = prev
           .map((item) => {
             if (item.product.id === productId) {
-              const freshProduct = products.find((p) => p.id === productId) || item.product;
+              const freshProduct = productsMapRef.current.get(productId) || item.product;
               const pkg = getProductPackaging(freshProduct);
               const isPack =
                 pkg.enablePackaging &&
@@ -196,7 +214,7 @@ export function useCatalogAndCartDomain({
               const newQty = item.quantity + delta;
               if (newQty <= 0) return null;
               if (newQty * stockPerItem > freshProduct.stock) {
-                triggerHaptic('warning', settings.hapticsEnabled);
+                triggerHaptic('warning', hapticsEnabledRef.current);
                 return item;
               }
               return { ...item, product: freshProduct, quantity: newQty };
@@ -204,21 +222,23 @@ export function useCatalogAndCartDomain({
             return item;
           })
           .filter((item): item is CartItem => item !== null);
+        cartRef.current = next;
+        return next;
       });
-      triggerHaptic('light', settings.hapticsEnabled);
+      triggerHaptic('light', hapticsEnabledRef.current);
     },
-    [products, settings.hapticsEnabled, setCart]
+    [setCart]
   );
 
   const setCartItemSaleUnit = useCallback(
     (productId: string, saleUnit: ProductSaleUnitMode) => {
-      setCart((prev) =>
-        prev.map((item) => {
+      setCart((prev) => {
+        const next = prev.map((item) => {
           if (item.product.id !== productId) return item;
-          const freshProduct = products.find((p) => p.id === productId) || item.product;
+          const freshProduct = productsMapRef.current.get(productId) || item.product;
           const pkg = getProductPackaging(freshProduct);
           if (!pkg.enablePackaging || pkg.unitsPerPack <= 1) {
-            return { ...item, product: freshProduct, selectedSaleUnit: 'unit' };
+            return { ...item, product: freshProduct, selectedSaleUnit: 'unit' as ProductSaleUnitMode };
           }
           const stockPerItem = saleUnit === 'pack' ? pkg.unitsPerPack : 1;
           const maxAffordableQty = Math.max(1, Math.floor(freshProduct.stock / stockPerItem));
@@ -229,42 +249,50 @@ export function useCatalogAndCartDomain({
             selectedSaleUnit: saleUnit,
             quantity: clampedQty,
           };
-        })
-      );
-      triggerHaptic('light', settings.hapticsEnabled);
+        });
+        cartRef.current = next;
+        return next;
+      });
+      triggerHaptic('light', hapticsEnabledRef.current);
     },
-    [products, settings.hapticsEnabled, setCart]
+    [setCart]
   );
 
   const setCartItemDiscount = useCallback(
     (productId: string, discountPercent: number) => {
-      setCart((prev) =>
-        prev.map((item) =>
+      setCart((prev) => {
+        const next = prev.map((item) =>
           item.product.id === productId
             ? { ...item, itemDiscountPercent: Math.max(0, Math.min(100, discountPercent)) }
             : item
-        )
-      );
+        );
+        cartRef.current = next;
+        return next;
+      });
     },
     [setCart]
   );
 
   const removeFromCart = useCallback(
     (productId: string) => {
-      setCart((prev) => prev.filter((item) => item.product.id !== productId));
-      triggerHaptic('medium', settings.hapticsEnabled);
+      setCart((prev) => {
+        const next = prev.filter((item) => item.product.id !== productId);
+        cartRef.current = next;
+        return next;
+      });
+      triggerHaptic('medium', hapticsEnabledRef.current);
     },
-    [settings.hapticsEnabled, setCart]
+    [setCart]
   );
 
   const clearCart = useCallback(() => {
+    cartRef.current = [];
     setCart([]);
     setSelectedCustomer(null);
     setGlobalDiscountPercentState(0);
     setGlobalDiscountAmountState(0);
-    triggerHaptic('medium', settings.hapticsEnabled);
+    triggerHaptic('medium', hapticsEnabledRef.current);
   }, [
-    settings.hapticsEnabled,
     setCart,
     setSelectedCustomer,
     setGlobalDiscountPercentState,
@@ -279,7 +307,7 @@ export function useCatalogAndCartDomain({
     ): Promise<{ success: boolean; transaction?: Transaction; error?: string }> => {
       // Refresh cart items against the latest authoritative products slice before validating stock
       const liveSyncedCart: CartItem[] = cart.map((item) => {
-        const latestProd = products.find((p) => p.id === item.product.id);
+        const latestProd = productsByIdMap.get(item.product.id);
         return latestProd ? { ...item, product: latestProd } : item;
       });
 
@@ -356,10 +384,11 @@ export function useCatalogAndCartDomain({
             quantity: item.quantity,
             unitPrice: unitPricing.unitPrice,
             discountPercent: item.itemDiscountPercent,
-            total:
-              unitPricing.unitPrice *
-              item.quantity *
-              (1 - item.itemDiscountPercent / 100),
+            total: calculateItemTotal(
+              unitPricing.unitPrice,
+              item.quantity,
+              item.itemDiscountPercent
+            ),
             saleUnit: unitPricing.saleUnit,
             saleUnitLabel: unitPricing.unitLabel,
             unitsPerPack: unitPricing.packaging.unitsPerPack,
@@ -775,7 +804,7 @@ export function useCatalogAndCartDomain({
 
   const updateProduct = useCallback(
     async (id: string, updates: Partial<Product>) => {
-      const existing = products.find((p) => p.id === id) || null;
+      const existing = productsByIdMap.get(id) || null;
       const nowIso = new Date().toISOString();
       const actorName =
         settings.language === 'ar'
@@ -861,7 +890,7 @@ export function useCatalogAndCartDomain({
         triggerHaptic('light', settings.hapticsEnabled);
       }
     },
-    [products, currentUser, settings.language, settings.hapticsEnabled, setProducts, setCart]
+    [productsByIdMap, currentUser, settings.language, settings.hapticsEnabled, setProducts, setCart]
   );
 
   const deleteProduct = useCallback(
@@ -881,11 +910,11 @@ export function useCatalogAndCartDomain({
 
   const recordStockAdjustment = useCallback(
     (productId: string, type: StockMovementType, amount: number, reason: string) => {
-      const prod = products.find((p) => p.id === productId);
+      const prod = productsByIdMap.get(productId);
       if (!prod) return;
 
       const newStock = calculateStockAdjustment(prod.stock, type, amount);
-      const delta = type === 'audit' ? newStock - prod.stock : newStock - prod.stock;
+      const delta = newStock - prod.stock;
 
       const movement: StockMovement = {
         id: `mov_${Date.now()}`,
@@ -907,12 +936,12 @@ export function useCatalogAndCartDomain({
       setStockMovements((prev) => [movement, ...prev]);
       triggerHaptic('medium', settings.hapticsEnabled);
     },
-    [products, settings.hapticsEnabled, setProducts, setStockMovements]
+    [productsByIdMap, settings.hapticsEnabled, setProducts, setStockMovements]
   );
 
   const recordGoodsReceipt = useCallback(
     (input: GoodsReceiptInput): boolean => {
-      const prod = products.find((p) => p.id === input.productId);
+      const prod = productsByIdMap.get(input.productId);
       if (!prod || input.quantity <= 0) return false;
 
       const qty = Math.round(input.quantity);

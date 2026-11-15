@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { POSProvider, usePOS } from './context/POSContext';
 import { AppHeader } from './components/layout/AppHeader';
 import { BottomNavigation } from './components/layout/BottomNavigation';
@@ -64,7 +64,12 @@ function POSAppInner() {
   } = usePOS();
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
 
-  // Initialize Capacitor Android status bar and hardware back button listener
+  const isMobileCartOpenRef = useRef(isMobileCartOpen);
+  isMobileCartOpenRef.current = isMobileCartOpen;
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+
+  // Initialize Capacitor Android status bar strictly once on mount
   useEffect(() => {
     try {
       StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
@@ -72,12 +77,14 @@ function POSAppInner() {
       StatusBar.setBackgroundColor({ color: '#090a0f' }).catch(() => {});
       StatusBar.show().catch(() => {});
     } catch {}
+  }, []);
 
-    // Android hardware back button handler
+  // Android hardware back button handler registered once using latest state refs
+  useEffect(() => {
     const handleBackButton = () => {
-      if (isMobileCartOpen) {
+      if (isMobileCartOpenRef.current) {
         setIsMobileCartOpen(false);
-      } else if (activeTab !== 'checkout') {
+      } else if (activeTabRef.current !== 'checkout') {
         setActiveTab('checkout');
       }
     };
@@ -86,7 +93,7 @@ function POSAppInner() {
     return () => {
       window.removeEventListener('popstate', handleBackButton);
     };
-  }, [isMobileCartOpen, activeTab, setActiveTab]);
+  }, [setActiveTab]);
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans select-none">

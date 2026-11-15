@@ -77,6 +77,7 @@ export const SalesView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 120);
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'voided'>('all');
+  const [visibleCount, setVisibleCount] = useState<number>(50);
   const [valuationMode, setValuationMode] = useState<SalesRateValuationMode>('historical');
   const [anchorCurrency, setAnchorCurrency] = useState<string>('USD');
   const [rateEditCurrency, setRateEditCurrency] = useState<string>(
@@ -188,6 +189,15 @@ export const SalesView: React.FC = () => {
       ),
     }));
   }, [filteredTransactions, settings.currency, exchangeRates, valuationMode, anchorCurrency]);
+
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [debouncedSearchQuery, statusFilter]);
+
+  const visibleConvertedRows = useMemo(
+    () => convertedRows.slice(0, visibleCount),
+    [convertedRows, visibleCount]
+  );
 
   // Summary KPIs in active currency
   const salesSummary = useMemo(() => {
@@ -755,7 +765,7 @@ export const SalesView: React.FC = () => {
             {isAr ? 'لا توجد فواتير مطابقة للبحث.' : 'No transactions match your search filter.'}
           </AppCard>
         ) : (
-          convertedRows.map(({ tx, view }) => {
+          visibleConvertedRows.map(({ tx, view }) => {
             const isCompleted = tx.status === 'completed';
             const hasDebt = isCompleted && view.debtAmount > 0;
             const allReceiptImages = getAllTransactionReceiptImages(tx);
@@ -1072,6 +1082,19 @@ export const SalesView: React.FC = () => {
               </AppCard>
             );
           })
+        )}
+        {convertedRows.length > visibleCount && (
+          <div className="flex justify-center pt-2">
+            <button
+              type="button"
+              onClick={() => setVisibleCount((prev) => prev + 50)}
+              className="px-4 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-xs font-bold text-amber-400 transition-colors"
+            >
+              {isAr
+                ? `عرض المزيد (${convertedRows.length - visibleCount} فواتير متبقية)`
+                : `Load More (${convertedRows.length - visibleCount} remaining)`}
+            </button>
+          </div>
         )}
       </div>
 
