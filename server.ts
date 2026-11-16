@@ -61,10 +61,29 @@ import type {
   ActiveUserSession,
   Customer,
   POSUser,
+  Product,
   StockMovement,
   Transaction,
 } from './src/lib/types.ts';
 import type { UnmetDemandRequestRecord } from './src/analytics/analytics.types.ts';
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const msg = (error as { message?: unknown }).message;
+    if (typeof msg === 'string' && msg) return msg;
+  }
+  return fallback;
+}
+
+interface PracticePricePatchItem {
+  id: string;
+  costPrice?: number;
+  sellingPrice?: number;
+  previousCostPrice?: number;
+  previousSellingPrice?: number;
+  priceUpdatedAt?: string;
+}
 
 dotenv.config();
 
@@ -146,9 +165,9 @@ app.get('/api/currencies', async (req: Request, res: Response) => {
       baseCurrency: base.code,
       currencies: list,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to fetch currencies:', error);
-    res.status(500).json({ error: error.message || 'Failed to fetch currencies' });
+    res.status(500).json({ error: getErrorMessage(error, 'Failed to fetch currencies') });
   }
 });
 
@@ -176,9 +195,9 @@ app.post('/api/currencies', requireAdminOrManager, async (req: Request, res: Res
       createdBy: createdBy || 'admin_user',
     });
     res.status(201).json(created);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to create/update currency:', error);
-    res.status(400).json({ error: error.message || 'Failed to save currency' });
+    res.status(400).json({ error: getErrorMessage(error, 'Failed to save currency') });
   }
 });
 
@@ -189,10 +208,11 @@ app.delete('/api/currencies/:code', requireAdminOrManager, async (req: Request, 
     }
     const result = await deleteCurrency(req.params.code);
     res.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`Failed to delete currency ${req.params.code}:`, error);
-    const status = error.message?.includes('not found') ? 404 : 400;
-    res.status(status).json({ error: error.message || 'Failed to delete currency' });
+    const msg = getErrorMessage(error, 'Failed to delete currency');
+    const status = msg.includes('not found') ? 404 : 400;
+    res.status(status).json({ error: msg });
   }
 });
 
@@ -210,9 +230,9 @@ app.get('/api/exchange-rates', async (req: Request, res: Response) => {
 
     const rates = await getAllExchangeRates({ source, target });
     res.json(rates);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to fetch exchange rates:', error);
-    res.status(500).json({ error: error.message || 'Failed to fetch exchange rates' });
+    res.status(500).json({ error: getErrorMessage(error, 'Failed to fetch exchange rates') });
   }
 });
 
@@ -222,9 +242,9 @@ app.get('/api/exchange-rates/history', async (req: Request, res: Response) => {
     const target = (req.query.target as string) || 'SDG';
     const history = await getExchangeRateHistory(source, target);
     res.json(history);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to fetch exchange rate history:', error);
-    res.status(500).json({ error: error.message || 'Failed to fetch exchange rate history' });
+    res.status(500).json({ error: getErrorMessage(error, 'Failed to fetch exchange rate history') });
   }
 });
 
@@ -273,9 +293,9 @@ app.post('/api/exchange-rates', requireAdminOrManager, async (req: Request, res:
     });
 
     res.status(201).json(saved);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to create exchange rate:', error);
-    const msg = error.message || '';
+    const msg = getErrorMessage(error, '');
     if (msg.includes('not a recognized') || msg.includes('not found')) {
       return res.status(404).json({ error: msg });
     }
@@ -298,8 +318,8 @@ app.put('/api/exchange-rates/:id', requireAdminOrManager, async (req: Request, r
     }
     const updated = await updateExchangeRate(req.params.id, req.body);
     res.json(updated);
-  } catch (error: any) {
-    const msg = error.message || '';
+  } catch (error: unknown) {
+    const msg = getErrorMessage(error, '');
     if (msg.includes('not found')) {
       return res.status(404).json({ error: msg });
     }
@@ -318,8 +338,8 @@ app.delete('/api/exchange-rates/:id', requireAdminOrManager, async (req: Request
     }
     const result = await deleteExchangeRate(req.params.id);
     res.json(result);
-  } catch (error: any) {
-    const msg = error.message || 'Failed to delete exchange rate';
+  } catch (error: unknown) {
+    const msg = getErrorMessage(error, 'Failed to delete exchange rate');
     const status = msg.includes('not found') ? 404 : 400;
     res.status(status).json({ error: msg });
   }
@@ -338,9 +358,9 @@ app.get('/api/convert', async (req: Request, res: Response) => {
 
     const result = await convertAmount(amount, from, to, timestamp);
     res.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to convert amount:', error);
-    res.status(400).json({ error: error.message || 'Conversion failed' });
+    res.status(400).json({ error: getErrorMessage(error, 'Conversion failed') });
   }
 });
 
@@ -355,9 +375,9 @@ app.get('/api/products', async (req: Request, res: Response) => {
     const category = req.query.category as string | undefined;
     const items = await getAllProducts(query, category);
     res.json(items);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to fetch products:', error);
-    res.status(500).json({ error: error.message || 'Failed to fetch products' });
+    res.status(500).json({ error: getErrorMessage(error, 'Failed to fetch products') });
   }
 });
 
@@ -374,9 +394,9 @@ app.get('/api/products/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Product not found' });
     }
     res.json(item);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`Failed to fetch product ${req.params.id}:`, error);
-    res.status(500).json({ error: error.message || 'Failed to fetch product' });
+    res.status(500).json({ error: getErrorMessage(error, 'Failed to fetch product') });
   }
 });
 
@@ -428,7 +448,8 @@ app.post(
 
       if (isPracticeModeRequest(req)) {
         const practice = readPracticeSandboxState();
-        const practiceProduct: any = {
+        const nowIso = new Date().toISOString();
+        const practiceProduct: CompanyScopedProduct = {
           id: `prac-prod-${Date.now()}`,
           companyId: PRACTICE_COMPANY_ID,
           serialNumber: serialNumber ? Number(serialNumber) : (practice.products?.length || 0) + 1,
@@ -454,11 +475,12 @@ app.post(
             ...(customFields || {}),
             ...(expiryDate ? { expiryDate } : {}),
           },
+          updatedAt: nowIso,
         };
         writePracticeSandboxState({
           ...practice,
           products: [practiceProduct, ...(practice.products || [])],
-          updatedAt: new Date().toISOString(),
+          updatedAt: nowIso,
         });
         return res.status(201).json(practiceProduct);
       }
@@ -499,10 +521,11 @@ app.post(
       });
 
       res.status(201).json(created);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to create product:', error);
-      const statusCode = error.message?.includes('Duplicate') ? 409 : 400;
-      res.status(statusCode).json({ error: error.message || 'Failed to create product' });
+      const msg = getErrorMessage(error, 'Failed to create product');
+      const statusCode = msg.includes('Duplicate') ? 409 : 400;
+      res.status(statusCode).json({ error: msg });
     }
   }
 );
@@ -530,14 +553,15 @@ app.put(
       }
       const updated = await updateProduct(req.params.id, req.body);
       res.json(updated);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`Failed to update product ${req.params.id}:`, error);
-      const statusCode = error.message?.includes('Duplicate')
+      const msg = getErrorMessage(error, 'Failed to update product');
+      const statusCode = msg.includes('Duplicate')
         ? 409
-        : error.message?.includes('not found')
+        : msg.includes('not found')
         ? 404
         : 400;
-      res.status(statusCode).json({ error: error.message || 'Failed to update product' });
+      res.status(statusCode).json({ error: msg });
     }
   }
 );
@@ -547,21 +571,23 @@ app.post(
   requireServerCapability('products.edit', { allowInternalDefaultIfNoHeader: true }),
   async (req: Request, res: Response) => {
     try {
-      const updates = Array.isArray(req.body?.updates) ? req.body.updates : [];
+      const updates: PracticePricePatchItem[] = Array.isArray(req.body?.updates)
+        ? (req.body.updates as PracticePricePatchItem[])
+        : [];
       if (updates.length === 0) {
         return res.json({ updatedCount: 0 });
       }
 
       if (isPracticeModeRequest(req)) {
         const practice = readPracticeSandboxState();
-        const updatesById = new Map<string, any>();
+        const updatesById = new Map<string, PracticePricePatchItem>();
         for (const item of updates) {
           if (item && typeof item.id === 'string') {
             updatesById.set(item.id, item);
           }
         }
         let updatedCount = 0;
-        const nextProducts = (practice.products || []).map((p: any) => {
+        const nextProducts = (practice.products || []).map((p: Product) => {
           const patch = updatesById.get(p.id);
           if (!patch) return p;
           updatedCount += 1;
@@ -589,9 +615,9 @@ app.post(
         }
       }
       res.json({ updatedCount });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to batch update product prices:', error);
-      res.status(400).json({ error: error.message || 'Failed to batch update product prices' });
+      res.status(400).json({ error: getErrorMessage(error, 'Failed to batch update product prices') });
     }
   }
 );
@@ -616,9 +642,9 @@ app.delete(
       }
       await deleteProduct(req.params.id);
       res.json({ success: true, message: `Product ${req.params.id} deleted.` });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`Failed to delete product ${req.params.id}:`, error);
-      res.status(500).json({ error: error.message || 'Failed to delete product' });
+      res.status(500).json({ error: getErrorMessage(error, 'Failed to delete product') });
     }
   }
 );
@@ -692,8 +718,8 @@ app.get('/api/store-sync', async (req: Request, res: Response) => {
       unmetDemandRequests: filterByCompanyScope(state.unmetDemandRequests || [], companyId),
       products,
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to read shared store sync state' });
+  } catch (error: unknown) {
+    res.status(500).json({ error: getErrorMessage(error, 'Failed to read shared store sync state') });
   }
 });
 
@@ -742,10 +768,10 @@ app.post('/api/transactions', async (req: Request, res: Response) => {
       success: true,
       transaction: taggedTx,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return res.status(500).json({
       success: false,
-      error: error.message || 'Failed to record transaction',
+      error: getErrorMessage(error, 'Failed to record transaction'),
     });
   }
 });
@@ -872,8 +898,8 @@ app.post('/api/store-sync', async (req: Request, res: Response) => {
       unmetDemandRequests: filterByCompanyScope(nextState.unmetDemandRequests || [], companyId),
       products: filterByCompanyScope(allProducts, companyId),
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to sync shared store state' });
+  } catch (error: unknown) {
+    res.status(500).json({ error: getErrorMessage(error, 'Failed to sync shared store state') });
   }
 });
 
@@ -926,7 +952,7 @@ async function startServer() {
     console.log(`Dqnamo POS Backend Server listening on http://0.0.0.0:${activePort}`);
   });
 
-  httpServer.on('error', (err: any) => {
+  httpServer.on('error', (err: NodeJS.ErrnoException) => {
     console.error(`Dqnamo POS Backend Server listen error on port ${activePort}:`, err);
     if (err?.code === 'EADDRINUSE' || err?.code === 'EACCES') {
       // Fallback to loopback-only binding if 0.0.0.0 is restricted by Windows policy

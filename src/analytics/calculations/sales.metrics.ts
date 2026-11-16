@@ -12,8 +12,8 @@ import {
   getProductPricesInCurrency,
   roundCurrencyValue,
 } from '../../lib/pos-calculations';
-import { PaymentMethod, Product, Transaction } from '../../lib/types';
-import {
+import type { PaymentMethod, Product, Transaction } from '../../lib/types';
+import type {
   AnalyticsDatasetSnapshot,
   AnalyticsFilterParams,
   CogsDataQualityStatus,
@@ -116,7 +116,7 @@ export function resolveTransactionBranch(
   tx: Transaction,
   branches: AnalyticsDatasetSnapshot['branches']
 ): { id: string; name: string; nameAr: string } {
-  const explicitBranchId = (tx as any).branchId;
+  const explicitBranchId = tx.branchId;
   if (explicitBranchId) {
     const found = branches.find((b) => b.id === explicitBranchId);
     if (found) return { id: found.id, name: found.name, nameAr: found.nameAr };
@@ -159,20 +159,19 @@ export function resolveHistoricalLineItemCost(
   targetCurrency: string,
   rates: Record<string, number>
 ): HistoricalCostResolution {
-  const rawItem = item as any;
   const isPackSale = item.saleUnit === 'pack';
 
   // 1. Check frozen cost on sale item at checkout time
   const frozenUnitCost =
-    typeof rawItem.unitCostAtSale === 'number' && rawItem.unitCostAtSale > 0
-      ? rawItem.unitCostAtSale
-      : typeof rawItem.unitCost === 'number' && rawItem.unitCost > 0
-      ? rawItem.unitCost
+    typeof item.unitCostAtSale === 'number' && item.unitCostAtSale > 0
+      ? item.unitCostAtSale
+      : typeof item.unitCost === 'number' && item.unitCost > 0
+      ? item.unitCost
       : null;
 
   if (frozenUnitCost !== null) {
     const itemCurrency = (
-      rawItem.costCurrency ||
+      item.costCurrency ||
       product?.priceCurrency ||
       'SDG'
     )
@@ -282,8 +281,8 @@ export function computeLineItemCostInCurrency(
  * (where subtotal - discountAmount already includes taxAmount, so grandTotal == subtotal - discountAmount).
  */
 export function isTransactionTaxInclusive(tx: Transaction): boolean {
-  if ((tx as any).isTaxInclusive === true) return true;
-  if ((tx as any).isTaxInclusive === false) return false;
+  if (tx.isTaxInclusive === true) return true;
+  if (tx.isTaxInclusive === false) return false;
   if (tx.taxAmount <= 0) return false;
 
   const netSub = Math.max(0, roundCurrencyValue(tx.subtotal - (tx.discountAmount || 0)));
@@ -335,7 +334,7 @@ export function resolveReturnsForTransaction(
       }
     }
   }
-  const inlineReturns = (tx as any).returns as ReturnRecordInput[] | undefined;
+  const inlineReturns = tx.returns;
   if (Array.isArray(inlineReturns)) {
     for (const r of inlineReturns) {
       if (r && r.id) {
@@ -375,14 +374,14 @@ export function resolveOriginalSaleLineItem(
   }
 
   // 2. Stable line-item ID if present
-  const viewLineId = (viewItem as any).id || (viewItem as any).lineId;
+  const viewLineId = viewItem.id || viewItem.lineId;
   if (viewLineId) {
     for (let i = 0; i < origItems.length; i++) {
       if (consumedIndices.has(i)) continue;
-      const cand = origItems[i] as any;
+      const cand = origItems[i];
       if ((cand.id && cand.id === viewLineId) || (cand.lineId && cand.lineId === viewLineId)) {
         consumedIndices.add(i);
-        return origItems[i];
+        return cand;
       }
     }
   }
@@ -612,8 +611,7 @@ export function computeSalesAnalytics(
     netSales: 0,
     transactionCount: 0,
     unitsSold: 0,
-    averageTransactionValue: 0,
-  })) as any;
+  }));
 
   const categoryMap = new Map<string, SalesByDimensionItem>();
   const productMap = new Map<string, SalesByDimensionItem>();

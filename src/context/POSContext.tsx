@@ -4,12 +4,13 @@
  */
 
 import React, { createContext, useContext, useState, useReducer, useEffect, useMemo, useCallback, useRef } from 'react';
-import {
+import type {
   LanSyncConfig,
   LanConnectedDeviceInfo,
   LanSyncEventRecord,
   LanNetworkAddressItem,
 } from '../lib/lan-sync-client';
+import type { LanSyncRemoteStateSnapshot } from './domains/useLanSyncDomain';
 import {
   Product,
   CartItem,
@@ -372,7 +373,10 @@ export interface POSContextType {
   lanPrimaryHostUrl: string;
   lanLastSyncError: string | null;
   pushLiveLanSyncNow: (summaryAr?: string, summaryEn?: string) => Promise<boolean>;
-  applyIncomingLanSyncState: (remoteState: any, sourceDeviceId?: string) => void;
+  applyIncomingLanSyncState: (
+    remoteState: LanSyncRemoteStateSnapshot | null | undefined,
+    sourceDeviceId?: string
+  ) => void;
 }
 
 type OperationalLedgerAction =

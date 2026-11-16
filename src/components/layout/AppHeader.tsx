@@ -225,7 +225,7 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
 
         {/* Action Controls (scrollable middle strip on ultra-narrow viewports + pinned Cart) */}
         <div className="flex items-center justify-end gap-1 sm:gap-2 min-w-0 flex-1">
-          <div className="flex items-center justify-end gap-1 sm:gap-2 min-w-0 overflow-x-auto sm:overflow-visible no-scrollbar py-0.5">
+          <div className="flex items-center justify-start sm:justify-end gap-1 sm:gap-2 min-w-0 overflow-x-auto sm:overflow-visible no-scrollbar py-0.5">
           {/* Active User & Multi-User Concurrent Sessions Switcher */}
           <div className="relative shrink-0" ref={userMenuRef}>
             <button

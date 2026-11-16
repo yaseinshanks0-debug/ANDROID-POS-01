@@ -151,7 +151,7 @@ test('3. Owner password validation rejects missing or short passwords', async ()
         ownerConfirmPassword: '123',
       });
     },
-    (err: any) => {
+    (err: unknown) => {
       assert.ok(err instanceof ReleasePlatformError);
       assert.equal(err.errorCode, 'WEAK_OWNER_PASSWORD');
       return true;
@@ -170,7 +170,7 @@ test('4. Password confirmation mismatch is rejected', async () => {
         ownerConfirmPassword: 'DifferentPassword456',
       });
     },
-    (err: any) => {
+    (err: unknown) => {
       assert.ok(err instanceof ReleasePlatformError);
       assert.equal(err.errorCode, 'PASSWORD_CONFIRMATION_MISMATCH');
       return true;
@@ -471,7 +471,7 @@ test('18. Unauthorized reset rejection blocks wrong company name or wrong owner 
         ownerPassword: 'SecurePassword123!',
       });
     },
-    (err: any) => {
+    (err: unknown) => {
       assert.ok(err instanceof ReleasePlatformError);
       assert.equal(err.errorCode, 'COMPANY_NAME_CONFIRMATION_MISMATCH');
       return true;
@@ -488,7 +488,7 @@ test('18. Unauthorized reset rejection blocks wrong company name or wrong owner 
         ownerPassword: 'WrongPassword999',
       });
     },
-    (err: any) => {
+    (err: unknown) => {
       assert.ok(err instanceof ReleasePlatformError);
       assert.equal(err.errorCode, 'INVALID_OWNER_CREDENTIALS');
       return true;

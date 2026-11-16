@@ -8,20 +8,20 @@
  */
 
 import {
-  AnalyticsDatasetSnapshot,
-  AnalyticsFilterParams,
-  AnalyticsUserContext,
-  InventoryAnalyticsResult,
-  LostSalesEstimationSummary,
-  SalesAnalyticsResult,
-  SmartInsightConfidenceLevel,
   SUPPORTED_UNAVAILABILITY_REASONS,
-  UnavailabilityReason,
-  UnmetDemandAnalyticsResult,
-  UnmetDemandBranchComparisonItem,
-  UnmetDemandProductSummaryItem,
-  UnmetDemandRequestRecord,
-  UnmetDemandTrendPoint,
+  type AnalyticsDatasetSnapshot,
+  type AnalyticsFilterParams,
+  type AnalyticsUserContext,
+  type InventoryAnalyticsResult,
+  type LostSalesEstimationSummary,
+  type SalesAnalyticsResult,
+  type SmartInsightConfidenceLevel,
+  type UnavailabilityReason,
+  type UnmetDemandAnalyticsResult,
+  type UnmetDemandBranchComparisonItem,
+  type UnmetDemandProductSummaryItem,
+  type UnmetDemandRequestRecord,
+  type UnmetDemandTrendPoint,
 } from '../analytics.types';
 import {
   normalizeUnavailableSearchText,
@@ -118,7 +118,7 @@ function convertPriceSnapshotToTarget(
       ? Number(liveRates[srcCurr])
       : 1;
   const amountInSdg = amount * rateToSdg;
-  return convertSdgToTargetCurrency(amountInSdg, targetCurrency as any, liveRates);
+  return convertSdgToTargetCurrency(amountInSdg, targetCurrency, liveRates);
 }
 
 export function computeUnmetDemandAnalytics(

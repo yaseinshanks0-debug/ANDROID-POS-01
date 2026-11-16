@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback } from 'react';
-import {
+import type {
   AppSettings,
   BranchRecord,
   CartItem,
@@ -13,16 +13,20 @@ import {
   Customer,
   ExchangeRateHistoryEntry,
   ExchangeRateItem,
+  ExpenseCategory,
   ExpenseRecord,
+  PaymentMethod,
   POSUser,
   Product,
   StockMovement,
   Transaction,
   WorkspaceMode,
 } from '../../lib/types';
-import { UnmetDemandRequestRecord } from '../../analytics/analytics.types';
+import { EXPENSE_CATEGORIES, PAYMENT_METHODS } from '../../lib/types';
+import type { UnmetDemandRequestRecord } from '../../analytics/analytics.types';
 import {
-  BackupPayloadV1,
+  type BackupExpenseRecord,
+  type BackupPayloadV1,
   scrubSensitiveUserFields,
 } from '../../lib/backup-merge-engine';
 import {
@@ -33,6 +37,32 @@ import {
 import { generateExpenseId } from '../../lib/expense-calculations';
 import { playSuccessChime, triggerHaptic } from '../../lib/sound-fx';
 import { STORAGE_KEYS, getCompanyStorageKey } from '../pos-storage-helpers';
+
+interface HydratableBackupExpense extends BackupExpenseRecord {
+  timestamp?: string;
+  exchangeRateUsed?: number;
+  exchangeRatesSnapshot?: Record<string, number>;
+  transferReference?: string;
+  receiptImage?: string;
+  beneficiary?: string;
+  recordedBy?: string;
+  status?: 'recorded' | 'voided';
+}
+
+const VALID_EXPENSE_CATEGORIES = new Set<string>(Object.values(EXPENSE_CATEGORIES));
+const VALID_PAYMENT_METHODS = new Set<string>(Object.values(PAYMENT_METHODS));
+
+function toExpenseCategory(value: unknown): ExpenseCategory {
+  return typeof value === 'string' && VALID_EXPENSE_CATEGORIES.has(value)
+    ? (value as ExpenseCategory)
+    : EXPENSE_CATEGORIES.OTHER;
+}
+
+function toPaymentMethod(value: unknown): PaymentMethod {
+  return typeof value === 'string' && VALID_PAYMENT_METHODS.has(value)
+    ? (value as PaymentMethod)
+    : PAYMENT_METHODS.CASH;
+}
 
 interface UseBackupHydrationDomainParams {
   currentCompany: CompanyProfile;
@@ -141,22 +171,25 @@ export function useBackupHydrationDomain({
     return {
       companyProfile: currentCompany,
       storeSettings: settings,
-      invoiceSettings: readScopedJson<Record<string, any>>('pos_invoice_settings', {}),
+      invoiceSettings: readScopedJson<Record<string, unknown>>('pos_invoice_settings', {}),
       currencies,
       exchangeRates,
       exchangeRateItems,
       exchangeRateHistory,
       branches,
       employees: users.map((u) => scrubSensitiveUserFields(u)),
-      unitsOfMeasure: readScopedJson<any[]>('pos_uom', []),
-      customFieldDefinitions: readScopedJson<any[]>('pos_custom_fields', []),
-      categories: readScopedJson<any[]>('pos_categories', categoriesFromProducts),
+      unitsOfMeasure: readScopedJson<Record<string, unknown>[]>('pos_uom', []),
+      customFieldDefinitions: readScopedJson<Record<string, unknown>[]>('pos_custom_fields', []),
+      categories: readScopedJson<BackupPayloadV1['categories']>(
+        'pos_categories',
+        categoriesFromProducts
+      ),
       products,
       customers,
-      suppliers: readScopedJson<any[]>('pos_suppliers', []),
+      suppliers: readScopedJson<BackupPayloadV1['suppliers']>('pos_suppliers', []),
       stockMovements,
-      branchTransfers: readScopedJson<any[]>('pos_branch_transfers', []),
-      purchases: readScopedJson<any[]>('pos_purchase_orders', []),
+      branchTransfers: readScopedJson<Record<string, unknown>[]>('pos_branch_transfers', []),
+      purchases: readScopedJson<BackupPayloadV1['purchases']>('pos_purchase_orders', []),
       transactions,
       expenses: expenses.map((e) => ({
         id: e.id,
@@ -172,8 +205,8 @@ export function useBackupHydrationDomain({
         date: e.timestamp,
         createdBy: e.recordedBy,
       })),
-      accounts: readScopedJson<any[]>('pos_accounts', []),
-      journalEntries: readScopedJson<any[]>('pos_journal_entries', []),
+      accounts: readScopedJson<BackupPayloadV1['accounts']>('pos_accounts', []),
+      journalEntries: readScopedJson<BackupPayloadV1['journalEntries']>('pos_journal_entries', []),
       unmetDemandRequests,
       intelligenceLifecycleItems: [],
       auditLogs: [],
@@ -336,10 +369,11 @@ export function useBackupHydrationDomain({
           const existingMap = new Map<string, POSUser>(prev.map((u) => [u.id, u]));
           const mergedUsers: POSUser[] = payload.employees.map((e) => {
             const ex = existingMap.get(e.id);
-            return {
-              ...(e as any),
+            const hydratedUser: POSUser = {
+              ...e,
               pin: ex?.pin || '1111',
             };
+            return hydratedUser;
           });
           if (
             currentUser &&
@@ -442,24 +476,26 @@ export function useBackupHydrationDomain({
           );
         }
         if (Array.isArray(payload.expenses)) {
-          const normalizedExpenses: ExpenseRecord[] = payload.expenses.map((be: any) => ({
+          const normalizedExpenses: ExpenseRecord[] = (
+            payload.expenses as HydratableBackupExpense[]
+          ).map((be) => ({
             id: be.id || generateExpenseId(),
             companyId: targetCompId,
             branchId: be.branchId,
             timestamp: be.timestamp || be.date || new Date().toISOString(),
             title: be.title || 'منصرف',
-            category: be.category || 'other',
+            category: toExpenseCategory(be.category),
             amount: Number(be.amount || 0),
             currency: be.currency || 'SDG',
             exchangeRateUsed: be.exchangeRateUsed,
             exchangeRatesSnapshot: be.exchangeRatesSnapshot,
-            paymentMethod: be.paymentMethod || 'cash',
+            paymentMethod: toPaymentMethod(be.paymentMethod),
             transferReference: be.transferReference || be.reference,
             receiptImage: be.receiptImage,
             beneficiary: be.beneficiary,
             notes: be.notes,
             recordedBy: be.recordedBy || be.createdBy || 'POS Operator',
-            status: be.status || 'recorded',
+            status: be.status === 'voided' ? 'voided' : 'recorded',
             syncStatus: 'synced',
           }));
           setExpenses(normalizedExpenses);

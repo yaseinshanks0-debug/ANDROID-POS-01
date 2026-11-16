@@ -5,15 +5,17 @@
 
 import fs from 'fs';
 import path from 'path';
-import {
+import type {
   AnalyticsOverviewResponse,
   IntelligenceLifecycleEventRecord,
   IntelligenceLifecycleEventType,
+  IntelligenceLifecycleEvidence,
   IntelligenceLifecycleItemRecord,
   IntelligenceLifecycleStatus,
   IntelligenceLifecycleStream,
   IntelligenceLifecycleSummaryCounts,
   SmartInsightConfidenceLevel,
+  SmartInsightSeverity,
 } from './analytics.types';
 import {
   applyLifecycleTransition,
@@ -74,6 +76,8 @@ function readLocalLifecycleState(): {
   return { items: [], events: [] };
 }
 
+import { isRecord } from '../lib/types';
+
 function writeLocalLifecycleState(
   items: IntelligenceLifecycleItemRecord[],
   events: IntelligenceLifecycleEventRecord[]
@@ -84,10 +88,11 @@ function writeLocalLifecycleState(
       fs.mkdirSync(dataDir, { recursive: true });
     }
     const file = getStoreStateFilePath();
-    let current: any = {};
+    let current: Record<string, unknown> = {};
     if (fs.existsSync(file)) {
       try {
-        current = JSON.parse(fs.readFileSync(file, 'utf-8')) || {};
+        const raw: unknown = JSON.parse(fs.readFileSync(file, 'utf-8'));
+        current = isRecord(raw) ? raw : {};
       } catch {
         current = {};
       }
@@ -100,17 +105,94 @@ function writeLocalLifecycleState(
   }
 }
 
-function mapDbRowToLifecycleItem(row: any): IntelligenceLifecycleItemRecord {
-  const toIso = (d: any): string | null => {
-    if (!d) return null;
-    return d instanceof Date ? d.toISOString() : String(d);
-  };
+interface DbLifecycleItemRow {
+  id: string;
+  dedupeKey: string;
+  itemStream: string;
+  category: string;
+  severity: string;
+  priority: number;
+  confidenceLevel: string;
+  scopeType: string;
+  branchId: string | null;
+  productId: string | null;
+  titleEn: string;
+  titleAr: string;
+  summaryEn: string;
+  summaryAr: string;
+  explanationEn: string;
+  explanationAr: string;
+  recommendationEn: string;
+  recommendationAr: string;
+  evidenceJson: unknown;
+  status: string;
+  conditionHash: string;
+  firstDetectedAt: Date | string;
+  lastEvaluatedAt: Date | string;
+  acknowledgedAt: Date | string | null;
+  acknowledgedByUserId: string | null;
+  acknowledgedByName: string | null;
+  acknowledgedByRole: string | null;
+  acknowledgmentNote: string | null;
+  resolvedAt: Date | string | null;
+  resolvedByUserId: string | null;
+  resolvedByName: string | null;
+  resolvedByRole: string | null;
+  resolutionNote: string | null;
+  resolutionActionType: string | null;
+  dismissedAt: Date | string | null;
+  dismissedByUserId: string | null;
+  dismissedByName: string | null;
+  dismissedByRole: string | null;
+  dismissReason: string | null;
+  reopenedCount: number;
+  lastReopenedAt: Date | string | null;
+  lastReopenedByUserId: string | null;
+  lastReopenedByName: string | null;
+  updatedAt: Date | string;
+}
+
+interface DbLifecycleEventRow {
+  id: string;
+  lifecycleItemId: string;
+  dedupeKey: string;
+  eventType: string;
+  fromStatus: string | null;
+  toStatus: string;
+  performedByUserId: string | null;
+  performedByName: string;
+  performedByRole: string;
+  note: string | null;
+  actionType: string | null;
+  metadataJson: unknown;
+  createdAt: Date | string;
+}
+
+function isSmartInsightSeverity(value: string): value is SmartInsightSeverity {
+  return (
+    value === 'CRITICAL' ||
+    value === 'HIGH' ||
+    value === 'MEDIUM' ||
+    value === 'LOW' ||
+    value === 'INFO'
+  );
+}
+
+function toIsoTimestamp(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  return value instanceof Date ? value.toISOString() : String(value);
+}
+
+function mapDbRowToLifecycleItem(row: DbLifecycleItemRow): IntelligenceLifecycleItemRecord {
+  const severity: SmartInsightSeverity = isSmartInsightSeverity(row.severity)
+    ? row.severity
+    : 'MEDIUM';
   return {
     id: row.id,
     dedupeKey: row.dedupeKey,
     itemStream: (row.itemStream as IntelligenceLifecycleStream) || 'smart_alert',
     category: row.category,
-    severity: (row.severity as any) || 'MEDIUM',
+    severity,
     priority: Number(row.priority ?? 50),
     confidenceLevel: (row.confidenceLevel as SmartInsightConfidenceLevel) || 'HIGH',
     scopeType: row.scopeType === 'GLOBAL' ? 'GLOBAL' : 'BRANCH',
@@ -124,37 +206,38 @@ function mapDbRowToLifecycleItem(row: any): IntelligenceLifecycleItemRecord {
     explanationAr: row.explanationAr,
     recommendationEn: row.recommendationEn,
     recommendationAr: row.recommendationAr,
-    evidenceJson:
-      row.evidenceJson && typeof row.evidenceJson === 'object' ? row.evidenceJson : {},
+    evidenceJson: isRecord(row.evidenceJson)
+      ? (row.evidenceJson as IntelligenceLifecycleEvidence)
+      : {},
     status: (row.status as IntelligenceLifecycleStatus) || 'ACTIVE',
     conditionHash: row.conditionHash || '',
-    firstDetectedAt: toIso(row.firstDetectedAt) || new Date().toISOString(),
-    lastEvaluatedAt: toIso(row.lastEvaluatedAt) || new Date().toISOString(),
-    acknowledgedAt: toIso(row.acknowledgedAt),
+    firstDetectedAt: toIsoTimestamp(row.firstDetectedAt) || new Date().toISOString(),
+    lastEvaluatedAt: toIsoTimestamp(row.lastEvaluatedAt) || new Date().toISOString(),
+    acknowledgedAt: toIsoTimestamp(row.acknowledgedAt),
     acknowledgedByUserId: row.acknowledgedByUserId || null,
     acknowledgedByName: row.acknowledgedByName || null,
     acknowledgedByRole: row.acknowledgedByRole || null,
     acknowledgmentNote: row.acknowledgmentNote || null,
-    resolvedAt: toIso(row.resolvedAt),
+    resolvedAt: toIsoTimestamp(row.resolvedAt),
     resolvedByUserId: row.resolvedByUserId || null,
     resolvedByName: row.resolvedByName || null,
     resolvedByRole: row.resolvedByRole || null,
     resolutionNote: row.resolutionNote || null,
     resolutionActionType: row.resolutionActionType || null,
-    dismissedAt: toIso(row.dismissedAt),
+    dismissedAt: toIsoTimestamp(row.dismissedAt),
     dismissedByUserId: row.dismissedByUserId || null,
     dismissedByName: row.dismissedByName || null,
     dismissedByRole: row.dismissedByRole || null,
     dismissReason: row.dismissReason || null,
     reopenedCount: Number(row.reopenedCount || 0),
-    lastReopenedAt: toIso(row.lastReopenedAt),
+    lastReopenedAt: toIsoTimestamp(row.lastReopenedAt),
     lastReopenedByUserId: row.lastReopenedByUserId || null,
     lastReopenedByName: row.lastReopenedByName || null,
-    updatedAt: toIso(row.updatedAt) || new Date().toISOString(),
+    updatedAt: toIsoTimestamp(row.updatedAt) || new Date().toISOString(),
   };
 }
 
-function mapDbRowToLifecycleEvent(row: any): IntelligenceLifecycleEventRecord {
+function mapDbRowToLifecycleEvent(row: DbLifecycleEventRow): IntelligenceLifecycleEventRecord {
   return {
     id: row.id,
     lifecycleItemId: row.lifecycleItemId,
@@ -167,8 +250,7 @@ function mapDbRowToLifecycleEvent(row: any): IntelligenceLifecycleEventRecord {
     performedByRole: row.performedByRole || 'system',
     note: row.note || null,
     actionType: row.actionType || null,
-    metadataJson:
-      row.metadataJson && typeof row.metadataJson === 'object' ? row.metadataJson : {},
+    metadataJson: isRecord(row.metadataJson) ? row.metadataJson : {},
     createdAt:
       row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
   };
@@ -404,11 +486,13 @@ export async function syncOverviewWithLifecycleStore(
   const persisted = await loadPersistedLifecycleState();
   // Restore virtual branchId/productId from evidenceJson.extra if PG stored null FK
   for (const it of persisted.items) {
-    if (!it.branchId && it.evidenceJson?.extra?.branchId) {
-      it.branchId = it.evidenceJson.extra.branchId;
+    const extraBranchId = it.evidenceJson?.extra?.branchId;
+    if (!it.branchId && typeof extraBranchId === 'string') {
+      it.branchId = extraBranchId;
     }
-    if (!it.productId && it.evidenceJson?.extra?.productId) {
-      it.productId = it.evidenceJson.extra.productId;
+    const extraProductId = it.evidenceJson?.extra?.productId;
+    if (!it.productId && typeof extraProductId === 'string') {
+      it.productId = extraProductId;
     }
   }
 

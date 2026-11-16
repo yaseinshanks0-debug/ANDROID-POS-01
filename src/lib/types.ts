@@ -3,8 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type ProductSaleUnitMode = 'unit' | 'pack';
-export type AllowedSaleUnitsMode = 'both' | 'unit_only' | 'pack_only';
+export const PRODUCT_SALE_UNIT_MODES = {
+  UNIT: 'unit',
+  PACK: 'pack',
+} as const;
+export type ProductSaleUnitMode =
+  (typeof PRODUCT_SALE_UNIT_MODES)[keyof typeof PRODUCT_SALE_UNIT_MODES];
+
+export const ALLOWED_SALE_UNITS_MODES = {
+  BOTH: 'both',
+  UNIT_ONLY: 'unit_only',
+  PACK_ONLY: 'pack_only',
+} as const;
+export type AllowedSaleUnitsMode =
+  (typeof ALLOWED_SALE_UNITS_MODES)[keyof typeof ALLOWED_SALE_UNITS_MODES];
 
 export interface ProductPriceHistoryEntry {
   id: string;
@@ -18,19 +30,39 @@ export interface ProductPriceHistoryEntry {
   note?: string;
 }
 
+export const PRODUCT_MODIFICATION_ACTIONS = {
+  CREATED: 'created',
+  UPDATED: 'updated',
+  PRICE_CHANGED: 'price_changed',
+  BARCODE_CHANGED: 'barcode_changed',
+  STOCK_CHANGED: 'stock_changed',
+} as const;
+export type ProductModificationAction =
+  (typeof PRODUCT_MODIFICATION_ACTIONS)[keyof typeof PRODUCT_MODIFICATION_ACTIONS];
+
 export interface ProductModificationEntry {
   id: string;
   timestamp: string;
-  action: 'created' | 'updated' | 'price_changed' | 'barcode_changed' | 'stock_changed';
+  action: ProductModificationAction;
   summaryEn: string;
   summaryAr: string;
   changedFields: string[];
   changedBy?: string;
 }
 
-export type UserRole = 'admin' | 'manager' | 'cashier' | 'inventory_clerk';
+export const USER_ROLES = {
+  ADMIN: 'admin',
+  MANAGER: 'manager',
+  CASHIER: 'cashier',
+  INVENTORY_CLERK: 'inventory_clerk',
+} as const;
+export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES];
 
-export type WorkspaceMode = 'PRODUCTION' | 'PRACTICE';
+export const WORKSPACE_MODES = {
+  PRODUCTION: 'PRODUCTION',
+  PRACTICE: 'PRACTICE',
+} as const;
+export type WorkspaceMode = (typeof WORKSPACE_MODES)[keyof typeof WORKSPACE_MODES];
 
 export interface RolePermissions {
   canCheckout: boolean;
@@ -280,16 +312,37 @@ export interface CartItem {
   selectedSaleUnit?: ProductSaleUnitMode; // 'unit' (شريط/قطعة) or 'pack' (باكو)
 }
 
-export type PaymentMethod = 'cash' | 'bank_transfer' | 'qr_nfc' | 'card';
+export const PAYMENT_METHODS = {
+  CASH: 'cash',
+  BANK_TRANSFER: 'bank_transfer',
+  QR_NFC: 'qr_nfc',
+  CARD: 'card',
+} as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[keyof typeof PAYMENT_METHODS];
 
-export type PaymentSettlementStatus = 'paid' | 'partial' | 'unpaid';
+export const PAYMENT_SETTLEMENT_STATUSES = {
+  PAID: 'paid',
+  PARTIAL: 'partial',
+  UNPAID: 'unpaid',
+} as const;
+export type PaymentSettlementStatus =
+  (typeof PAYMENT_SETTLEMENT_STATUSES)[keyof typeof PAYMENT_SETTLEMENT_STATUSES];
 
+export const INVOICE_FULFILLMENT_TYPES = {
+  GOODS_AND_INVOICE: 'goods_and_invoice',
+  INVOICE_ONLY: 'invoice_only',
+  GOODS_ONLY: 'goods_only',
+} as const;
 export type InvoiceFulfillmentType =
-  | 'goods_and_invoice'
-  | 'invoice_only'
-  | 'goods_only';
+  (typeof INVOICE_FULFILLMENT_TYPES)[keyof typeof INVOICE_FULFILLMENT_TYPES];
 
-export type InvoiceFulfillmentStatus = 'received' | 'pending_goods' | 'pending_invoice';
+export const INVOICE_FULFILLMENT_STATUSES = {
+  RECEIVED: 'received',
+  PENDING_GOODS: 'pending_goods',
+  PENDING_INVOICE: 'pending_invoice',
+} as const;
+export type InvoiceFulfillmentStatus =
+  (typeof INVOICE_FULFILLMENT_STATUSES)[keyof typeof INVOICE_FULFILLMENT_STATUSES];
 
 export interface DebtSettlementPayment {
   id: string;
@@ -328,28 +381,75 @@ export interface CheckoutPaymentDetails {
   exchangeRatesSnapshot?: Record<string, number>;
 }
 
-export type SalesRateValuationMode = 'live' | 'indexed' | 'historical';
+export const SALES_RATE_VALUATION_MODES = {
+  LIVE: 'live',
+  INDEXED: 'indexed',
+  HISTORICAL: 'historical',
+} as const;
+export type SalesRateValuationMode =
+  (typeof SALES_RATE_VALUATION_MODES)[keyof typeof SALES_RATE_VALUATION_MODES];
+
+export interface TransactionLineItem {
+  id?: string;
+  lineId?: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  quantity: number;
+  unitPrice: number;
+  discountPercent: number;
+  total: number;
+  saleUnit?: ProductSaleUnitMode;
+  saleUnitLabel?: string;
+  unitsPerPack?: number;
+  stockDeducted?: number;
+  unitCostAtSale?: number;
+  unitCost?: number;
+  costCurrency?: SupportedCurrency;
+}
+
+export interface TransactionInlineReturnLineItem {
+  productId: string;
+  quantity: number;
+  refundAmount: number;
+  saleUnit?: ProductSaleUnitMode;
+}
+
+export interface TransactionInlineReturn {
+  id: string;
+  saleId?: string;
+  timestamp?: string;
+  reason?: string;
+  refundTotal: number;
+  items?: TransactionInlineReturnLineItem[];
+}
+
+export const TRANSACTION_STATUSES = {
+  COMPLETED: 'completed',
+  VOIDED: 'voided',
+} as const;
+export type TransactionStatus =
+  (typeof TRANSACTION_STATUSES)[keyof typeof TRANSACTION_STATUSES];
+
+export const TRANSACTION_SYNC_STATUSES = {
+  SYNCED: 'synced',
+  PENDING_SYNC: 'pending_sync',
+  FAILED: 'failed',
+} as const;
+export type TransactionSyncStatus =
+  (typeof TRANSACTION_SYNC_STATUSES)[keyof typeof TRANSACTION_SYNC_STATUSES];
 
 export interface Transaction {
   id: string; // e.g., TXN-20261029-4821
   idempotencyKey: string;
+  branchId?: string;
   timestamp: string;
   currency?: SupportedCurrency;
   exchangeRateUsed?: number;
   exchangeRatesSnapshot?: Record<string, number>;
-  items: {
-    productId: string;
-    productName: string;
-    sku: string;
-    quantity: number;
-    unitPrice: number;
-    discountPercent: number;
-    total: number;
-    saleUnit?: ProductSaleUnitMode;
-    saleUnitLabel?: string;
-    unitsPerPack?: number;
-    stockDeducted?: number;
-  }[];
+  isTaxInclusive?: boolean;
+  items: TransactionLineItem[];
+  returns?: TransactionInlineReturn[];
   subtotal: number;
   taxRatePercent: number;
   taxAmount: number;
@@ -371,8 +471,8 @@ export interface Transaction {
   customerId?: string;
   customerName?: string;
   cashierName: string;
-  status: 'completed' | 'voided';
-  syncStatus: 'synced' | 'pending_sync' | 'failed';
+  status: TransactionStatus;
+  syncStatus: TransactionSyncStatus;
 }
 
 export interface Customer {
@@ -421,8 +521,18 @@ export interface GoodsReceiptInput {
 }
 
 export type SupportedCurrency = 'SDG' | 'USD' | 'SAR' | 'AED' | 'EUR' | 'GBP' | (string & {});
-export type AppTheme = 'dark' | 'light';
-export type AppLanguage = 'en' | 'ar';
+
+export const APP_THEMES = {
+  DARK: 'dark',
+  LIGHT: 'light',
+} as const;
+export type AppTheme = (typeof APP_THEMES)[keyof typeof APP_THEMES];
+
+export const APP_LANGUAGES = {
+  EN: 'en',
+  AR: 'ar',
+} as const;
+export type AppLanguage = (typeof APP_LANGUAGES)[keyof typeof APP_LANGUAGES];
 
 export interface Currency {
   code: string;
@@ -460,7 +570,12 @@ export interface ExchangeRateHistoryEntry {
   note?: string;
 }
 
-export type SdgPriceAdjustmentPolicy = 'increase_only' | 'proportional';
+export const SDG_PRICE_ADJUSTMENT_POLICIES = {
+  INCREASE_ONLY: 'increase_only',
+  PROPORTIONAL: 'proportional',
+} as const;
+export type SdgPriceAdjustmentPolicy =
+  (typeof SDG_PRICE_ADJUSTMENT_POLICIES)[keyof typeof SDG_PRICE_ADJUSTMENT_POLICIES];
 
 export interface AppSettings {
   storeName: string;
@@ -486,16 +601,18 @@ export interface AppSettings {
   language: AppLanguage;
 }
 
-export type ExpenseCategory =
-  | 'rent'
-  | 'utilities'
-  | 'salaries'
-  | 'transport'
-  | 'maintenance'
-  | 'supplies'
-  | 'taxes_fees'
-  | 'marketing'
-  | 'other';
+export const EXPENSE_CATEGORIES = {
+  RENT: 'rent',
+  UTILITIES: 'utilities',
+  SALARIES: 'salaries',
+  TRANSPORT: 'transport',
+  MAINTENANCE: 'maintenance',
+  SUPPLIES: 'supplies',
+  TAXES_FEES: 'taxes_fees',
+  MARKETING: 'marketing',
+  OTHER: 'other',
+} as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[keyof typeof EXPENSE_CATEGORIES];
 
 export interface ExpenseRecord {
   id: string; // e.g., EXP-20261108-4821
@@ -532,14 +649,20 @@ export interface ExpenseInput {
   exchangeRateUsed?: number;
 }
 
-export type AppNavTab =
-  | 'dashboard'
-  | 'checkout'
-  | 'products'
-  | 'inventory'
-  | 'customers'
-  | 'sales'
-  | 'expenses'
-  | 'reports'
-  | 'settings';
+export const APP_NAV_TABS = {
+  DASHBOARD: 'dashboard',
+  CHECKOUT: 'checkout',
+  PRODUCTS: 'products',
+  INVENTORY: 'inventory',
+  CUSTOMERS: 'customers',
+  SALES: 'sales',
+  EXPENSES: 'expenses',
+  REPORTS: 'reports',
+  SETTINGS: 'settings',
+} as const;
+export type AppNavTab = (typeof APP_NAV_TABS)[keyof typeof APP_NAV_TABS];
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 

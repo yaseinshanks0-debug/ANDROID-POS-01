@@ -199,7 +199,7 @@ export function computeInventoryAnalytics(
         if (ret.id) matchedReturnIds.add(ret.id);
         for (const rItem of ret.items || []) {
           const prod = productsMap.get(rItem.productId);
-          const rSaleUnit = (rItem as any).saleUnit;
+          const rSaleUnit = rItem.saleUnit;
           const retBaseUnits =
             rSaleUnit === 'pack' && prod?.unitsPerPack && prod.unitsPerPack > 1
               ? Math.max(0, rItem.quantity) * prod.unitsPerPack
@@ -220,7 +220,7 @@ export function computeInventoryAnalytics(
     if (rMs < windowStartMs || rMs > windowEndMs) continue;
     for (const rItem of ret.items || []) {
       const prod = productsMap.get(rItem.productId);
-      const rSaleUnit = (rItem as any).saleUnit;
+      const rSaleUnit = rItem.saleUnit;
       const retBaseUnits =
         rSaleUnit === 'pack' && prod?.unitsPerPack && prod.unitsPerPack > 1
           ? Math.max(0, rItem.quantity) * prod.unitsPerPack

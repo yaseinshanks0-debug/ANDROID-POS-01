@@ -59,7 +59,7 @@ export function nonBlockingJsonCompressionMiddleware(
   const startHr = process.hrtime.bigint();
   const originalJson = res.json.bind(res);
 
-  res.json = function (body: any): Response {
+  res.json = function (body: unknown): Response {
     const durationMs = Number(process.hrtime.bigint() - startHr) / 1_000_000;
     if (!res.headersSent) {
       res.setHeader('Server-Timing', `app;dur=${durationMs.toFixed(2)}`);

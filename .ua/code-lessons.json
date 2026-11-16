@@ -1,0 +1,2054 @@
+{
+  "version": 1,
+  "generatedAt": "2026-11-16T12:55:16.016Z",
+  "files": {
+    ".env.example": {
+      "overview": "نموذج متغيرات البيئة المطلوبة لتشغيل الخادم وقاعدة البيانات دون تضمين أسرار.",
+      "sections": []
+    },
+    ".github/workflows/build-apk.yml": {
+      "overview": "خط CI/CD لبناء وتوقيع حزمة Android APK تلقائياً عبر GitHub Actions.",
+      "sections": [
+        {
+          "title": "نظرة تفصيلية على build-apk.yml",
+          "lineRange": [
+            1,
+            120
+          ],
+          "explanation": "خط CI/CD لبناء وتوقيع حزمة Android APK تلقائياً عبر GitHub Actions.",
+          "tourOrder": 10
+        }
+      ]
+    },
+    ".github/workflows/build-windows-exe.yml": {
+      "overview": "خط CI/CD لبناء حزمة Windows Electron المثبّتة (.exe) تلقائياً.",
+      "sections": [
+        {
+          "title": "نظرة تفصيلية على build-windows-exe.yml",
+          "lineRange": [
+            1,
+            120
+          ],
+          "explanation": "خط CI/CD لبناء حزمة Windows Electron المثبّتة (.exe) تلقائياً.",
+          "tourOrder": 10
+        }
+      ]
+    },
+    ".gitignore": {
+      "overview": "ملف إعدادات وتكوين (.gitignore).",
+      "sections": []
+    },
+    ".npmrc": {
+      "overview": "ملف إعدادات وتكوين (.npmrc).",
+      "sections": []
+    },
+    "AGENTS.md": {
+      "overview": "توثيق فني: ANDROID-POS-01 Project Agent Guidelines (AGENTS.md).",
+      "sections": []
+    },
+    "GEMINI.md": {
+      "overview": "توثيق فني: GEMINI (GEMINI.md).",
+      "sections": []
+    },
+    "IMPLEMENTATION_NEXT_PHASE.md": {
+      "overview": "توثيق فني: خطة تنفيذ وتطوير نظام نقاط البيع (Modern Android POS) (IMPLEMENTATION_NEXT_PHASE.md).",
+      "sections": []
+    },
+    "android/.gitignore": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/.gitignore).",
+      "sections": []
+    },
+    "android/app/.gitignore": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/.gitignore).",
+      "sections": []
+    },
+    "android/app/build.gradle": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/build.gradle).",
+      "sections": []
+    },
+    "android/app/capacitor.build.gradle": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/capacitor.build.gradle).",
+      "sections": []
+    },
+    "android/app/proguard-rules.pro": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/proguard-rules.pro).",
+      "sections": []
+    },
+    "android/app/src/androidTest/java/com/getcapacitor/myapp/ExampleInstrumentedTest.java": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/src/androidTest/java/com/getcapacitor/myapp/ExampleInstrumentedTest.java).",
+      "sections": []
+    },
+    "android/app/src/main/AndroidManifest.xml": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/src/main/AndroidManifest.xml).",
+      "sections": []
+    },
+    "android/app/src/main/assets/capacitor.config.json": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/src/main/assets/capacitor.config.json).",
+      "sections": []
+    },
+    "android/app/src/main/assets/capacitor.plugins.json": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/src/main/assets/capacitor.plugins.json).",
+      "sections": []
+    },
+    "android/app/src/main/java/com/dqnamo/pos/MainActivity.java": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/src/main/java/com/dqnamo/pos/MainActivity.java).",
+      "sections": []
+    },
+    "android/app/src/main/res/layout/activity_main.xml": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/src/main/res/layout/activity_main.xml).",
+      "sections": []
+    },
+    "android/app/src/main/res/values/ic_launcher_background.xml": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/src/main/res/values/ic_launcher_background.xml).",
+      "sections": []
+    },
+    "android/app/src/main/res/values/strings.xml": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/src/main/res/values/strings.xml).",
+      "sections": []
+    },
+    "android/app/src/main/res/values/styles.xml": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/src/main/res/values/styles.xml).",
+      "sections": []
+    },
+    "android/app/src/main/res/xml/config.xml": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/src/main/res/xml/config.xml).",
+      "sections": []
+    },
+    "android/app/src/main/res/xml/file_paths.xml": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/src/main/res/xml/file_paths.xml).",
+      "sections": []
+    },
+    "android/app/src/test/java/com/getcapacitor/myapp/ExampleUnitTest.java": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/app/src/test/java/com/getcapacitor/myapp/ExampleUnitTest.java).",
+      "sections": []
+    },
+    "android/build.gradle": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/build.gradle).",
+      "sections": []
+    },
+    "android/capacitor.settings.gradle": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/capacitor.settings.gradle).",
+      "sections": []
+    },
+    "android/gradle.properties": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/gradle.properties).",
+      "sections": []
+    },
+    "android/gradlew": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/gradlew).",
+      "sections": []
+    },
+    "android/gradlew.bat": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/gradlew.bat).",
+      "sections": []
+    },
+    "android/settings.gradle": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/settings.gradle).",
+      "sections": []
+    },
+    "android/variables.gradle": {
+      "overview": "ملف إعداد أو كود أصلي لمنصة Android Capacitor (android/variables.gradle).",
+      "sections": []
+    },
+    "capacitor.config.ts": {
+      "overview": "إعدادات Capacitor 8 لتغليف تطبيق Android وتكوين شريط الحالة وSQLite المحلي.",
+      "sections": [
+        {
+          "title": "إعدادات Capacitor 8 للأندرويد والإضافات الأصلية",
+          "lineRange": [
+            1,
+            32
+          ],
+          "explanation": "يعرّف appId (com.dqnamo.pos) ومجلد webDir (dist) وتكوين StatusBar وHaptics وCapacitorSQLite.",
+          "tourOrder": 10
+        }
+      ]
+    },
+    "docs/ANALYTICS_ACCOUNTING_RECONCILIATION.md": {
+      "overview": "توثيق فني: Analytics Accounting & Financial Reconciliation Specification (docs/ANALYTICS_ACCOUNTING_RECONCILIATION.md).",
+      "sections": []
+    },
+    "docs/ANALYTICS_API.md": {
+      "overview": "توثيق فني: Business Intelligence & Predictive Analytics REST API Reference (docs/ANALYTICS_API.md).",
+      "sections": []
+    },
+    "docs/ANALYTICS_ARCHITECTURE.md": {
+      "overview": "توثيق فني: Business Intelligence & Predictive Analytics Module Architecture (docs/ANALYTICS_ARCHITECTURE.md).",
+      "sections": []
+    },
+    "docs/ANALYTICS_ARCHITECTURE_AUDIT.md": {
+      "overview": "توثيق فني: Phase 0: Business Intelligence & Predictive Analytics Architecture Audit (docs/ANALYTICS_ARCHITECTURE_AUDIT.md).",
+      "sections": []
+    },
+    "docs/ANALYTICS_CORRECTIONS_REPORT.md": {
+      "overview": "توثيق فني: Analytics Corrections Report — Root Cause, Code Diffs & Verification (docs/ANALYTICS_CORRECTIONS_REPORT.md).",
+      "sections": []
+    },
+    "docs/ANALYTICS_CRITICAL_FIXES_REPORT.md": {
+      "overview": "توثيق فني: Critical Analytics Defect Remediation Report — Post Acceptance Audit (docs/ANALYTICS_CRITICAL_FIXES_REPORT.md).",
+      "sections": []
+    },
+    "docs/ANALYTICS_FINANCIAL_RECONCILIATION_RETEST.md": {
+      "overview": "توثيق فني: Financial & COGS Reconciliation Retest Report (`FIN-14`, `INV-10` / `FIN-09`) (docs/ANALYTICS_FINANCIAL_RECONCILIATION_RETEST.md).",
+      "sections": []
+    },
+    "docs/ANALYTICS_FORECAST_RETEST.md": {
+      "overview": "توثيق فني: Product Demand Forecasting Retest Report (`FC-08` & `FC-09`) (docs/ANALYTICS_FORECAST_RETEST.md).",
+      "sections": []
+    },
+    "docs/ANALYTICS_IMPLEMENTATION_REPORT.md": {
+      "overview": "توثيق فني: Business Intelligence & Predictive Analytics Implementation Report (docs/ANALYTICS_IMPLEMENTATION_REPORT.md).",
+      "sections": []
+    },
+    "docs/ANALYTICS_METRICS_DICTIONARY.md": {
+      "overview": "توثيق فني: Business Intelligence Metrics Dictionary (docs/ANALYTICS_METRICS_DICTIONARY.md).",
+      "sections": []
+    },
+    "docs/ANALYTICS_PERFORMANCE_COMPARISON.md": {
+      "overview": "توثيق فني: Analytics Performance Comparison Report (`PERF-01` & `PERF-05`) (docs/ANALYTICS_PERFORMANCE_COMPARISON.md).",
+      "sections": []
+    },
+    "docs/ANALYTICS_PRODUCTION_READINESS_REVIEW.md": {
+      "overview": "توثيق فني: Analytics Production Readiness Review — Dqnamo POS (docs/ANALYTICS_PRODUCTION_READINESS_REVIEW.md).",
+      "sections": []
+    },
+    "docs/ANALYTICS_SECURITY_RETEST.md": {
+      "overview": "توثيق فني: Analytics Security Retest Report (`SEC-01` & `SEC-02`) (docs/ANALYTICS_SECURITY_RETEST.md).",
+      "sections": []
+    },
+    "docs/ANALYTICS_SECURITY_REVIEW.md": {
+      "overview": "توثيق فني: Analytics RBAC & Data Security Audit Review (docs/ANALYTICS_SECURITY_REVIEW.md).",
+      "sections": []
+    },
+    "docs/ANALYTICS_TEST_REPORT.md": {
+      "overview": "توثيق فني: Business Intelligence & Predictive Analytics Test Report (docs/ANALYTICS_TEST_REPORT.md).",
+      "sections": []
+    },
+    "docs/BACKUP_FORMAT_SPEC.md": {
+      "overview": "توثيق فني: Backup File Format Specification (`DQNAMO_POS_BACKUP_V1`) (docs/BACKUP_FORMAT_SPEC.md).",
+      "sections": []
+    },
+    "docs/BACKUP_RESTORE_AUDIT.md": {
+      "overview": "توثيق فني: Repository & Database Audit — Backup, Restore, Company Migration & Intelligent Data Merge (`PHASE A`) (docs/BACKUP_RESTORE_AUDIT.md).",
+      "sections": []
+    },
+    "docs/BACKUP_RESTORE_TEST_REPORT.md": {
+      "overview": "توثيق فني: Backup, Restore & Intelligent Merge — Verification & Test Report (docs/BACKUP_RESTORE_TEST_REPORT.md).",
+      "sections": []
+    },
+    "docs/BACKUP_SECURITY_PLAN.md": {
+      "overview": "توثيق فني: Backup, Restore & Migration Security Plan (`PHASE A`) (docs/BACKUP_SECURITY_PLAN.md).",
+      "sections": []
+    },
+    "docs/BUILD_AUDIT_REPORT.md": {
+      "overview": "توثيق فني: تقرير التدقيق الهندسي الشامل لبناء المشروع (Windows + Android) (docs/BUILD_AUDIT_REPORT.md).",
+      "sections": []
+    },
+    "docs/CLEAN_REBUILD_GUIDE.md": {
+      "overview": "توثيق فني: دليل البناء النظيف والإصدار المستقل — Windows EXE & Android APK/AAB (docs/CLEAN_REBUILD_GUIDE.md).",
+      "sections": []
+    },
+    "docs/CLOUD_INFRASTRUCTURE_AUDIT.md": {
+      "overview": "توثيق فني: تقرير التدقيق الشامل للبنية التحتية السحابية (POS Cloud Infrastructure – Phase 1 Audit) (docs/CLOUD_INFRASTRUCTURE_AUDIT.md).",
+      "sections": []
+    },
+    "docs/COMPANY_DATA_ISOLATION.md": {
+      "overview": "توثيق فني: Multi-Company & Practice Mode Data Isolation — Dqnamo POS (docs/COMPANY_DATA_ISOLATION.md).",
+      "sections": []
+    },
+    "docs/COMPANY_INITIALIZATION.md": {
+      "overview": "توثيق فني: Company Initialization & Empty State Architecture — Dqnamo POS (docs/COMPANY_INITIALIZATION.md).",
+      "sections": []
+    },
+    "docs/COMPANY_ISOLATION.md": {
+      "overview": "توثيق فني: Multi-Company & Multi-Branch Data Isolation (docs/COMPANY_ISOLATION.md).",
+      "sections": []
+    },
+    "docs/COMPANY_ONBOARDING.md": {
+      "overview": "توثيق فني: Company Onboarding & Initial Owner Setup Guide (docs/COMPANY_ONBOARDING.md).",
+      "sections": []
+    },
+    "docs/CURRENCY_INITIALIZATION.md": {
+      "overview": "توثيق فني: Currency Initialization & Full Customization — Dqnamo POS (docs/CURRENCY_INITIALIZATION.md).",
+      "sections": []
+    },
+    "docs/DATA_MERGE_RULES.md": {
+      "overview": "توثيق فني: Intelligent Data Merge & Duplicate Detection Rules (`PHASE A`) (docs/DATA_MERGE_RULES.md).",
+      "sections": []
+    },
+    "docs/DATA_MIGRATION_ARCHITECTURE.md": {
+      "overview": "توثيق فني: Data Migration, Backup & Restore Architecture (`PHASE A`) (docs/DATA_MIGRATION_ARCHITECTURE.md).",
+      "sections": []
+    },
+    "docs/DEMAND_FORECASTING_METHODOLOGY.md": {
+      "overview": "توثيق فني: Predictive Demand & Stockout-Compensated Forecasting Methodology (Phase 10) (docs/DEMAND_FORECASTING_METHODOLOGY.md).",
+      "sections": []
+    },
+    "docs/DEPLOYMENT_GUIDE.md": {
+      "overview": "توثيق فني: Deployment & Operations Guide — Dqnamo POS (docs/DEPLOYMENT_GUIDE.md).",
+      "sections": []
+    },
+    "docs/DESIGN_SYSTEM.md": {
+      "overview": "توثيق فني: Phase 9.5 — Design System & Layout Architecture (`DESIGN_SYSTEM.md`) (docs/DESIGN_SYSTEM.md).",
+      "sections": []
+    },
+    "docs/FACTORY_RESET_POLICY.md": {
+      "overview": "توثيق فني: Factory Reset Policy & Two-Scope Authorization — Dqnamo POS (docs/FACTORY_RESET_POLICY.md).",
+      "sections": []
+    },
+    "docs/FINAL_ANALYTICS_ACCEPTANCE_REPORT.md": {
+      "overview": "توثيق فني: Final Production Acceptance Report — Business Intelligence & Predictive Analytics (docs/FINAL_ANALYTICS_ACCEPTANCE_REPORT.md).",
+      "sections": []
+    },
+    "docs/FINAL_DATABASE_INTEGRITY_REPORT.md": {
+      "overview": "توثيق فني: Final Database Integrity & Protection Report (docs/FINAL_DATABASE_INTEGRITY_REPORT.md).",
+      "sections": []
+    },
+    "docs/FINAL_FINANCIAL_RECONCILIATION_RESULTS.md": {
+      "overview": "توثيق فني: Final Financial Reconciliation Results — Business Intelligence & Predictive Analytics (docs/FINAL_FINANCIAL_RECONCILIATION_RESULTS.md).",
+      "sections": []
+    },
+    "docs/FINAL_FORECAST_VALIDATION_RESULTS.md": {
+      "overview": "توثيق فني: Final Forecast Validation Results — Business Intelligence & Predictive Analytics (docs/FINAL_FORECAST_VALIDATION_RESULTS.md).",
+      "sections": []
+    },
+    "docs/FINAL_PERFORMANCE_CERTIFICATION.md": {
+      "overview": "توثيق فني: Final Performance & Numerical Consistency Certification (docs/FINAL_PERFORMANCE_CERTIFICATION.md).",
+      "sections": []
+    },
+    "docs/FINAL_PERFORMANCE_TEST_RESULTS.md": {
+      "overview": "توثيق فني: Final Performance & Reliability Test Results — Business Intelligence & Predictive Analytics (docs/FINAL_PERFORMANCE_TEST_RESULTS.md).",
+      "sections": []
+    },
+    "docs/FINAL_REGRESSION_TEST_REPORT.md": {
+      "overview": "توثيق فني: Final Regression Test Report — Release Candidate (docs/FINAL_REGRESSION_TEST_REPORT.md).",
+      "sections": []
+    },
+    "docs/FINAL_RELEASE_CERTIFICATION.md": {
+      "overview": "توثيق فني: Final Analytics Release Certification — Release Candidate (docs/FINAL_RELEASE_CERTIFICATION.md).",
+      "sections": []
+    },
+    "docs/FINAL_SECURITY_TEST_RESULTS.md": {
+      "overview": "توثيق فني: Final Security & Authorization Test Results — Business Intelligence & Predictive Analytics (docs/FINAL_SECURITY_TEST_RESULTS.md).",
+      "sections": []
+    },
+    "docs/FORECASTING_BACKTEST_REPORT.md": {
+      "overview": "توثيق فني: Statistical Forecasting & Rolling-Origin Backtest Report (docs/FORECASTING_BACKTEST_REPORT.md).",
+      "sections": []
+    },
+    "docs/FORECASTING_METHODOLOGY.md": {
+      "overview": "توثيق فني: Statistical Forecasting & Retail Technical Analysis Methodology (docs/FORECASTING_METHODOLOGY.md).",
+      "sections": []
+    },
+    "docs/FRESH_INSTALLATION.md": {
+      "overview": "توثيق فني: Fresh Installation Guide — Dqnamo POS (docs/FRESH_INSTALLATION.md).",
+      "sections": []
+    },
+    "docs/FRESH_SETUP_TEST_REPORT.md": {
+      "overview": "توثيق فني: Fresh Setup & Zero Default Data Test Report — Dqnamo POS (docs/FRESH_SETUP_TEST_REPORT.md).",
+      "sections": []
+    },
+    "docs/GUIDED_TOUR.md": {
+      "overview": "توثيق فني: Interactive Guided Product Tour & Onboarding Checklist (docs/GUIDED_TOUR.md).",
+      "sections": []
+    },
+    "docs/INITIAL_RELEASE_ARCHITECTURE.md": {
+      "overview": "توثيق فني: Initial Release Architecture — Phase 11 (docs/INITIAL_RELEASE_ARCHITECTURE.md).",
+      "sections": [
+        {
+          "title": "نظرة تفصيلية على INITIAL_RELEASE_ARCHITECTURE.md",
+          "lineRange": [
+            1,
+            79
+          ],
+          "explanation": "توثيق فني: Initial Release Architecture — Phase 11 (docs/INITIAL_RELEASE_ARCHITECTURE.md).",
+          "tourOrder": 1
+        }
+      ]
+    },
+    "docs/INTELLIGENCE_API.md": {
+      "overview": "توثيق فني: Smart Store Operations & Unmet Demand Intelligence API Reference (Phase 10) (docs/INTELLIGENCE_API.md).",
+      "sections": []
+    },
+    "docs/INTELLIGENCE_ARCHITECTURE.md": {
+      "overview": "توثيق فني: Phase 10 — Unified Store Operations & Customer Demand Intelligence Architecture (docs/INTELLIGENCE_ARCHITECTURE.md).",
+      "sections": []
+    },
+    "docs/INTELLIGENCE_IMPLEMENTATION_REPORT.md": {
+      "overview": "توثيق فني: Phase 10 Implementation Report — Intelligent Store Operations & Customer Demand Intelligence (docs/INTELLIGENCE_IMPLEMENTATION_REPORT.md).",
+      "sections": []
+    },
+    "docs/INTELLIGENCE_LIFECYCLE_API.md": {
+      "overview": "توثيق فني: Phase 9.5 — Intelligence Lifecycle REST API Specification (`INTELLIGENCE_LIFECYCLE_API.md`) (docs/INTELLIGENCE_LIFECYCLE_API.md).",
+      "sections": []
+    },
+    "docs/INTELLIGENCE_LIFECYCLE_DESIGN.md": {
+      "overview": "توثيق فني: Phase 9.5 — Intelligence Lifecycle Architecture & Design (`INTELLIGENCE_LIFECYCLE_DESIGN.md`) (docs/INTELLIGENCE_LIFECYCLE_DESIGN.md).",
+      "sections": []
+    },
+    "docs/INTELLIGENCE_RULES_CATALOG.md": {
+      "overview": "توثيق فني: Smart Store Operations & Intelligence Rules Catalog (Phase 10) (docs/INTELLIGENCE_RULES_CATALOG.md).",
+      "sections": []
+    },
+    "docs/INTELLIGENCE_TEST_REPORT.md": {
+      "overview": "توثيق فني: Phase 10 Intelligence & Unmet Demand Automated Test & Verification Report (docs/INTELLIGENCE_TEST_REPORT.md).",
+      "sections": []
+    },
+    "docs/INTELLIGENT_MERGE_GUIDE.md": {
+      "overview": "توثيق فني: Intelligent Data Merge & Duplicate Detection Guide (docs/INTELLIGENT_MERGE_GUIDE.md).",
+      "sections": []
+    },
+    "docs/KNOWN_LIMITATIONS.md": {
+      "overview": "توثيق فني: Known Limitations & Post-Release Roadmap (docs/KNOWN_LIMITATIONS.md).",
+      "sections": []
+    },
+    "docs/PERMISSIONS_MATRIX.md": {
+      "overview": "توثيق فني: Granular Role-Based Access Control (RBAC) Matrix (docs/PERMISSIONS_MATRIX.md).",
+      "sections": []
+    },
+    "docs/PHASE_2_3_EXECUTION_REPORT.md": {
+      "overview": "توثيق فني: تقرير التنفيذ والتحقق — المرحلتان الثانية والثالثة (PHASE 2 & PHASE 3 EXECUTION REPORT) (docs/PHASE_2_3_EXECUTION_REPORT.md).",
+      "sections": []
+    },
+    "docs/POS_FEATURE_ROADMAP.md": {
+      "overview": "توثيق فني: Modern Android POS — Enterprise Retail System Evolution Roadmap (docs/POS_FEATURE_ROADMAP.md).",
+      "sections": []
+    },
+    "docs/PRACTICE_MODE.md": {
+      "overview": "توثيق فني: Practice Mode (Isolated Training Sandbox) (docs/PRACTICE_MODE.md).",
+      "sections": []
+    },
+    "docs/PRODUCTION_SEED_AUDIT.md": {
+      "overview": "توثيق فني: Production Seed Audit Report — Dqnamo POS (docs/PRODUCTION_SEED_AUDIT.md).",
+      "sections": []
+    },
+    "docs/REGRESSION_TEST_REPORT.md": {
+      "overview": "توثيق فني: Phase 9.5 — Full Regression & Lifecycle Verification Report (`REGRESSION_TEST_REPORT.md`) (docs/REGRESSION_TEST_REPORT.md).",
+      "sections": []
+    },
+    "docs/RELEASE_CHECKLIST.md": {
+      "overview": "توثيق فني: Initial Production Release Checklist — Phase 11 (docs/RELEASE_CHECKLIST.md).",
+      "sections": []
+    },
+    "docs/RELEASE_TEST_REPORT.md": {
+      "overview": "توثيق فني: Initial Release Acceptance & Regression Test Report — Phase 11 (docs/RELEASE_TEST_REPORT.md).",
+      "sections": []
+    },
+    "docs/RESPONSIVE_LAYOUT_REPORT.md": {
+      "overview": "توثيق فني: Phase 9.5 — 6-Viewport Responsive Layout Verification Report (`RESPONSIVE_LAYOUT_REPORT.md`) (docs/RESPONSIVE_LAYOUT_REPORT.md).",
+      "sections": []
+    },
+    "docs/RESTORE_AND_MIGRATION_GUIDE.md": {
+      "overview": "توثيق فني: Restore & Company Migration Guide (docs/RESTORE_AND_MIGRATION_GUIDE.md).",
+      "sections": []
+    },
+    "docs/ROLLDOWN_WINDOWS_HOTFIX_REPORT.md": {
+      "overview": "توثيق فني: تقرير الإصلاح العاجل — فشل استخراج حزمة Rolldown على Windows (`ROLLDOWN WINDOWS HOTFIX REPORT`) (docs/ROLLDOWN_WINDOWS_HOTFIX_REPORT.md).",
+      "sections": []
+    },
+    "docs/UI_UX_AUDIT.md": {
+      "overview": "توثيق فني: Phase 9.5 — Full UI/UX Audit Report (`UI_UX_AUDIT.md`) (docs/UI_UX_AUDIT.md).",
+      "sections": []
+    },
+    "docs/UI_UX_IMPLEMENTATION_REPORT.md": {
+      "overview": "توثيق فني: Phase 9.5 — UI/UX Overhaul & Lifecycle Implementation Report (`UI_UX_IMPLEMENTATION_REPORT.md`) (docs/UI_UX_IMPLEMENTATION_REPORT.md).",
+      "sections": []
+    },
+    "docs/UNMET_DEMAND_DATA_MODEL.md": {
+      "overview": "توثيق فني: Phase 10 — Unmet Customer Demand Data Model & Capture Design (Phase B) (docs/UNMET_DEMAND_DATA_MODEL.md).",
+      "sections": []
+    },
+    "docs/USER_MANAGEMENT.md": {
+      "overview": "توثيق فني: Employee & User Account Management Guide (docs/USER_MANAGEMENT.md).",
+      "sections": []
+    },
+    "docs/ZERO_DEFAULT_DATA_POLICY.md": {
+      "overview": "توثيق فني: Zero Default Data Policy — Dqnamo POS (docs/ZERO_DEFAULT_DATA_POLICY.md).",
+      "sections": []
+    },
+    "drizzle/0001_phase10_unmet_demand_requests.rollback.sql": {
+      "overview": "ملف ترحيل SQL لإنشاء أو التراجع عن جداول PostgreSQL (0001_phase10_unmet_demand_requests.rollback.sql).",
+      "sections": []
+    },
+    "drizzle/0001_phase10_unmet_demand_requests.sql": {
+      "overview": "ملف ترحيل SQL لإنشاء أو التراجع عن جداول PostgreSQL (0001_phase10_unmet_demand_requests.sql).",
+      "sections": []
+    },
+    "drizzle/0002_phase13_customer_demand_tracking_v2.rollback.sql": {
+      "overview": "ملف ترحيل SQL لإنشاء أو التراجع عن جداول PostgreSQL (0002_phase13_customer_demand_tracking_v2.rollback.sql).",
+      "sections": []
+    },
+    "drizzle/0002_phase13_customer_demand_tracking_v2.sql": {
+      "overview": "ملف ترحيل SQL لإنشاء أو التراجع عن جداول PostgreSQL (0002_phase13_customer_demand_tracking_v2.sql).",
+      "sections": []
+    },
+    "electron-builder.json": {
+      "overview": "إعدادات بناء المثبّت التنفيذي لنظام ويندوز (NSIS / Electron).",
+      "sections": []
+    },
+    "electron/main.cjs": {
+      "overview": "العملية الرئيسية لسطح مكتب Electron التي تشغّل خادم Express المحلي وتفتح نافذة نقاط البيع.",
+      "sections": [
+        {
+          "title": "تحديد مسارات الواجهة والخادم وبذر البيانات الأولية",
+          "lineRange": [
+            42,
+            130
+          ],
+          "explanation": "يبحث عن مجلد الواجهة www/dist وحزمة الخادم dist-server/server.cjs وينسخ بيانات البداية الآمنة إلى مجلد userData دون استبدال بيانات المستخدم.",
+          "tourOrder": 10
+        }
+      ]
+    },
+    "firebase-applet-config.json": {
+      "overview": "إعدادات مشروع Firebase للتطبيق.",
+      "sections": []
+    },
+    "firebase-blueprint.json": {
+      "overview": "مخطط هيكل Firestore والمجموعات والصلاحيات السحابية.",
+      "sections": []
+    },
+    "firestore.rules": {
+      "overview": "قواعد أمان Firestore للتحكم بالوصول وعزل الشركات والمستخدمين.",
+      "sections": []
+    },
+    "index.html": {
+      "overview": "نقطة دخول HTML لتطبيق الويب وتهيئة العنوان والبيانات الوصفية وملف manifest.",
+      "sections": [
+        {
+          "title": "نظرة تفصيلية على index.html",
+          "lineRange": [
+            1,
+            58
+          ],
+          "explanation": "نقطة دخول HTML لتطبيق الويب وتهيئة العنوان والبيانات الوصفية وملف manifest.",
+          "tourOrder": 2
+        }
+      ]
+    },
+    "metadata.json": {
+      "overview": "بيانات تعريف تطبيق Dqnamo POS للأندرويد والويب مع أذونات الكاميرا وقدرات الخادم.",
+      "sections": [
+        {
+          "title": "نظرة تفصيلية على metadata.json",
+          "lineRange": [
+            1,
+            7
+          ],
+          "explanation": "بيانات تعريف تطبيق Dqnamo POS للأندرويد والويب مع أذونات الكاميرا وقدرات الخادم.",
+          "tourOrder": 1
+        }
+      ]
+    },
+    "package.json": {
+      "overview": "ملف إعدادات الحزم وأوامر البناء والاختبار والتغليف لمنصات الويب والأندرويد (Capacitor) وويندوز (Electron).",
+      "sections": [
+        {
+          "title": "نظرة تفصيلية على package.json",
+          "lineRange": [
+            1,
+            70
+          ],
+          "explanation": "ملف إعدادات الحزم وأوامر البناء والاختبار والتغليف لمنصات الويب والأندرويد (Capacitor) وويندوز (Electron).",
+          "tourOrder": 1
+        }
+      ]
+    },
+    "public/manifest.json": {
+      "overview": "ملف إعدادات وتكوين (public/manifest.json).",
+      "sections": []
+    },
+    "public/sw.js": {
+      "overview": "ملف شيفرة برمجية (public/sw.js) بلغة javascript.",
+      "sections": []
+    },
+    "scripts/optimize-build-size.cjs": {
+      "overview": "ملف شيفرة برمجية (scripts/optimize-build-size.cjs) بلغة javascript.",
+      "sections": []
+    },
+    "scripts/verify-rolldown-binding.cjs": {
+      "overview": "ملف شيفرة برمجية (scripts/verify-rolldown-binding.cjs) بلغة javascript.",
+      "sections": []
+    },
+    "security_spec.md": {
+      "overview": "توثيق فني: Dqnamo POS — Firestore Security Specification (`security_spec.md`) (security_spec.md).",
+      "sections": []
+    },
+    "server.ts": {
+      "overview": "خادم Express الرئيسي: بوابة REST APIs، تسعير العملات والمنتجات، مزامنة المتجر، الأمان والضغط ودمج Vite.",
+      "sections": [
+        {
+          "title": "إعداد CORS وExpress والضغط وحدود المعدل وتوجيه المجالات",
+          "lineRange": [
+            88,
+            158
+          ],
+          "explanation": "يفعّل الخادم ترويسات Wi-Fi LAN Sync، ضغط JSON غير المتزامن، حدود المعدل، ويربط موجهات التحليلات والتثبيت والنسخ الاحتياطي والمزامنة.",
+          "tourOrder": 6
+        },
+        {
+          "title": "نقاط نهاية العملات وأسعار الصرف وإدارة المنتجات",
+          "lineRange": [
+            160,
+            650
+          ],
+          "explanation": "واجهات محمية بصلاحيات الأدوار لإدارة العملات، حفظ أسعار الصرف التاريخية، تحويل المبالغ، وتحديث أسعار المنتجات بالدفعات.",
+          "tourOrder": 6
+        },
+        {
+          "title": "مزامنة المتجر وحفظ المعاملات وإطلاق الخادم مع Vite",
+          "lineRange": [
+            655,
+            975
+          ],
+          "explanation": "يدير عزل الشركات ودمج المعاملات (/api/store-sync, /api/transactions) ويشغّل Vite في وضع التطوير أو يخدم مجلد dist في الإنتاج.",
+          "tourOrder": 6
+        }
+      ]
+    },
+    "src/App.tsx": {
+      "overview": "المكون الجذري للتطبيق: يدير التبويبات الكسولة (Lazy Views)، شريط حالة Android، ووضع التدريب المعزول.",
+      "sections": [
+        {
+          "title": "التحميل الكسول للشاشات الثانوية (Code Splitting)",
+          "lineRange": [
+            16,
+            48
+          ],
+          "explanation": "يستخدم React.lazy لتحميل شاشات لوحة التحكم والمنتجات والمخزون والتقارير والإعدادات عند الطلب فقط لتسريع الإقلاع.",
+          "tourOrder": 2
+        },
+        {
+          "title": "إعداد شريط حالة Android وزر الرجوع",
+          "lineRange": [
+            72,
+            96
+          ],
+          "explanation": "يهيئ StatusBar في Capacitor ويستمع لحدث popstate لإغلاق سلة الموبايل أو العودة إلى شاشة الكاشير.",
+          "tourOrder": 2
+        },
+        {
+          "title": "هيكل التخطيط الرئيسي ومزود POSProvider",
+          "lineRange": [
+            98,
+            165
+          ],
+          "explanation": "يركب شريط وضع التدريب والترويسة والشاشات والنوافذ المنبثقة وشريط التنقل السفلي داخل POSProvider.",
+          "tourOrder": 2
+        }
+      ]
+    },
+    "src/analytics/acceptance-audit.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (acceptance-audit.test.ts).",
+      "sections": []
+    },
+    "src/analytics/analytics.permissions.ts": {
+      "overview": "ضوابط صلاحيات وعزل بيانات التحليلات والتقارير الحساسة حسب دور المستخدم.",
+      "sections": []
+    },
+    "src/analytics/analytics.repository.ts": {
+      "overview": "مستودع قراءة وتجميع لقطات البيانات التشغيلية للتحليلات.",
+      "sections": []
+    },
+    "src/analytics/analytics.routes.ts": {
+      "overview": "موجهات Express لذكاء الأعمال، التوصيات، دورة حياة التنبيهات، وطلبات العملاء غير الملبّاة.",
+      "sections": [
+        {
+          "title": "نقطة نهاية: GET /api/analytics/overview",
+          "lineRange": [
+            255,
+            255
+          ],
+          "explanation": "معالجة طلب GET /api/analytics/overview في الأسطر 255–255.",
+          "tourOrder": 8
+        },
+        {
+          "title": "نقطة نهاية: POST /api/analytics/overview",
+          "lineRange": [
+            264,
+            264
+          ],
+          "explanation": "معالجة طلب POST /api/analytics/overview في الأسطر 264–264.",
+          "tourOrder": 8
+        },
+        {
+          "title": "نقطة نهاية: GET /api/analytics/sales",
+          "lineRange": [
+            274,
+            274
+          ],
+          "explanation": "معالجة طلب GET /api/analytics/sales في الأسطر 274–274.",
+          "tourOrder": 8
+        },
+        {
+          "title": "نقطة نهاية: GET /api/analytics/financial",
+          "lineRange": [
+            289,
+            289
+          ],
+          "explanation": "معالجة طلب GET /api/analytics/financial في الأسطر 289–289.",
+          "tourOrder": 8
+        }
+      ]
+    },
+    "src/analytics/analytics.service.ts": {
+      "overview": "خدمة ذكاء الأعمال الرئيسية التي تجمع مؤشرات المبيعات والمالية والمخزون والتنبؤات مع تطبيق صلاحيات الدور.",
+      "sections": [
+        {
+          "title": "قاموس المقاييس المعتمد (Metrics Dictionary)",
+          "lineRange": [
+            38,
+            125
+          ],
+          "explanation": "يعرّف الصيغ الموثوقة ومصادر الجداول لكل مقياس (إجمالي وصافي المبيعات، COGS، الربح الإجمالي، دوران المخزون).",
+          "tourOrder": 8
+        },
+        {
+          "title": "تجميع لوحة ذكاء الأعمال وتطبيق صلاحيات الدور",
+          "lineRange": [
+            135,
+            237
+          ],
+          "explanation": "تشغّل computeFullAnalyticsOverview حسابات المبيعات والمالية والمخزون والتنبؤ والطلب غير الملبّى ثم تنقي النتائج وفق دور المستخدم.",
+          "tourOrder": 8
+        }
+      ]
+    },
+    "src/analytics/analytics.snapshot.ts": {
+      "overview": "توليد لقطة بيانات قياسية من السياق التشغيلي لتغذية محرك التحليلات.",
+      "sections": []
+    },
+    "src/analytics/analytics.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (analytics.test.ts).",
+      "sections": []
+    },
+    "src/analytics/analytics.types.ts": {
+      "overview": "أنواع وعقود بيانات ذكاء الأعمال والتنبؤ ودورة حياة التوصيات.",
+      "sections": []
+    },
+    "src/analytics/calculations/customer-branch.metrics.ts": {
+      "overview": "حساب تحليلات العملاء والديون ومقارنة أداء الفروع.",
+      "sections": []
+    },
+    "src/analytics/calculations/financial.metrics.ts": {
+      "overview": "حساب التكلفة (COGS) والربح الإجمالي والفاقد والمطابقة المالية.",
+      "sections": []
+    },
+    "src/analytics/calculations/inventory.metrics.ts": {
+      "overview": "حساب دوران المخزون وأيام الكفاية والأصناف الراكدة ومنخفضة الرصيد.",
+      "sections": []
+    },
+    "src/analytics/calculations/replenishment.metrics.ts": {
+      "overview": "حساب إشارات إعادة الطلب ومخاطر نفاد المخزون وتوصيات الشراء.",
+      "sections": []
+    },
+    "src/analytics/calculations/sales.metrics.ts": {
+      "overview": "حساب مقاييس المبيعات الإجمالية والصافية ومتوسط الفاتورة والوحدات.",
+      "sections": []
+    },
+    "src/analytics/calculations/unmet-demand.metrics.ts": {
+      "overview": "تحليل الطلب غير الملبّى للمنتجات النافذة أو غير الموجودة وربطها بالمبيعات.",
+      "sections": []
+    },
+    "src/analytics/forecasting/forecasting.engine.ts": {
+      "overview": "محرك التنبؤ بالطلب والمخزون مع التقييم الرجعي (Backtesting) ومراعاة نفاذ المخزون.",
+      "sections": [
+        {
+          "title": "دالة: runForecastModel",
+          "lineRange": [
+            61,
+            68
+          ],
+          "explanation": "تعريف runForecastModel (function) ضمن forecasting.engine.ts في الأسطر 61–68.",
+          "tourOrder": 8
+        },
+        {
+          "title": "دالة: computeAccuracyMetrics",
+          "lineRange": [
+            173,
+            181
+          ],
+          "explanation": "تعريف computeAccuracyMetrics (function) ضمن forecasting.engine.ts في الأسطر 173–181.",
+          "tourOrder": 8
+        },
+        {
+          "title": "دالة: evaluateAndSelectBestModel",
+          "lineRange": [
+            218,
+            224
+          ],
+          "explanation": "تعريف evaluateAndSelectBestModel (function) ضمن forecasting.engine.ts في الأسطر 218–224.",
+          "tourOrder": 8
+        },
+        {
+          "title": "دالة: computeForecasts",
+          "lineRange": [
+            470,
+            1133
+          ],
+          "explanation": "تعريف computeForecasts (function) ضمن forecasting.engine.ts في الأسطر 470–1133.",
+          "tourOrder": 8
+        }
+      ]
+    },
+    "src/analytics/indicators/technical-analysis.ts": {
+      "overview": "حساب المؤشرات والاتجاهات الزمنية لحركة المبيعات والطلب.",
+      "sections": []
+    },
+    "src/analytics/insights/insights.service.ts": {
+      "overview": "توليد رؤى وتوصيات قابلة للتفسير مستندة إلى أدلة المبيعات والمخزون.",
+      "sections": []
+    },
+    "src/analytics/intelligence.lifecycle.domain.ts": {
+      "overview": "وحدة تحليلات وذكاء أعمال (intelligence.lifecycle.domain.ts) ضمن طبقة Analytics.",
+      "sections": []
+    },
+    "src/analytics/intelligence.lifecycle.ts": {
+      "overview": "إدارة دورة حياة التنبيهات والتوصيات الذكية (اعتراف، حل، تجاهل، إعادة فتح).",
+      "sections": []
+    },
+    "src/analytics/phase10-intelligence.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (phase10-intelligence.test.ts).",
+      "sections": []
+    },
+    "src/analytics/phase11-release.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (phase11-release.test.ts).",
+      "sections": []
+    },
+    "src/analytics/phase4-demand-forecasting-replenishment.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (phase4-demand-forecasting-replenishment.test.ts).",
+      "sections": []
+    },
+    "src/analytics/phase95-lifecycle.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (phase95-lifecycle.test.ts).",
+      "sections": []
+    },
+    "src/analytics/unmet-demand-fulfillment-api.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (unmet-demand-fulfillment-api.test.ts).",
+      "sections": []
+    },
+    "src/analytics/unmet-demand-knowledge-base.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (unmet-demand-knowledge-base.test.ts).",
+      "sections": []
+    },
+    "src/analytics/unmet-demand.validation.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (unmet-demand.validation.test.ts).",
+      "sections": []
+    },
+    "src/analytics/unmet-demand.validation.ts": {
+      "overview": "وحدة تحليلات وذكاء أعمال (unmet-demand.validation.ts) ضمن طبقة Analytics.",
+      "sections": []
+    },
+    "src/components/analytics/AnalyticsCharts.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة analytics (AnalyticsCharts.tsx).",
+      "sections": []
+    },
+    "src/components/analytics/BusinessIntelligenceDashboard.tsx": {
+      "overview": "لوحة ذكاء الأعمال والتنبؤات والمخاطر المالية والمخزنية مع رسوم بيانية تفاعلية.",
+      "sections": []
+    },
+    "src/components/analytics/UnmetDemandCaptureModal.tsx": {
+      "overview": "نافذة تسجيل طلبات العملاء للمنتجات غير المتوفرة دون إنشاء فواتير وهمية.",
+      "sections": []
+    },
+    "src/components/checkout/BarcodeScannerModal.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة checkout (BarcodeScannerModal.tsx).",
+      "sections": []
+    },
+    "src/components/checkout/CheckoutView.tsx": {
+      "overview": "شاشة الكاشير الرئيسية: البحث والباركود، السلة، الخصومات، والربط السريع مع الدفع والطلب غير الملبّى.",
+      "sections": [
+        {
+          "title": "نظرة تفصيلية على CheckoutView.tsx",
+          "lineRange": [
+            1,
+            120
+          ],
+          "explanation": "شاشة الكاشير الرئيسية: البحث والباركود، السلة، الخصومات، والربط السريع مع الدفع والطلب غير الملبّى.",
+          "tourOrder": 5
+        }
+      ]
+    },
+    "src/components/checkout/PaymentModal.tsx": {
+      "overview": "نافذة الدفع متعددة الطرق والعملات مع التحقق من التحويل البنكي وطباعة الإيصال.",
+      "sections": [
+        {
+          "title": "بنية: PaymentModalProps",
+          "lineRange": [
+            42,
+            46
+          ],
+          "explanation": "تعريف PaymentModalProps (class) ضمن PaymentModal.tsx في الأسطر 42–46.",
+          "tourOrder": 5
+        }
+      ]
+    },
+    "src/components/checkout/ReceiptModal.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة checkout (ReceiptModal.tsx).",
+      "sections": []
+    },
+    "src/components/checkout/ScannerDiagnosticsPanel.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة checkout (ScannerDiagnosticsPanel.tsx).",
+      "sections": []
+    },
+    "src/components/customers/CustomersView.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة customers (CustomersView.tsx).",
+      "sections": []
+    },
+    "src/components/dashboard/DashboardView.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة dashboard (DashboardView.tsx).",
+      "sections": []
+    },
+    "src/components/expenses/ExpensesView.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة expenses (ExpensesView.tsx).",
+      "sections": []
+    },
+    "src/components/intelligence/IntelligenceCenterView.tsx": {
+      "overview": "مركز التنبيهات والتوصيات الذكية مع تتبع الحالة والإجراءات التاريخية.",
+      "sections": []
+    },
+    "src/components/inventory/GoodsReceiptModal.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة inventory (GoodsReceiptModal.tsx).",
+      "sections": []
+    },
+    "src/components/inventory/InventoryView.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة inventory (InventoryView.tsx).",
+      "sections": []
+    },
+    "src/components/layout/AppHeader.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة layout (AppHeader.tsx).",
+      "sections": []
+    },
+    "src/components/layout/BottomNavigation.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة layout (BottomNavigation.tsx).",
+      "sections": []
+    },
+    "src/components/layout/NotificationsBellModal.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة layout (NotificationsBellModal.tsx).",
+      "sections": []
+    },
+    "src/components/onboarding/FirstRunOnboardingModal.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة onboarding (FirstRunOnboardingModal.tsx).",
+      "sections": []
+    },
+    "src/components/onboarding/PracticeModeBanner.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة onboarding (PracticeModeBanner.tsx).",
+      "sections": []
+    },
+    "src/components/products/ProductsView.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة products (ProductsView.tsx).",
+      "sections": []
+    },
+    "src/components/reports/ReportsView.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة reports (ReportsView.tsx).",
+      "sections": []
+    },
+    "src/components/sales/SalesView.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة sales (SalesView.tsx).",
+      "sections": []
+    },
+    "src/components/settings/BackupRestoreCenterSection.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة settings (BackupRestoreCenterSection.tsx).",
+      "sections": []
+    },
+    "src/components/settings/ExchangeRateSettings.tsx": {
+      "overview": "واجهة إدارة العملات وأسعار الصرف ومعاينة وتطبيق إعادة تسعير المنتجات بالجنيه السوداني.",
+      "sections": [
+        {
+          "title": "بنية: ExchangeRateSettingsProps",
+          "lineRange": [
+            49,
+            51
+          ],
+          "explanation": "تعريف ExchangeRateSettingsProps (class) ضمن ExchangeRateSettings.tsx في الأسطر 49–51.",
+          "tourOrder": 4
+        }
+      ]
+    },
+    "src/components/settings/FirebaseCloudSyncSection.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة settings (FirebaseCloudSyncSection.tsx).",
+      "sections": []
+    },
+    "src/components/settings/LiveWifiSyncSection.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة settings (LiveWifiSyncSection.tsx).",
+      "sections": []
+    },
+    "src/components/settings/SettingsView.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة settings (SettingsView.tsx).",
+      "sections": []
+    },
+    "src/components/settings/TrainingCenterSection.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة settings (TrainingCenterSection.tsx).",
+      "sections": []
+    },
+    "src/components/settings/UsersPermissionsSection.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة settings (UsersPermissionsSection.tsx).",
+      "sections": []
+    },
+    "src/components/tour/TrainingTourOverlay.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة tour (TrainingTourOverlay.tsx).",
+      "sections": []
+    },
+    "src/components/ui/AppBadge.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة ui (AppBadge.tsx).",
+      "sections": []
+    },
+    "src/components/ui/AppCard.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة ui (AppCard.tsx).",
+      "sections": []
+    },
+    "src/components/ui/AppInput.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة ui (AppInput.tsx).",
+      "sections": []
+    },
+    "src/components/ui/AppModal.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة ui (AppModal.tsx).",
+      "sections": []
+    },
+    "src/components/ui/DynamicButton.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة ui (DynamicButton.tsx).",
+      "sections": []
+    },
+    "src/components/ui/HoldToConfirm.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة ui (HoldToConfirm.tsx).",
+      "sections": []
+    },
+    "src/components/ui/ReceiptPrinter.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة ui (ReceiptPrinter.tsx).",
+      "sections": []
+    },
+    "src/components/ui/ScrambleText.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة ui (ScrambleText.tsx).",
+      "sections": []
+    },
+    "src/components/ui/TactileButton.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة ui (TactileButton.tsx).",
+      "sections": []
+    },
+    "src/components/ui/ViewSkeleton.tsx": {
+      "overview": "مكون واجهة مستخدم React ضمن وحدة ui (ViewSkeleton.tsx).",
+      "sections": []
+    },
+    "src/context/CartContext.tsx": {
+      "overview": "سياق سلة المشتريات وحساب الإجماليات والخصومات أثناء عملية البيع.",
+      "sections": []
+    },
+    "src/context/ExpenseContext.tsx": {
+      "overview": "سياق المصروفات التشغيلية والتقارير المالية.",
+      "sections": []
+    },
+    "src/context/POSContext.tsx": {
+      "overview": "السياق المركزي الجامع لحالة نقطة البيع الذي ينسّق المجالات الفرعية ومخازن الحالة.",
+      "sections": [
+        {
+          "title": "بنية: POSContextType",
+          "lineRange": [
+            142,
+            380
+          ],
+          "explanation": "تعريف POSContextType (class) ضمن POSContext.tsx في الأسطر 142–380.",
+          "tourOrder": 3
+        },
+        {
+          "title": "دالة: usePOS",
+          "lineRange": [
+            1847,
+            1853
+          ],
+          "explanation": "تعريف usePOS (function) ضمن POSContext.tsx في الأسطر 1847–1853.",
+          "tourOrder": 3
+        }
+      ]
+    },
+    "src/context/ProductContext.tsx": {
+      "overview": "سياق كتالوج المنتجات وحركات المخزون والبحث السريع.",
+      "sections": []
+    },
+    "src/context/SettingsContext.tsx": {
+      "overview": "سياق إعدادات المتجر والعملات وأسعار الصرف واللغة.",
+      "sections": []
+    },
+    "src/context/UserContext.tsx": {
+      "overview": "سياق المستخدمين والجلسات النشطة وصلاحيات الأدوار (RBAC).",
+      "sections": []
+    },
+    "src/context/domains/useBackupHydrationDomain.ts": {
+      "overview": "مجال استيراد ودمج واستعادة النسخ الاحتياطية وتحديث حالة السياق.",
+      "sections": []
+    },
+    "src/context/domains/useCatalogAndCartDomain.ts": {
+      "overview": "مجال الكتالوج والسلة وإتمام البيع الذري (Atomic Checkout) والاسترداد وتعديل المنتجات.",
+      "sections": [
+        {
+          "title": "دالة: useCatalogAndCartDomain",
+          "lineRange": [
+            82,
+            82
+          ],
+          "explanation": "تعريف useCatalogAndCartDomain (function) ضمن useCatalogAndCartDomain.ts في الأسطر 82–82.",
+          "tourOrder": 3
+        }
+      ]
+    },
+    "src/context/domains/useCurrenciesAndSettingsDomain.ts": {
+      "overview": "مجال العملات وأسعار الصرف وتطبيق سياسة إعادة تسعير المنتجات بالجنيه السوداني ومزامنتها.",
+      "sections": [
+        {
+          "title": "دالة: useCurrenciesAndSettingsDomain",
+          "lineRange": [
+            80,
+            80
+          ],
+          "explanation": "تعريف useCurrenciesAndSettingsDomain (function) ضمن useCurrenciesAndSettingsDomain.ts في الأسطر 80–80.",
+          "tourOrder": 3
+        }
+      ]
+    },
+    "src/context/domains/useLanSyncDomain.ts": {
+      "overview": "مجال المزامنة الحية عبر شبكة Wi-Fi المحلية بين الأجهزة (SSE + Push).",
+      "sections": []
+    },
+    "src/context/domains/usePersistStorageState.ts": {
+      "overview": "خطافات حفظ الحالة مع debounce لكل شركة وإعدادات عامة.",
+      "sections": []
+    },
+    "src/context/domains/useTrainingAndDemandDomain.ts": {
+      "overview": "مجال الجولة التدريبية التفاعلية وتسجيل طلبات العملاء للمنتجات غير المتوفرة.",
+      "sections": []
+    },
+    "src/context/domains/useUserAccountsDomain.ts": {
+      "overview": "مجال تسجيل الدخول وإدارة حسابات المستخدمين والأدوار وتبديل الجلسات.",
+      "sections": []
+    },
+    "src/context/domains/useWorkspaceCompanyDomain.ts": {
+      "overview": "مجال إعداد الشركة لأول مرة والتبديل بين وضع الإنتاج ووضع التدريب (Practice Mode).",
+      "sections": []
+    },
+    "src/context/pos-storage-helpers.ts": {
+      "overview": "دوال مساعدة لتحميل وعزل بيانات الشركات في التخزين المحلي وترحيل وضع الإنتاج.",
+      "sections": []
+    },
+    "src/db/__tests__/customer-demand-schema.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (customer-demand-schema.test.ts).",
+      "sections": []
+    },
+    "src/db/currencies-repo.ts": {
+      "overview": "مستودع العملات وأسعار الصرف التاريخية والتحويل الفوري مع دعم التراجع للمخزن المحلي.",
+      "sections": [
+        {
+          "title": "بنية: CurrencyRecord",
+          "lineRange": [
+            10,
+            18
+          ],
+          "explanation": "تعريف CurrencyRecord (class) ضمن currencies-repo.ts في الأسطر 10–18.",
+          "tourOrder": 7
+        },
+        {
+          "title": "بنية: ExchangeRateRecord",
+          "lineRange": [
+            20,
+            34
+          ],
+          "explanation": "تعريف ExchangeRateRecord (class) ضمن currencies-repo.ts في الأسطر 20–34.",
+          "tourOrder": 7
+        },
+        {
+          "title": "بنية: ConvertedAmount",
+          "lineRange": [
+            36,
+            43
+          ],
+          "explanation": "تعريف ConvertedAmount (class) ضمن currencies-repo.ts في الأسطر 36–43.",
+          "tourOrder": 7
+        },
+        {
+          "title": "دالة: getBaseCurrency",
+          "lineRange": [
+            68,
+            93
+          ],
+          "explanation": "تعريف getBaseCurrency (function) ضمن currencies-repo.ts في الأسطر 68–93.",
+          "tourOrder": 7
+        },
+        {
+          "title": "دالة: getAllCurrencies",
+          "lineRange": [
+            98,
+            122
+          ],
+          "explanation": "تعريف getAllCurrencies (function) ضمن currencies-repo.ts في الأسطر 98–122.",
+          "tourOrder": 7
+        },
+        {
+          "title": "دالة: getCurrency",
+          "lineRange": [
+            127,
+            131
+          ],
+          "explanation": "تعريف getCurrency (function) ضمن currencies-repo.ts في الأسطر 127–131.",
+          "tourOrder": 7
+        }
+      ]
+    },
+    "src/db/custom-fields-repo.ts": {
+      "overview": "مستودع الحقول المخصصة الديناميكية للمنتجات.",
+      "sections": []
+    },
+    "src/db/drizzle.config.ts": {
+      "overview": "وحدة وصول بيانات Drizzle/PostgreSQL (drizzle.config.ts).",
+      "sections": []
+    },
+    "src/db/exchange-rates-workflow.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (exchange-rates-workflow.test.ts).",
+      "sections": []
+    },
+    "src/db/index.ts": {
+      "overview": "تهيئة اتصال PostgreSQL ومجمع الاتصالات عبر Drizzle ORM.",
+      "sections": []
+    },
+    "src/db/phase1-schema.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (phase1-schema.test.ts).",
+      "sections": []
+    },
+    "src/db/products-repo.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (products-repo.test.ts).",
+      "sections": []
+    },
+    "src/db/products-repo.ts": {
+      "overview": "مستودع المنتجات وتحديث الأسعار والباركود ووحدات القياس في قاعدة البيانات.",
+      "sections": []
+    },
+    "src/db/schema.ts": {
+      "overview": "مخطط قاعدة بيانات PostgreSQL الكامل عبر Drizzle ORM (35 جدولاً: الشركات، الجلسات، المبيعات، المخزون، العملات، الطلب غير الملبي، المحاسبة).",
+      "sections": [
+        {
+          "title": "بنية: CustomFieldValidationRules",
+          "lineRange": [
+            23,
+            28
+          ],
+          "explanation": "تعريف CustomFieldValidationRules (class) ضمن schema.ts في الأسطر 23–28.",
+          "tourOrder": 7
+        },
+        {
+          "title": "جدول: companies",
+          "lineRange": [
+            31,
+            31
+          ],
+          "explanation": "تعريف companies (table) ضمن schema.ts في الأسطر 31–31.",
+          "tourOrder": 7
+        },
+        {
+          "title": "جدول: authSessions",
+          "lineRange": [
+            68,
+            68
+          ],
+          "explanation": "تعريف authSessions (table) ضمن schema.ts في الأسطر 68–68.",
+          "tourOrder": 7
+        },
+        {
+          "title": "جدول: branches",
+          "lineRange": [
+            93,
+            93
+          ],
+          "explanation": "تعريف branches (table) ضمن schema.ts في الأسطر 93–93.",
+          "tourOrder": 7
+        },
+        {
+          "title": "جدول: roles",
+          "lineRange": [
+            109,
+            109
+          ],
+          "explanation": "تعريف roles (table) ضمن schema.ts في الأسطر 109–109.",
+          "tourOrder": 7
+        },
+        {
+          "title": "جدول: users",
+          "lineRange": [
+            123,
+            123
+          ],
+          "explanation": "تعريف users (table) ضمن schema.ts في الأسطر 123–123.",
+          "tourOrder": 7
+        }
+      ]
+    },
+    "src/db/seed-phase1.ts": {
+      "overview": "وحدة وصول بيانات Drizzle/PostgreSQL (seed-phase1.ts).",
+      "sections": []
+    },
+    "src/db/uom-repo.ts": {
+      "overview": "مستودع وحدات القياس ومعاملات التحويل للعبوات والقطع.",
+      "sections": []
+    },
+    "src/index.css": {
+      "overview": "ملف التنسيقات العام المستند إلى Tailwind CSS والخطوط ومتغيرات السمات.",
+      "sections": []
+    },
+    "src/lib/__tests__/apk-exe-packaging-integrity.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (apk-exe-packaging-integrity.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/async-response-compression.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (async-response-compression.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/atomic-checkout-transition.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (atomic-checkout-transition.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/clean-production-migration.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (clean-production-migration.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/code-review-optimizations.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (code-review-optimizations.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/company-state-loader.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (company-state-loader.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/cross-platform-clean-script.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (cross-platform-clean-script.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/exchange-rate-repricing.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (exchange-rate-repricing.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/expense-calculations.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (expense-calculations.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/firestore.rules.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (firestore.rules.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/frontend-backend-boundary.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (frontend-backend-boundary.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/lan-sync.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (lan-sync.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/native-file-download.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (native-file-download.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/offline-sqlite-storage.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (offline-sqlite-storage.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/password-strength-policy.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (password-strength-policy.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/persist-storage-helpers.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (persist-storage-helpers.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/pin-scrypt-hashing.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (pin-scrypt-hashing.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/rolldown-binding-verify.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (rolldown-binding-verify.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/server-bank-transfer-validation.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (server-bank-transfer-validation.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/server-jwt-session-auth.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (server-jwt-session-auth.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/server-rate-limiter.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (server-rate-limiter.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/shared-store-sync-types.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (shared-store-sync-types.test.ts).",
+      "sections": []
+    },
+    "src/lib/__tests__/typescript-skill-patterns.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (typescript-skill-patterns.test.ts).",
+      "sections": []
+    },
+    "src/lib/backup-merge-engine.ts": {
+      "overview": "محرك بناء حزم النسخ الاحتياطي والتحقق منها ومعاينة الدمج الذكي وتعارضاته.",
+      "sections": [
+        {
+          "title": "بنية: BackupModuleDefinition",
+          "lineRange": [
+            65,
+            73
+          ],
+          "explanation": "تعريف BackupModuleDefinition (class) ضمن backup-merge-engine.ts في الأسطر 65–73.",
+          "tourOrder": 9
+        },
+        {
+          "title": "بنية: BackupCategoryRecord",
+          "lineRange": [
+            213,
+            220
+          ],
+          "explanation": "تعريف BackupCategoryRecord (class) ضمن backup-merge-engine.ts في الأسطر 213–220.",
+          "tourOrder": 9
+        },
+        {
+          "title": "بنية: BackupSupplierRecord",
+          "lineRange": [
+            222,
+            233
+          ],
+          "explanation": "تعريف BackupSupplierRecord (class) ضمن backup-merge-engine.ts في الأسطر 222–233.",
+          "tourOrder": 9
+        },
+        {
+          "title": "بنية: BackupPurchaseOrderRecord",
+          "lineRange": [
+            235,
+            257
+          ],
+          "explanation": "تعريف BackupPurchaseOrderRecord (class) ضمن backup-merge-engine.ts في الأسطر 235–257.",
+          "tourOrder": 9
+        },
+        {
+          "title": "بنية: BackupExpenseRecord",
+          "lineRange": [
+            259,
+            272
+          ],
+          "explanation": "تعريف BackupExpenseRecord (class) ضمن backup-merge-engine.ts في الأسطر 259–272.",
+          "tourOrder": 9
+        },
+        {
+          "title": "بنية: BackupAccountRecord",
+          "lineRange": [
+            274,
+            284
+          ],
+          "explanation": "تعريف BackupAccountRecord (class) ضمن backup-merge-engine.ts في الأسطر 274–284.",
+          "tourOrder": 9
+        }
+      ]
+    },
+    "src/lib/barcode-scanner-engine.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (barcode-scanner-engine.test.ts).",
+      "sections": []
+    },
+    "src/lib/barcode-scanner-engine.ts": {
+      "overview": "محرك مسح الباركود المزدوج (الكاميرا الأصلية Capacitor MLKit + ZXing / BarcodeDetector للويب) مع التشخيص.",
+      "sections": [
+        {
+          "title": "دالة: resolveZXingModule",
+          "lineRange": [
+            19,
+            29
+          ],
+          "explanation": "تعريف resolveZXingModule (function) ضمن barcode-scanner-engine.ts في الأسطر 19–29.",
+          "tourOrder": 5
+        },
+        {
+          "title": "بنية: ScannerLogEntry",
+          "lineRange": [
+            60,
+            65
+          ],
+          "explanation": "تعريف ScannerLogEntry (class) ضمن barcode-scanner-engine.ts في الأسطر 60–65.",
+          "tourOrder": 5
+        },
+        {
+          "title": "بنية: ScannerDiagnosticsState",
+          "lineRange": [
+            67,
+            85
+          ],
+          "explanation": "تعريف ScannerDiagnosticsState (class) ضمن barcode-scanner-engine.ts في الأسطر 67–85.",
+          "tourOrder": 5
+        },
+        {
+          "title": "بنية: BarcodeDecodeOutcome",
+          "lineRange": [
+            87,
+            91
+          ],
+          "explanation": "تعريف BarcodeDecodeOutcome (class) ضمن barcode-scanner-engine.ts في الأسطر 87–91.",
+          "tourOrder": 5
+        },
+        {
+          "title": "دالة: isNativeCapacitorEnvironment",
+          "lineRange": [
+            152,
+            158
+          ],
+          "explanation": "تعريف isNativeCapacitorEnvironment (function) ضمن barcode-scanner-engine.ts في الأسطر 152–158.",
+          "tourOrder": 5
+        },
+        {
+          "title": "دالة: getScannerDiagnostics",
+          "lineRange": [
+            196,
+            198
+          ],
+          "explanation": "تعريف getScannerDiagnostics (function) ضمن barcode-scanner-engine.ts في الأسطر 196–198.",
+          "tourOrder": 5
+        }
+      ]
+    },
+    "src/lib/cloud-snapshot-utils.ts": {
+      "overview": "مكتبة منطق أعمال وأدوات مساعدة (cloud-snapshot-utils.ts).",
+      "sections": []
+    },
+    "src/lib/exchange-rate-repricing.ts": {
+      "overview": "محرك إعادة التسعير النسبي للمنتجات المسعرة بالجنيه السوداني (SDG) عند ارتفاع أسعار الصرف مع معاينة وسجل تدقيق.",
+      "sections": [
+        {
+          "title": "فحص عملة تسعير المنتج وحساب نسبة تغير الصرف",
+          "lineRange": [
+            81,
+            165
+          ],
+          "explanation": "تحدد getEffectiveProductPriceCurrency المنتجات المسعرة بـ SDG فقط وتمنع مضاعفة تسعير المنتجات المسعرة أصلاً بعملة أجنبية، ثم تحسب computeRateChangeMetrics النسبة والاتجاه.",
+          "tourOrder": 4
+        },
+        {
+          "title": "معاينة أثر تغير سعر الصرف قبل التطبيق",
+          "lineRange": [
+            178,
+            234
+          ],
+          "explanation": "تحسب previewSdgRepricingImpact عدد المنتجات المؤهلة ومثالاً حياً للسعر قبل وبعد التعديل وفق السياسة المختارة.",
+          "tourOrder": 4
+        },
+        {
+          "title": "تطبيق إعادة التسعير وتسجيل سجل التدقيق ثنائي اللغة",
+          "lineRange": [
+            236,
+            440
+          ],
+          "explanation": "تعدّل repriceSdgProductsOnExchangeRateChange أسعار البيع والتكلفة والعبوات نسبياً مع خطوة التقريب وتسجّل priceHistory و modificationHistory بالعربية والإنجليزية.",
+          "tourOrder": 4
+        }
+      ]
+    },
+    "src/lib/exchange-rate-storage.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (exchange-rate-storage.test.ts).",
+      "sections": []
+    },
+    "src/lib/exchange-rate-storage.ts": {
+      "overview": "تخزين واسترجاع العملات وأسعار الصرف الافتراضية والمخصصة محلياً.",
+      "sections": []
+    },
+    "src/lib/expense-calculations.ts": {
+      "overview": "مكتبة منطق أعمال وأدوات مساعدة (expense-calculations.ts).",
+      "sections": []
+    },
+    "src/lib/firebase.ts": {
+      "overview": "مكتبة منطق أعمال وأدوات مساعدة (firebase.ts).",
+      "sections": []
+    },
+    "src/lib/initial-data.ts": {
+      "overview": "مكتبة منطق أعمال وأدوات مساعدة (initial-data.ts).",
+      "sections": []
+    },
+    "src/lib/inventory-rules.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (inventory-rules.test.ts).",
+      "sections": []
+    },
+    "src/lib/inventory-rules.ts": {
+      "overview": "مكتبة منطق أعمال وأدوات مساعدة (inventory-rules.ts).",
+      "sections": []
+    },
+    "src/lib/lan-sync-client.ts": {
+      "overview": "عميل المزامنة المحلية عبر Wi-Fi للتواصل مع نقاط النهاية والأحداث المباشرة (SSE).",
+      "sections": []
+    },
+    "src/lib/native-file-download.ts": {
+      "overview": "مكتبة منطق أعمال وأدوات مساعدة (native-file-download.ts).",
+      "sections": []
+    },
+    "src/lib/notifications-center.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (notifications-center.test.ts).",
+      "sections": []
+    },
+    "src/lib/notifications-center.ts": {
+      "overview": "مكتبة منطق أعمال وأدوات مساعدة (notifications-center.ts).",
+      "sections": []
+    },
+    "src/lib/number-utils.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (number-utils.test.ts).",
+      "sections": []
+    },
+    "src/lib/number-utils.ts": {
+      "overview": "مكتبة منطق أعمال وأدوات مساعدة (number-utils.ts).",
+      "sections": []
+    },
+    "src/lib/offline-sqlite-storage.ts": {
+      "overview": "طبقة التخزين المحلي SQLite/Outbox للعمل دون إنترنت ومزامنة العمليات المعلقة.",
+      "sections": [
+        {
+          "title": "بنية: OfflineOutboxEntry",
+          "lineRange": [
+            26,
+            35
+          ],
+          "explanation": "تعريف OfflineOutboxEntry (class) ضمن offline-sqlite-storage.ts في الأسطر 26–35.",
+          "tourOrder": 7
+        },
+        {
+          "title": "بنية: OfflineSqliteDiagnostics",
+          "lineRange": [
+            37,
+            47
+          ],
+          "explanation": "تعريف OfflineSqliteDiagnostics (class) ضمن offline-sqlite-storage.ts في الأسطر 37–47.",
+          "tourOrder": 7
+        }
+      ]
+    },
+    "src/lib/performance-benchmarks.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (performance-benchmarks.test.ts).",
+      "sections": []
+    },
+    "src/lib/performance-monitor.ts": {
+      "overview": "مكتبة منطق أعمال وأدوات مساعدة (performance-monitor.ts).",
+      "sections": []
+    },
+    "src/lib/pos-calculations.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (pos-calculations.test.ts).",
+      "sections": []
+    },
+    "src/lib/pos-calculations.ts": {
+      "overview": "النواة الحسابية لنقطة البيع: تقريب العملات، التحويل، التحقق من التحويل البنكي، والانتقالات الذرية للبيع والإلغاء.",
+      "sections": [
+        {
+          "title": "دالة: roundCurrencyValue",
+          "lineRange": [
+            27,
+            34
+          ],
+          "explanation": "تعريف roundCurrencyValue (function) ضمن pos-calculations.ts في الأسطر 27–34.",
+          "tourOrder": 4
+        },
+        {
+          "title": "دالة: convertCurrencyAmount",
+          "lineRange": [
+            40,
+            67
+          ],
+          "explanation": "تعريف convertCurrencyAmount (function) ضمن pos-calculations.ts في الأسطر 40–67.",
+          "tourOrder": 4
+        },
+        {
+          "title": "بنية: NormalizedProductPackaging",
+          "lineRange": [
+            69,
+            82
+          ],
+          "explanation": "تعريف NormalizedProductPackaging (class) ضمن pos-calculations.ts في الأسطر 69–82.",
+          "tourOrder": 4
+        },
+        {
+          "title": "دالة: getProductPackaging",
+          "lineRange": [
+            87,
+            87
+          ],
+          "explanation": "تعريف getProductPackaging (function) ضمن pos-calculations.ts في الأسطر 87–87.",
+          "tourOrder": 4
+        },
+        {
+          "title": "دالة: formatProductStockBreakdown",
+          "lineRange": [
+            172,
+            208
+          ],
+          "explanation": "تعريف formatProductStockBreakdown (function) ضمن pos-calculations.ts في الأسطر 172–208.",
+          "tourOrder": 4
+        },
+        {
+          "title": "دالة: getProductPricesInCurrency",
+          "lineRange": [
+            213,
+            213
+          ],
+          "explanation": "تعريف getProductPricesInCurrency (function) ضمن pos-calculations.ts في الأسطر 213–213.",
+          "tourOrder": 4
+        }
+      ]
+    },
+    "src/lib/rbac-capabilities.ts": {
+      "overview": "مصفوفة الصلاحيات وقدرات الأدوار (RBAC) للتحقق في الواجهة والخادم.",
+      "sections": []
+    },
+    "src/lib/sound-fx.ts": {
+      "overview": "مكتبة منطق أعمال وأدوات مساعدة (sound-fx.ts).",
+      "sections": []
+    },
+    "src/lib/training-tour.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (training-tour.test.ts).",
+      "sections": []
+    },
+    "src/lib/training-tour.ts": {
+      "overview": "مكتبة منطق أعمال وأدوات مساعدة (training-tour.ts).",
+      "sections": []
+    },
+    "src/lib/translations.ts": {
+      "overview": "قاموس الترجمة ثنائي اللغة (العربية RTL والإنجليزية LTR) لجميع شاشات النظام.",
+      "sections": []
+    },
+    "src/lib/types.ts": {
+      "overview": "تعريفات الأنواع والواجهات الأساسية للمنتجات والفواتير والعملات والمستخدمين.",
+      "sections": []
+    },
+    "src/main.tsx": {
+      "overview": "نقطة تشغيل React في المتصفح وتفعيل مراقبة الأداء الحقيقية (RUM) ثم ربط جذر App.",
+      "sections": [
+        {
+          "title": "تشغيل مراقبة الأداء وربط التطبيق",
+          "lineRange": [
+            1,
+            9
+          ],
+          "explanation": "يستورد الجذر App وملف Tailwind CSS، ويفعّل initRealUserMonitoring() قبل تصيير المكون الجذري في DOM.",
+          "tourOrder": 2
+        }
+      ]
+    },
+    "src/server/backup-restore-acceptance.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (backup-restore-acceptance.test.ts).",
+      "sections": []
+    },
+    "src/server/backup-restore.service.ts": {
+      "overview": "خدمة النسخ الاحتياطي الآمن، التحقق من البصمة (SHA-256)، الاستعادة، والدمج بين الشركات.",
+      "sections": [
+        {
+          "title": "دالة: computeSha256Hex",
+          "lineRange": [
+            103,
+            105
+          ],
+          "explanation": "تعريف computeSha256Hex (function) ضمن backup-restore.service.ts في الأسطر 103–105.",
+          "tourOrder": 9
+        },
+        {
+          "title": "دالة: computeModuleChecksums",
+          "lineRange": [
+            107,
+            176
+          ],
+          "explanation": "تعريف computeModuleChecksums (function) ضمن backup-restore.service.ts في الأسطر 107–176.",
+          "tourOrder": 9
+        },
+        {
+          "title": "دالة: packBackupEnvelope",
+          "lineRange": [
+            209,
+            342
+          ],
+          "explanation": "تعريف packBackupEnvelope (function) ضمن backup-restore.service.ts في الأسطر 209–342.",
+          "tourOrder": 9
+        },
+        {
+          "title": "دالة: verifyAndUnpackBackupEnvelope",
+          "lineRange": [
+            344,
+            352
+          ],
+          "explanation": "تعريف verifyAndUnpackBackupEnvelope (function) ضمن backup-restore.service.ts في الأسطر 344–352.",
+          "tourOrder": 9
+        },
+        {
+          "title": "دالة: collectServerCompanyPayload",
+          "lineRange": [
+            583,
+            738
+          ],
+          "explanation": "تعريف collectServerCompanyPayload (function) ضمن backup-restore.service.ts في الأسطر 583–738.",
+          "tourOrder": 9
+        },
+        {
+          "title": "دالة: persistServerCompanyPayload",
+          "lineRange": [
+            740,
+            966
+          ],
+          "explanation": "تعريف persistServerCompanyPayload (function) ضمن backup-restore.service.ts في الأسطر 740–966.",
+          "tourOrder": 9
+        },
+        {
+          "title": "نقطة نهاية: GET /api/backups",
+          "lineRange": [
+            1861,
+            1861
+          ],
+          "explanation": "معالجة طلب GET /api/backups في الأسطر 1861–1861.",
+          "tourOrder": 9
+        },
+        {
+          "title": "نقطة نهاية: POST /api/backups/create",
+          "lineRange": [
+            1904,
+            1904
+          ],
+          "explanation": "معالجة طلب POST /api/backups/create في الأسطر 1904–1904.",
+          "tourOrder": 9
+        }
+      ]
+    },
+    "src/server/fresh-installation-acceptance.test.ts": {
+      "overview": "مجموعة اختبارات آلية تتحقق من عقود وصحة الوحدة (fresh-installation-acceptance.test.ts).",
+      "sections": []
+    },
+    "src/server/lan-sync.service.ts": {
+      "overview": "خدمة المزامنة الفورية عبر Wi-Fi باستخدام SSE ودمج الحالة بدون فقدان بيانات.",
+      "sections": [
+        {
+          "title": "بنية: ConnectedLanDevice",
+          "lineRange": [
+            72,
+            81
+          ],
+          "explanation": "تعريف ConnectedLanDevice (class) ضمن lan-sync.service.ts في الأسطر 72–81.",
+          "tourOrder": 6
+        },
+        {
+          "title": "بنية: LiveSyncEventLog",
+          "lineRange": [
+            83,
+            94
+          ],
+          "explanation": "تعريف LiveSyncEventLog (class) ضمن lan-sync.service.ts في الأسطر 83–94.",
+          "tourOrder": 6
+        },
+        {
+          "title": "بنية: CompanyLiveSyncSnapshot",
+          "lineRange": [
+            96,
+            112
+          ],
+          "explanation": "تعريف CompanyLiveSyncSnapshot (class) ضمن lan-sync.service.ts في الأسطر 96–112.",
+          "tourOrder": 6
+        },
+        {
+          "title": "بنية: LanSyncIncomingPayload",
+          "lineRange": [
+            114,
+            125
+          ],
+          "explanation": "تعريف LanSyncIncomingPayload (class) ضمن lan-sync.service.ts في الأسطر 114–125.",
+          "tourOrder": 6
+        },
+        {
+          "title": "بنية: CompanyLiveSyncState",
+          "lineRange": [
+            127,
+            151
+          ],
+          "explanation": "تعريف CompanyLiveSyncState (class) ضمن lan-sync.service.ts في الأسطر 127–151.",
+          "tourOrder": 6
+        },
+        {
+          "title": "دالة: detectLocalLanAddresses",
+          "lineRange": [
+            206,
+            216
+          ],
+          "explanation": "تعريف detectLocalLanAddresses (function) ضمن lan-sync.service.ts في الأسطر 206–216.",
+          "tourOrder": 6
+        },
+        {
+          "title": "نقطة نهاية: GET /api/lan-sync/info",
+          "lineRange": [
+            572,
+            572
+          ],
+          "explanation": "معالجة طلب GET /api/lan-sync/info في الأسطر 572–572.",
+          "tourOrder": 6
+        },
+        {
+          "title": "نقطة نهاية: GET /api/lan-sync/stream",
+          "lineRange": [
+            609,
+            609
+          ],
+          "explanation": "معالجة طلب GET /api/lan-sync/stream في الأسطر 609–609.",
+          "tourOrder": 6
+        }
+      ]
+    },
+    "src/server/rate-limiter.ts": {
+      "overview": "محدد معدل الطلبات لحماية مسارات المصادقة وAPI من الإغراق.",
+      "sections": []
+    },
+    "src/server/release-onboarding.service.ts": {
+      "overview": "خدمة التثبيت الأولي، عزل وضع التدريب، المصادقة بـ scrypt/JWT، وإدارة الفروع والمستخدمين وسجل التدقيق.",
+      "sections": [
+        {
+          "title": "بنية: ReleasePlatformError",
+          "lineRange": [
+            67,
+            75
+          ],
+          "explanation": "تعريف ReleasePlatformError (class) ضمن release-onboarding.service.ts في الأسطر 67–75.",
+          "tourOrder": 9
+        },
+        {
+          "title": "دالة: hashPasswordScrypt",
+          "lineRange": [
+            81,
+            84
+          ],
+          "explanation": "تعريف hashPasswordScrypt (function) ضمن release-onboarding.service.ts في الأسطر 81–84.",
+          "tourOrder": 9
+        },
+        {
+          "title": "دالة: verifyPasswordScrypt",
+          "lineRange": [
+            90,
+            105
+          ],
+          "explanation": "تعريف verifyPasswordScrypt (function) ضمن release-onboarding.service.ts في الأسطر 90–105.",
+          "tourOrder": 9
+        },
+        {
+          "title": "دالة: isScryptHashedPin",
+          "lineRange": [
+            107,
+            112
+          ],
+          "explanation": "تعريف isScryptHashedPin (function) ضمن release-onboarding.service.ts في الأسطر 107–112.",
+          "tourOrder": 9
+        },
+        {
+          "title": "دالة: hashPinScrypt",
+          "lineRange": [
+            114,
+            121
+          ],
+          "explanation": "تعريف hashPinScrypt (function) ضمن release-onboarding.service.ts في الأسطر 114–121.",
+          "tourOrder": 9
+        },
+        {
+          "title": "دالة: verifyPinScrypt",
+          "lineRange": [
+            131,
+            180
+          ],
+          "explanation": "تعريف verifyPinScrypt (function) ضمن release-onboarding.service.ts في الأسطر 131–180.",
+          "tourOrder": 9
+        },
+        {
+          "title": "نقطة نهاية: GET /api/onboarding/status",
+          "lineRange": [
+            1904,
+            1904
+          ],
+          "explanation": "معالجة طلب GET /api/onboarding/status في الأسطر 1904–1904.",
+          "tourOrder": 9
+        },
+        {
+          "title": "نقطة نهاية: POST /api/onboarding/companies",
+          "lineRange": [
+            2202,
+            2202
+          ],
+          "explanation": "معالجة طلب POST /api/onboarding/companies في الأسطر 2202–2202.",
+          "tourOrder": 9
+        }
+      ]
+    },
+    "src/server/response-compression.ts": {
+      "overview": "ضغط استجابات JSON بشكل غير متزامن (Brotli/Gzip) وقياس Server-Timing.",
+      "sections": []
+    },
+    "src/server/runtime-paths.ts": {
+      "overview": "تحديد مسارات البيانات والمخرجات ديناميكياً عبر الويب وElectron.",
+      "sections": []
+    },
+    "src/server/shared-store-sync.ts": {
+      "overview": "منطق عزل النطاق للشركات ودمج الكيانات على الخادم.",
+      "sections": []
+    },
+    "src/services/api.ts": {
+      "overview": "عميل HTTP المركزي للواجهة الأمامية مع إلغاء المهل (Timeouts)، إزالة الطلبات المكررة، وحقن رمز الجلسة.",
+      "sections": [
+        {
+          "title": "دالة: fetchWithTimeout",
+          "lineRange": [
+            37,
+            81
+          ],
+          "explanation": "تعريف fetchWithTimeout (function) ضمن api.ts في الأسطر 37–81.",
+          "tourOrder": 6
+        },
+        {
+          "title": "بنية: CurrenciesCollectionResponse",
+          "lineRange": [
+            120,
+            123
+          ],
+          "explanation": "تعريف CurrenciesCollectionResponse (class) ضمن api.ts في الأسطر 120–123.",
+          "tourOrder": 6
+        },
+        {
+          "title": "بنية: BootstrapDataResponse",
+          "lineRange": [
+            125,
+            129
+          ],
+          "explanation": "تعريف BootstrapDataResponse (class) ضمن api.ts في الأسطر 125–129.",
+          "tourOrder": 6
+        },
+        {
+          "title": "بنية: BatchPriceUpdateItem",
+          "lineRange": [
+            131,
+            133
+          ],
+          "explanation": "تعريف BatchPriceUpdateItem (class) ضمن api.ts في الأسطر 131–133.",
+          "tourOrder": 6
+        },
+        {
+          "title": "بنية: ApiRequestContext",
+          "lineRange": [
+            135,
+            138
+          ],
+          "explanation": "تعريف ApiRequestContext (class) ضمن api.ts في الأسطر 135–138.",
+          "tourOrder": 6
+        },
+        {
+          "title": "بنية: SaveCurrencyPayload",
+          "lineRange": [
+            140,
+            147
+          ],
+          "explanation": "تعريف SaveCurrencyPayload (class) ضمن api.ts في الأسطر 140–147.",
+          "tourOrder": 6
+        }
+      ]
+    },
+    "tsconfig.json": {
+      "overview": "إعدادات مترجم TypeScript الصارمة واستثناءات مجلدات البناء والمهارات.",
+      "sections": []
+    },
+    "vercel.json": {
+      "overview": "إعدادات النشر والتوجيه على منصة Vercel.",
+      "sections": []
+    },
+    "vite.config.ts": {
+      "overview": "إعدادات Vite لبناء الواجهة الأمامية وتحسين الحزم وتقسيم الكود.",
+      "sections": []
+    }
+  }
+}

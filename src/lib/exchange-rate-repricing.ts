@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
+import type {
   Product,
   ProductModificationEntry,
   ProductPriceHistoryEntry,
@@ -11,13 +11,21 @@ import {
 } from './types';
 import { roundCurrencyValue } from './pos-calculations';
 
+export const RATE_CHANGE_DIRECTIONS = {
+  INCREASE: 'increase',
+  DECREASE: 'decrease',
+  UNCHANGED: 'unchanged',
+} as const;
+export type RateChangeDirection =
+  (typeof RATE_CHANGE_DIRECTIONS)[keyof typeof RATE_CHANGE_DIRECTIONS];
+
 export interface RateChangeMetrics {
   isValid: boolean;
   previousRate: number;
   newRate: number;
   ratio: number;
   changePercent: number;
-  direction: 'increase' | 'decrease' | 'unchanged';
+  direction: RateChangeDirection;
 }
 
 export interface SdgRepricingPreviewSample {
@@ -51,6 +59,15 @@ export interface RepriceSdgProductsParams {
   nowIso?: string;
 }
 
+export interface PreviewSdgRepricingImpactParams {
+  products: Product[];
+  currencyCode: string;
+  previousRate: number;
+  newRate: number;
+  policy?: SdgPriceAdjustmentPolicy;
+  roundingStep?: number;
+}
+
 export interface RepriceSdgProductsResult {
   updatedProducts: Product[];
   changedProducts: Product[];
@@ -58,7 +75,7 @@ export interface RepriceSdgProductsResult {
   skippedForeignCount: number;
   changePercent: number;
   ratio: number;
-  direction: 'increase' | 'decrease' | 'unchanged';
+  direction: RateChangeDirection;
 }
 
 /**
@@ -162,14 +179,9 @@ function shouldApplyForPolicy(
  * Computes a read-only preview of how a foreign currency exchange rate modification
  * will impact SDG-priced products in the catalog.
  */
-export function previewSdgRepricingImpact(params: {
-  products: Product[];
-  currencyCode: string;
-  previousRate: number;
-  newRate: number;
-  policy?: SdgPriceAdjustmentPolicy;
-  roundingStep?: number;
-}): SdgRepricingPreviewResult {
+export function previewSdgRepricingImpact(
+  params: PreviewSdgRepricingImpactParams
+): SdgRepricingPreviewResult {
   const cleanCode = String(params.currencyCode || '').toUpperCase().trim();
   const policy: SdgPriceAdjustmentPolicy = params.policy || 'increase_only';
   const metrics = computeRateChangeMetrics(params.previousRate, params.newRate);

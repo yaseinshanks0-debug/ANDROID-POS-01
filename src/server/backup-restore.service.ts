@@ -26,11 +26,14 @@ import {
   resolveBackupModuleDependencies,
   scrubSensitiveUserFields,
 } from '../lib/backup-merge-engine.ts';
+import type {
+  AuthenticatedActorContext,
+  SanitizedUserRecord,
+  StoredUserRecord,
+} from './release-onboarding.service.ts';
 import {
   appendPlatformAuditLog,
-  assertActorCompanyMatch,
   assertActorHasCapability,
-  AuthenticatedActorContext,
   hashPasswordScrypt,
   hashPinScrypt,
   issueSessionForUser,
@@ -40,17 +43,44 @@ import {
   resolveAuthenticatedActorFromRequest,
   sanitizeStoredUser,
   savePlatformState,
-  StoredUserRecord,
   validatePasswordStrength,
   verifyPasswordScrypt,
   verifyPinScrypt,
 } from './release-onboarding.service.ts';
 import {
   ALL_CAPABILITY_CODES,
-  CapabilityCode,
+  type CapabilityCode,
   deriveLegacyPermissionsFromCapabilities,
+  normalizeSystemRoleCode,
 } from '../lib/rbac-capabilities.ts';
-import type { CompanyProfile } from '../lib/types.ts';
+import type {
+  BranchRecord,
+  CompanyProfile,
+  Currency,
+  Customer,
+  ExchangeRateItem,
+  Product,
+  StockMovement,
+  Transaction,
+} from '../lib/types.ts';
+import type { UnmetDemandRequestRecord } from '../analytics/analytics.types.ts';
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const msg = (error as { message?: unknown }).message;
+    if (typeof msg === 'string' && msg) return msg;
+  }
+  return fallback;
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  if (typeof error === 'object' && error !== null && 'errorCode' in error) {
+    const code = (error as { errorCode?: unknown }).errorCode;
+    if (typeof code === 'string') return code;
+  }
+  return undefined;
+}
 
 const ROOT_DIR = getRootDir();
 const DATA_DIR = getDataDir();
@@ -79,7 +109,7 @@ export function computeModuleChecksums(
   modulesIncluded: BackupModuleId[]
 ): Record<BackupModuleId, string> {
   const inc = new Set<BackupModuleId>(modulesIncluded);
-  const extractModuleSlice = (modId: BackupModuleId): any => {
+  const extractModuleSlice = (modId: BackupModuleId): unknown => {
     if (!inc.has(modId)) return null;
     switch (modId) {
       case 'company_settings':
@@ -312,7 +342,7 @@ export function packBackupEnvelope(params: {
 }
 
 export function verifyAndUnpackBackupEnvelope(
-  envelopeInput: any,
+  envelopeInput: unknown,
   decryptionPassword?: string
 ): {
   envelope: BackupEnvelopeV1;
@@ -502,7 +532,7 @@ function readJsonFileSafe<T>(filePath: string, fallback: T): T {
   return fallback;
 }
 
-function writeJsonFileSafe(filePath: string, data: any): void {
+function writeJsonFileSafe(filePath: string, data: unknown): void {
   try {
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
@@ -512,6 +542,37 @@ function writeJsonFileSafe(filePath: string, data: any): void {
   } catch (err) {
     console.warn(`Could not write ${filePath}:`, err);
   }
+}
+
+type CompanyScopedProductRecord = Product & { companyId?: string };
+type CompanyScopedTransactionRecord = Transaction & { companyId?: string };
+type CompanyScopedCustomerRecord = Customer & { companyId?: string };
+type CompanyScopedMovementRecord = StockMovement & { companyId?: string };
+type CompanyScopedDemandRecord = UnmetDemandRequestRecord & { companyId?: string };
+
+interface BackupStoreStateSnapshot {
+  storeCode?: string;
+  updatedAt?: string;
+  products: CompanyScopedProductRecord[];
+  transactions: CompanyScopedTransactionRecord[];
+  customers: CompanyScopedCustomerRecord[];
+  stockMovements: CompanyScopedMovementRecord[];
+  users?: StoredUserRecord[];
+  activeSessions?: Record<string, unknown>[];
+  unmetDemandRequests: CompanyScopedDemandRecord[];
+}
+
+interface CurrenciesDiskObject {
+  currencies?: Currency[];
+  exchangeRates?: ExchangeRateItem[];
+}
+
+interface UomDiskObject {
+  units?: Record<string, unknown>[];
+}
+
+interface CustomFieldsDiskObject {
+  definitions?: Record<string, unknown>[];
 }
 
 function getCompanyAuxModulesFilePath(companyId: string): string {
@@ -548,25 +609,29 @@ export function collectServerCompanyPayload(
     platformState.users.filter((u) => u.companyId === companyId)
   ).map((u) => scrubSensitiveUserFields(u));
 
-  const storeState = readJsonFileSafe<any>(PROD_STORE_FILE, {
+  const storeState = readJsonFileSafe<BackupStoreStateSnapshot>(PROD_STORE_FILE, {
     products: [],
     transactions: [],
     customers: [],
     stockMovements: [],
     unmetDemandRequests: [],
   });
-  const diskProducts = readJsonFileSafe<any[]>(PRODUCTS_FILE, []);
-  const currenciesFile = readJsonFileSafe<any>(CURRENCIES_FILE, []);
-  const ratesFile = readJsonFileSafe<any[]>(EXCHANGE_RATES_FILE, []);
-  const uomFile = readJsonFileSafe<any>(UOM_FILE, { units: [] });
-  const customFieldsFile = readJsonFileSafe<any>(CUSTOM_FIELDS_FILE, { definitions: [] });
+  const diskProducts = readJsonFileSafe<CompanyScopedProductRecord[]>(PRODUCTS_FILE, []);
+  const currenciesFile = readJsonFileSafe<Currency[] | CurrenciesDiskObject>(CURRENCIES_FILE, []);
+  const ratesFile = readJsonFileSafe<ExchangeRateItem[]>(EXCHANGE_RATES_FILE, []);
+  const uomFile = readJsonFileSafe<Record<string, unknown>[] | UomDiskObject>(UOM_FILE, {
+    units: [],
+  });
+  const customFieldsFile = readJsonFileSafe<
+    Record<string, unknown>[] | CustomFieldsDiskObject
+  >(CUSTOM_FIELDS_FILE, { definitions: [] });
   const auxModules = readJsonFileSafe<Partial<BackupPayloadV1>>(
     getCompanyAuxModulesFilePath(companyId),
     {}
   );
 
   // Resolve products belonging to this company (or unscoped single-company store products)
-  const rawProducts: any[] =
+  const rawProducts: CompanyScopedProductRecord[] =
     clientDatasetOverride?.products ||
     (Array.isArray(diskProducts) && diskProducts.length > 0
       ? diskProducts
@@ -575,25 +640,25 @@ export function collectServerCompanyPayload(
     (p) => !p.companyId || p.companyId === companyId
   );
 
-  const rawTransactions: any[] =
+  const rawTransactions: CompanyScopedTransactionRecord[] =
     clientDatasetOverride?.transactions || storeState.transactions || [];
   const companyTransactions = rawTransactions.filter(
     (t) => !t.companyId || t.companyId === companyId
   );
 
-  const rawCustomers: any[] =
+  const rawCustomers: CompanyScopedCustomerRecord[] =
     clientDatasetOverride?.customers || storeState.customers || [];
   const companyCustomers = rawCustomers.filter(
     (c) => !c.companyId || c.companyId === companyId
   );
 
-  const rawMovements: any[] =
+  const rawMovements: CompanyScopedMovementRecord[] =
     clientDatasetOverride?.stockMovements || storeState.stockMovements || [];
   const companyMovements = rawMovements.filter(
     (m) => !m.companyId || m.companyId === companyId
   );
 
-  const rawDemand: any[] =
+  const rawDemand: CompanyScopedDemandRecord[] =
     clientDatasetOverride?.unmetDemandRequests || storeState.unmetDemandRequests || [];
   const companyDemand = rawDemand.filter(
     (d) => !d.companyId || d.companyId === companyId
@@ -613,7 +678,7 @@ export function collectServerCompanyPayload(
     auxModules.exchangeRateItems ||
     (Array.isArray(ratesFile)
       ? ratesFile
-      : Array.isArray(currenciesFile?.exchangeRates)
+      : !Array.isArray(currenciesFile) && Array.isArray(currenciesFile?.exchangeRates)
       ? currenciesFile.exchangeRates
       : []);
 
@@ -739,15 +804,16 @@ export function persistServerCompanyPayload(
         continue; // Already preserved owner with live credentials
       }
 
-      const sysRole = emp.systemRole || 'CASHIER';
-      const caps =
+      const sysRole = normalizeSystemRoleCode(emp.systemRole || 'CASHIER');
+      const caps = (
         Array.isArray(emp.capabilities) && emp.capabilities.length > 0
           ? emp.capabilities
-          : [...ALL_CAPABILITY_CODES];
+          : [...ALL_CAPABILITY_CODES]
+      ) as CapabilityCode[];
 
       const fallbackPinHashed = hashPinScrypt('0000');
       mergedCompanyUsers.push({
-        ...(emp as any),
+        ...(emp as unknown as StoredUserRecord),
         id: existingMatch?.id || emp.id,
         companyId,
         username: emp.username || emp.id,
@@ -764,7 +830,7 @@ export function persistServerCompanyPayload(
         hasPassword: Boolean(existingMatch?.passwordHash),
         mustChangePassword: !existingMatch?.passwordHash,
         isActive: emp.isActive ?? true,
-        permissions: deriveLegacyPermissionsFromCapabilities(caps as CapabilityCode[]),
+        permissions: deriveLegacyPermissionsFromCapabilities(caps),
       });
     }
 
@@ -774,7 +840,7 @@ export function persistServerCompanyPayload(
   savePlatformState(platformState);
 
   // 4. Update store-state.json & products.json (preserving records belonging to any other company)
-  const storeState = readJsonFileSafe<any>(PROD_STORE_FILE, {
+  const storeState = readJsonFileSafe<BackupStoreStateSnapshot>(PROD_STORE_FILE, {
     storeCode: 'DQ-POS-MAIN',
     updatedAt: new Date().toISOString(),
     products: [],
@@ -788,7 +854,7 @@ export function persistServerCompanyPayload(
 
   if (activeMods.has('products')) {
     const otherProds = (storeState.products || []).filter(
-      (p: any) => p.companyId && p.companyId !== companyId
+      (p) => p.companyId && p.companyId !== companyId
     );
     const taggedProds = (payload.products || []).map((p) => ({
       ...p,
@@ -796,16 +862,16 @@ export function persistServerCompanyPayload(
     }));
     storeState.products = [...otherProds, ...taggedProds];
 
-    const diskProds = readJsonFileSafe<any[]>(PRODUCTS_FILE, []);
+    const diskProds = readJsonFileSafe<CompanyScopedProductRecord[]>(PRODUCTS_FILE, []);
     const otherDiskProds = (Array.isArray(diskProds) ? diskProds : []).filter(
-      (p: any) => p.companyId && p.companyId !== companyId
+      (p) => p.companyId && p.companyId !== companyId
     );
     writeJsonFileSafe(PRODUCTS_FILE, [...otherDiskProds, ...taggedProds]);
   }
 
   if (activeMods.has('sales')) {
     const otherTxs = (storeState.transactions || []).filter(
-      (t: any) => t.companyId && t.companyId !== companyId
+      (t) => t.companyId && t.companyId !== companyId
     );
     const taggedTxs = (payload.transactions || []).map((t) => ({
       ...t,
@@ -816,7 +882,7 @@ export function persistServerCompanyPayload(
 
   if (activeMods.has('customers')) {
     const otherCusts = (storeState.customers || []).filter(
-      (c: any) => c.companyId && c.companyId !== companyId
+      (c) => c.companyId && c.companyId !== companyId
     );
     const taggedCusts = (payload.customers || []).map((c) => ({
       ...c,
@@ -827,7 +893,7 @@ export function persistServerCompanyPayload(
 
   if (activeMods.has('inventory')) {
     const otherMovs = (storeState.stockMovements || []).filter(
-      (m: any) => m.companyId && m.companyId !== companyId
+      (m) => m.companyId && m.companyId !== companyId
     );
     const taggedMovs = (payload.stockMovements || []).map((m) => ({
       ...m,
@@ -838,7 +904,7 @@ export function persistServerCompanyPayload(
 
   if (activeMods.has('intelligence_audit')) {
     const otherDemand = (storeState.unmetDemandRequests || []).filter(
-      (d: any) => d.companyId && d.companyId !== companyId
+      (d) => d.companyId && d.companyId !== companyId
     );
     const taggedDemand = (payload.unmetDemandRequests || []).map((d) => ({
       ...d,
@@ -1145,7 +1211,7 @@ export function createCompanyBackupArchive(
 export function restoreBackupIntoOriginalCompany(
   actor: AuthenticatedActorContext,
   input: {
-    envelope?: any;
+    envelope?: unknown;
     backupId?: string;
     decryptionPassword?: string;
     ownerPassword: string;
@@ -1249,7 +1315,7 @@ export function restoreBackupIntoOriginalCompany(
       restoredManifest: unpacked.manifest,
       restoredPayload: collectServerCompanyPayload(actor.company.id, restoredPayload),
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Automatic rollback from liveSnapshot
     persistServerCompanyPayload(
       actor.company.id,
@@ -1260,7 +1326,7 @@ export function restoreBackupIntoOriginalCompany(
     throw new ReleasePlatformError(
       500,
       'RESTORE_FAILED_ROLLED_BACK',
-      `Restore failed and was automatically rolled back to checkpoint "${checkpointEnvelope.manifest.backupId}": ${err?.message || 'Unknown error'}`
+      `Restore failed and was automatically rolled back to checkpoint "${checkpointEnvelope.manifest.backupId}": ${getErrorMessage(err, 'Unknown error')}`
     );
   }
 }
@@ -1268,7 +1334,7 @@ export function restoreBackupIntoOriginalCompany(
 export function restoreBackupAsNewCompany(
   req: Request,
   input: {
-    envelope: any;
+    envelope: unknown;
     decryptionPassword?: string;
     companyName: string;
     companyNameAr?: string;
@@ -1282,9 +1348,9 @@ export function restoreBackupAsNewCompany(
   }
 ): {
   ok: boolean;
-  company: any;
-  mainBranch: any;
-  owner: any;
+  company: CompanyProfile;
+  mainBranch: BranchRecord;
+  owner: SanitizedUserRecord;
   sessionToken: string;
   restoredPayload: BackupPayloadV1;
   idRemapCount: number;
@@ -1301,8 +1367,8 @@ export function restoreBackupAsNewCompany(
       const actor = resolveAuthenticatedActorFromRequest(req);
       assertActorHasCapability(actor, 'backup.restore');
       actorUserId = actor.user.id;
-    } catch (err: any) {
-      if (err?.errorCode === 'FORBIDDEN_MISSING_CAPABILITY') {
+    } catch (err: unknown) {
+      if (getErrorCode(err) === 'FORBIDDEN_MISSING_CAPABILITY') {
         throw err;
       }
       actorUserId = String(req.headers?.['x-user-id'] || 'local-operator');
@@ -1415,11 +1481,11 @@ export function restoreBackupAsNewCompany(
     if (emp.id === storedOwner.id || emp.systemRole === 'COMPANY_OWNER') continue;
     const empFallbackPin = hashPinScrypt('0000');
     freshState.users.push({
-      ...(emp as any),
+      ...(emp as unknown as StoredUserRecord),
       companyId: newCompany.id,
       username: emp.username || emp.id,
-      systemRole: emp.systemRole || 'CASHIER',
-      capabilities: emp.capabilities || [],
+      systemRole: normalizeSystemRoleCode(emp.systemRole || 'CASHIER'),
+      capabilities: (emp.capabilities || []) as CapabilityCode[],
       branchId: emp.branchId || newMainBranch.id,
       assignedBranchIds: emp.assignedBranchIds || [newMainBranch.id],
       passwordHash: null,
@@ -1481,7 +1547,7 @@ export function restoreBackupAsNewCompany(
 export function previewCompanyBackupMerge(
   actor: AuthenticatedActorContext,
   input: {
-    envelope?: any;
+    envelope?: unknown;
     backupId?: string;
     decryptionPassword?: string;
     selectedModules?: BackupModuleId[];
@@ -1541,7 +1607,7 @@ export function previewCompanyBackupMerge(
 export function executeCompanyBackupMerge(
   actor: AuthenticatedActorContext,
   input: {
-    envelope?: any;
+    envelope?: unknown;
     backupId?: string;
     decryptionPassword?: string;
     ownerPassword: string;
@@ -1639,7 +1705,7 @@ export function executeCompanyBackupMerge(
       summary,
       mergedPayload: mergedDataset,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     persistServerCompanyPayload(
       actor.company.id,
       liveSnapshot,
@@ -1649,7 +1715,7 @@ export function executeCompanyBackupMerge(
     throw new ReleasePlatformError(
       500,
       'MERGE_FAILED_ROLLED_BACK',
-      `Merge failed and was automatically rolled back to checkpoint "${checkpointEnvelope.manifest.backupId}": ${err?.message || 'Unknown error'}`
+      `Merge failed and was automatically rolled back to checkpoint "${checkpointEnvelope.manifest.backupId}": ${getErrorMessage(err, 'Unknown error')}`
     );
   }
 }
@@ -1694,7 +1760,7 @@ export function deleteSavedCompanyBackup(
 
 export const backupRestoreRouter = Router();
 
-function sendBackupError(res: Response, err: any, fallbackMessage: string): void {
+function sendBackupError(res: Response, err: unknown, fallbackMessage: string): void {
   if (err instanceof ReleasePlatformError) {
     res.status(err.statusCode).json({
       success: false,
@@ -1708,14 +1774,14 @@ function sendBackupError(res: Response, err: any, fallbackMessage: string): void
     success: false,
     code: 'INTERNAL_SERVER_ERROR',
     errorCode: 'INTERNAL_SERVER_ERROR',
-    error: err?.message || fallbackMessage,
+    error: getErrorMessage(err, fallbackMessage),
   });
 }
 
 function resolveBackupActorOrLocalStore(req: Request): AuthenticatedActorContext {
   try {
     return resolveAuthenticatedActorFromRequest(req);
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (
       err instanceof ReleasePlatformError &&
       err.statusCode !== 401 &&

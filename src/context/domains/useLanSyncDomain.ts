@@ -5,15 +5,15 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  LanSyncConfig,
-  LanConnectedDeviceInfo,
-  LanSyncEventRecord,
-  LanNetworkAddressItem,
+  type LanSyncConfig,
+  type LanConnectedDeviceInfo,
+  type LanSyncEventRecord,
+  type LanNetworkAddressItem,
   loadLanSyncConfig,
   saveLanSyncConfig,
   resolveEffectiveLanBaseUrl,
 } from '../../lib/lan-sync-client';
-import {
+import type {
   ActiveUserSession,
   AppSettings,
   BranchRecord,
@@ -28,8 +28,43 @@ import {
   StockMovement,
   Transaction,
 } from '../../lib/types';
-import { UnmetDemandRequestRecord } from '../../analytics/analytics.types';
+import type { UnmetDemandRequestRecord } from '../../analytics/analytics.types';
 import { getCompanyStorageKey } from '../pos-storage-helpers';
+
+export interface LanSyncCategoryObject {
+  id?: string;
+  name?: string;
+  nameAr?: string;
+  slug?: string;
+  description?: string;
+}
+
+export type LanSyncCategoryEntry = string | LanSyncCategoryObject;
+
+export interface LanSyncRemoteSettingsSnapshot {
+  storeName?: string;
+  storeNameAr?: string;
+  currency?: string;
+  taxRatePercent?: number;
+  exchangeRates?: Record<string, number>;
+}
+
+export interface LanSyncRemoteStateSnapshot {
+  revision?: number;
+  deletedProductIds?: string[];
+  deletedCustomerIds?: string[];
+  products?: Product[];
+  transactions?: Transaction[];
+  expenses?: ExpenseRecord[];
+  customers?: Customer[];
+  stockMovements?: StockMovement[];
+  unmetDemandRequests?: UnmetDemandRequestRecord[];
+  currencies?: Currency[];
+  exchangeRates?: Record<string, number>;
+  exchangeRateItems?: ExchangeRateItem[];
+  categories?: LanSyncCategoryEntry[];
+  settings?: LanSyncRemoteSettingsSnapshot;
+}
 
 interface UseLanSyncDomainParams {
   currentCompany: CompanyProfile;
@@ -114,7 +149,7 @@ export function useLanSyncDomain({
   }, []);
 
   const applyIncomingLanSyncState = useCallback(
-    (remoteState: any, sourceDeviceId?: string) => {
+    (remoteState: LanSyncRemoteStateSnapshot | null | undefined, sourceDeviceId?: string) => {
       if (!remoteState || typeof remoteState !== 'object') return;
       if (sourceDeviceId && sourceDeviceId === lanSyncConfig.deviceId) {
         if (typeof remoteState.revision === 'number') {
@@ -310,8 +345,11 @@ export function useLanSyncDomain({
             const catKey = getCompanyStorageKey('pos_categories', currentCompany.id);
             const rawExisting =
               localStorage.getItem(catKey) || localStorage.getItem('pos_categories');
-            const existingCats: any[] = rawExisting ? JSON.parse(rawExisting) : [];
-            const byName = new Map<string, any>();
+            const parsedCats: unknown = rawExisting ? JSON.parse(rawExisting) : [];
+            const existingCats: LanSyncCategoryEntry[] = Array.isArray(parsedCats)
+              ? (parsedCats as LanSyncCategoryEntry[])
+              : [];
+            const byName = new Map<string, LanSyncCategoryObject>();
             for (const c of existingCats) {
               const nameVal = typeof c === 'string' ? c : c?.name || c?.id || '';
               const k = String(nameVal).trim().toLowerCase();
@@ -321,7 +359,8 @@ export function useLanSyncDomain({
               const nameVal = typeof inc === 'string' ? inc : inc?.name || inc?.id || '';
               const k = String(nameVal).trim().toLowerCase();
               if (k) {
-                const incObj = typeof inc === 'string' ? { id: k, name: inc, nameAr: inc } : inc;
+                const incObj: LanSyncCategoryObject =
+                  typeof inc === 'string' ? { id: k, name: inc, nameAr: inc } : inc;
                 byName.set(k, { ...(byName.get(k) || {}), ...incObj });
               }
             }
@@ -335,18 +374,19 @@ export function useLanSyncDomain({
         }
 
         if (remoteState.settings && typeof remoteState.settings === 'object') {
+          const remoteSettings = remoteState.settings;
           setSettings((prev) => ({
             ...prev,
-            storeName: remoteState.settings.storeName || prev.storeName,
-            storeNameAr: remoteState.settings.storeNameAr || prev.storeNameAr,
-            currency: remoteState.settings.currency || prev.currency,
+            storeName: remoteSettings.storeName || prev.storeName,
+            storeNameAr: remoteSettings.storeNameAr || prev.storeNameAr,
+            currency: remoteSettings.currency || prev.currency,
             taxRatePercent:
-              typeof remoteState.settings.taxRatePercent === 'number'
-                ? remoteState.settings.taxRatePercent
+              typeof remoteSettings.taxRatePercent === 'number'
+                ? remoteSettings.taxRatePercent
                 : prev.taxRatePercent,
             exchangeRates: {
               ...(prev.exchangeRates || {}),
-              ...(remoteState.settings.exchangeRates || {}),
+              ...(remoteSettings.exchangeRates || {}),
               ...(remoteState.exchangeRates || {}),
               SDG: 1,
             },
@@ -387,12 +427,17 @@ export function useLanSyncDomain({
         return false;
       }
 
-      let localCategories: any[] = [];
+      let localCategories: LanSyncCategoryEntry[] = [];
       try {
         const rawCats = localStorage.getItem(
           getCompanyStorageKey('pos_categories', currentCompany.id)
         );
-        if (rawCats) localCategories = JSON.parse(rawCats);
+        if (rawCats) {
+          const parsed: unknown = JSON.parse(rawCats);
+          if (Array.isArray(parsed)) {
+            localCategories = parsed as LanSyncCategoryEntry[];
+          }
+        }
       } catch {}
 
       try {
@@ -464,9 +509,9 @@ export function useLanSyncDomain({
         setLanLastSyncError(null);
         setLastSyncedAt(new Date());
         return true;
-      } catch (err: any) {
+      } catch (err: unknown) {
         setLanConnectionStatus('disconnected');
-        setLanLastSyncError(err?.message || 'LAN host unreachable');
+        setLanLastSyncError(err instanceof Error ? err.message : 'LAN host unreachable');
         return false;
       }
     },
@@ -515,7 +560,7 @@ export function useLanSyncDomain({
     let lastAddressesSig = '';
     let lastPrimaryUrl = '';
 
-    const applyDevicesIfChanged = (devices: any[]) => {
+    const applyDevicesIfChanged = (devices: LanConnectedDeviceInfo[]) => {
       const sig = devices
         .map((d) => `${d?.deviceId || ''}:${d?.lastSeenAt || ''}:${d?.ipAddress || ''}`)
         .join('|');
@@ -524,14 +569,14 @@ export function useLanSyncDomain({
       setLanConnectedDevices(devices);
     };
 
-    const applyEventsIfChanged = (events: any[]) => {
+    const applyEventsIfChanged = (events: LanSyncEventRecord[]) => {
       const sig = events.map((e) => `${e?.id || ''}:${e?.revision || ''}`).join('|');
       if (sig === lastEventsSig) return;
       lastEventsSig = sig;
       setLanRecentEvents(events);
     };
 
-    const applyAddressesIfChanged = (addresses: any[]) => {
+    const applyAddressesIfChanged = (addresses: LanNetworkAddressItem[]) => {
       const sig = addresses.map((a) => `${a?.url || ''}:${a?.interfaceName || ''}`).join('|');
       if (sig === lastAddressesSig) return;
       lastAddressesSig = sig;
@@ -648,11 +693,11 @@ export function useLanSyncDomain({
         } else {
           setLanConnectionStatus((prev) => (prev === 'disconnected' ? prev : 'disconnected'));
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!isDisposed) {
           isSseOpen = false;
           setLanConnectionStatus((prev) => (prev === 'disconnected' ? prev : 'disconnected'));
-          const msg = err?.message || 'Unable to reach Wi-Fi LAN Host';
+          const msg = err instanceof Error ? err.message : 'Unable to reach Wi-Fi LAN Host';
           setLanLastSyncError((prev) => (prev === msg ? prev : msg));
         }
       }

@@ -1,0 +1,20 @@
+# .understandignore — generated for Dqnamo POS (ANDROID-POS-01)
+node_modules/
+dist/
+dist-server/
+electron/www/
+coverage/
+.data/
+.playwright-cli/
+releases/
+skills/
+.agents/
+public/assets/
+android/app/src/main/assets/public/
+android/app/build/
+android/.gradle/
+android/gradle/wrapper/
+android/capacitor-cordova-android-plugins/
+*.lock
+package-lock.json
+bun.lock

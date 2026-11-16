@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
+import type {
   PaymentMethod,
   Product,
+  ProductSaleUnitMode,
   StockMovement,
   SupportedCurrency,
   Transaction,
@@ -15,17 +16,17 @@ import {
   ExchangeRateHistoryEntry,
 } from '../lib/types';
 import {
-  AvailabilityStatusAtRequest,
-  CatalogLifecycleStatus,
-  StockBatchEntry,
   SUPPORTED_CATALOG_LIFECYCLE_STATUSES,
   SUPPORTED_UNAVAILABILITY_REASONS,
-  UnavailabilityReason,
-  UnmetDemandFulfillmentLinkRecord,
-  UnmetDemandFulfillmentLinkStatus,
-  UnmetDemandFulfillmentStatus,
-  UnmetDemandRequestInput,
-  UnmetDemandRequestRecord,
+  type AvailabilityStatusAtRequest,
+  type CatalogLifecycleStatus,
+  type StockBatchEntry,
+  type UnavailabilityReason,
+  type UnmetDemandFulfillmentLinkRecord,
+  type UnmetDemandFulfillmentLinkStatus,
+  type UnmetDemandFulfillmentStatus,
+  type UnmetDemandRequestInput,
+  type UnmetDemandRequestRecord,
 } from './unmet-demand.validation';
 
 export {
@@ -65,17 +66,27 @@ export type CogsDataQualityStatus =
 
 export type FinancialAccessStatus = 'authorized' | 'restricted_by_role';
 
+export interface ReturnRecordLineItem {
+  productId: string;
+  quantity: number;
+  refundAmount: number;
+  saleUnit?: ProductSaleUnitMode;
+}
+
 export interface ReturnRecordInput {
   id: string;
   saleId: string; // matches Transaction.id or sales.transactionId
   timestamp?: string;
   reason?: string;
   refundTotal: number;
-  items?: {
-    productId: string;
-    quantity: number;
-    refundAmount: number;
-  }[];
+  items?: ReturnRecordLineItem[];
+}
+
+export interface PurchaseOrderLineItem {
+  productId: string;
+  quantity: number;
+  unitCost: number;
+  totalCost: number;
 }
 
 export interface PurchaseOrderRecordInput {
@@ -89,12 +100,7 @@ export interface PurchaseOrderRecordInput {
   paymentStatus?: 'paid' | 'partial' | 'unpaid';
   currency?: SupportedCurrency;
   invoiceDate: string;
-  items?: {
-    productId: string;
-    quantity: number;
-    unitCost: number;
-    totalCost: number;
-  }[];
+  items?: PurchaseOrderLineItem[];
 }
 
 export interface SourceOfTruthDomainMeta {
@@ -1087,12 +1093,26 @@ export type IntelligenceLifecycleEventType =
   | 'REOPENED'
   | 'AUTO_RECURRED';
 
+export interface LifecycleEvidenceMetric {
+  name: string;
+  valueFormatted: string;
+  rawValue?: number | null;
+}
+
+export interface IntelligenceLifecycleEvidence {
+  metrics?: LifecycleEvidenceMetric[];
+  affectedRecords?: string[];
+  periodAnalyzed?: string;
+  sourceMetrics?: string[];
+  extra?: Record<string, unknown>;
+}
+
 export interface IntelligenceLifecycleItemRecord {
   id: string;
   dedupeKey: string;
   itemStream: IntelligenceLifecycleStream;
   category: string;
-  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+  severity: SmartInsightSeverity;
   priority: number;
   confidenceLevel: SmartInsightConfidenceLevel;
   scopeType: IntelligenceLifecycleScopeType;
@@ -1106,13 +1126,7 @@ export interface IntelligenceLifecycleItemRecord {
   explanationAr: string;
   recommendationEn: string;
   recommendationAr: string;
-  evidenceJson: {
-    metrics?: { name: string; valueFormatted: string; rawValue?: number | null }[];
-    affectedRecords?: string[];
-    periodAnalyzed?: string;
-    sourceMetrics?: string[];
-    extra?: Record<string, any>;
-  };
+  evidenceJson: IntelligenceLifecycleEvidence;
   status: IntelligenceLifecycleStatus;
   conditionHash: string;
   firstDetectedAt: string;
@@ -1152,7 +1166,7 @@ export interface IntelligenceLifecycleEventRecord {
   performedByRole: string;
   note: string | null;
   actionType: string | null;
-  metadataJson: Record<string, any>;
+  metadataJson: Record<string, unknown>;
   createdAt: string;
 }
 
@@ -1180,15 +1194,17 @@ export interface IntelligenceLifecycleSummaryCounts {
   highActive: number;
 }
 
+export interface AnalyticsPaginationMeta {
+  page: number;
+  pageSize: number;
+  totalMatching: number;
+  totalPages: number;
+}
+
 export interface IntelligenceLifecycleListResponse {
   items: IntelligenceLifecycleItemRecord[];
   counts: IntelligenceLifecycleSummaryCounts;
-  pagination: {
-    page: number;
-    pageSize: number;
-    totalMatching: number;
-    totalPages: number;
-  };
+  pagination: AnalyticsPaginationMeta;
   filtersApplied: Required<IntelligenceLifecycleQueryFilter>;
 }
 

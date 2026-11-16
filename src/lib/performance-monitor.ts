@@ -5,6 +5,13 @@
 
 import { useState, useEffect } from 'react';
 
+export interface ApiTimingSample {
+  url: string;
+  durationMs: number;
+  status: number;
+  timestamp: number;
+}
+
 export interface PerformanceMetricsSnapshot {
   fcpMs: number | null;
   lcpMs: number | null;
@@ -15,7 +22,30 @@ export interface PerformanceMetricsSnapshot {
   saveData: boolean;
   hardwareConcurrency: number;
   isLowEndDevice: boolean;
-  apiTimings: Array<{ url: string; durationMs: number; status: number; timestamp: number }>;
+  apiTimings: ApiTimingSample[];
+}
+
+interface NetworkInformationLike {
+  effectiveType?: string;
+  saveData?: boolean;
+}
+
+interface NavigatorWithCapabilities extends Navigator {
+  deviceMemory?: number;
+  connection?: NetworkInformationLike;
+}
+
+interface WindowWithIdleCallback {
+  requestIdleCallback?: (
+    callback: IdleRequestCallback,
+    options?: IdleRequestOptions
+  ) => number;
+  cancelIdleCallback?: (handle: number) => void;
+}
+
+interface LayoutShiftEntryLike extends PerformanceEntry {
+  hadRecentInput?: boolean;
+  value?: number;
 }
 
 declare global {
@@ -29,9 +59,10 @@ declare global {
  */
 export function isLowEndOrSlowNetwork(): boolean {
   if (typeof navigator === 'undefined') return false;
-  const cores = navigator.hardwareConcurrency || 4;
-  const memory = (navigator as any).deviceMemory || 4;
-  const conn = (navigator as any).connection;
+  const nav = navigator as NavigatorWithCapabilities;
+  const cores = nav.hardwareConcurrency || 4;
+  const memory = nav.deviceMemory || 4;
+  const conn = nav.connection;
   const effectiveType = String(conn?.effectiveType || '4g').toLowerCase();
   const saveData = Boolean(conn?.saveData);
 
@@ -72,9 +103,12 @@ export function useDebouncedValue<T>(value: T, delayMs = 140): T {
  * Schedules non-urgent work (such as large LocalStorage JSON serialization) during browser idle frames.
  */
 export function scheduleIdleTask(callback: () => void, timeoutMs = 400): () => void {
-  if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-    const id = (window as any).requestIdleCallback(callback, { timeout: timeoutMs });
-    return () => (window as any).cancelIdleCallback?.(id);
+  if (typeof window !== 'undefined') {
+    const win = window as WindowWithIdleCallback;
+    if (typeof win.requestIdleCallback === 'function') {
+      const id = win.requestIdleCallback(callback, { timeout: timeoutMs });
+      return () => win.cancelIdleCallback?.(id);
+    }
   }
   const timer = setTimeout(callback, 60);
   return () => clearTimeout(timer);
@@ -157,7 +191,8 @@ export function recordApiTiming(url: string, durationMs: number, status: number)
 export function initRealUserMonitoring(): void {
   if (typeof window === 'undefined' || window.__DQNAMO_PERF_METRICS__) return;
 
-  const conn = (navigator as any).connection;
+  const nav = navigator as NavigatorWithCapabilities;
+  const conn = nav.connection;
   const metrics: PerformanceMetricsSnapshot = {
     fcpMs: null,
     lcpMs: null,
@@ -197,7 +232,7 @@ export function initRealUserMonitoring(): void {
 
       // Cumulative Layout Shift (CLS)
       const clsObserver = new PerformanceObserver((entryList) => {
-        for (const entry of entryList.getEntries() as any[]) {
+        for (const entry of entryList.getEntries() as LayoutShiftEntryLike[]) {
           if (!entry.hadRecentInput && typeof entry.value === 'number') {
             metrics.clsScore = Math.round((metrics.clsScore + entry.value) * 10000) / 10000;
           }

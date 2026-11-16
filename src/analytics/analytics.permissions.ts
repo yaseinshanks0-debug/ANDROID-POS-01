@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { POSUser, UserRole } from '../lib/types';
-import {
+import type { POSUser, UserRole } from '../lib/types';
+import type {
   AnalyticsFilterParams,
   AnalyticsUserContext,
   BranchAnalyticsResult,
@@ -14,6 +14,7 @@ import {
   ForecastingResult,
   InventoryAnalyticsResult,
   SalesAnalyticsResult,
+  SmartInsightCategory,
   SmartStoreIntelligenceResult,
 } from './analytics.types';
 import { redactUnmetDemandRecordForRole } from './unmet-demand.validation';
@@ -423,7 +424,7 @@ export function sanitizeIntelligenceForRole(
     });
 
   const filteredSmartAlerts = filterAlerts(intelligence.smartAlerts);
-  const byCategory: Record<string, number> = {
+  const byCategory: Record<SmartInsightCategory, number> = {
     INVENTORY_RISK: 0,
     UNMET_DEMAND: 0,
     RISING_DEMAND: 0,
@@ -452,7 +453,7 @@ export function sanitizeIntelligenceForRole(
       totalRecommendedReplenishmentCost: user.canViewCostAndMargin
         ? intelligence.overview.totalRecommendedReplenishmentCost
         : null,
-      byCategory: byCategory as any,
+      byCategory,
     },
     unmetDemand: {
       ...intelligence.unmetDemand,

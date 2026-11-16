@@ -41,12 +41,19 @@ import {
   INITIAL_USERS,
 } from '../lib/initial-data.ts';
 import type {
+  ActiveUserSession,
+  AppSettings,
   BranchRecord,
   CompanyProfile,
+  Customer,
   POSUser,
+  Product,
+  StockMovement,
   SupportedCurrency,
+  Transaction,
   WorkspaceMode,
 } from '../lib/types.ts';
+import type { UnmetDemandRequestRecord } from '../analytics/analytics.types.ts';
 
 const ROOT_DIR = getRootDir();
 const DATA_DIR = getDataDir();
@@ -219,12 +226,25 @@ export interface StoredUserRecord extends POSUser {
   passwordHash?: string | null;
   passwordSalt?: string | null;
   mustChangePassword?: boolean;
-  tourProgressJson?: Record<string, any>;
+  tourProgressJson?: Record<string, unknown>;
 }
+
+export type SanitizedUserRecord<T extends Partial<StoredUserRecord> = StoredUserRecord> = Omit<
+  T,
+  'passwordHash' | 'passwordSalt' | 'pinHash' | 'pinSalt'
+> & { hasPin?: boolean };
+
+export type SeedOrStoredUserInput = POSUser &
+  Partial<
+    Pick<
+      StoredUserRecord,
+      'pinHash' | 'pinSalt' | 'passwordHash' | 'passwordSalt' | 'systemRole' | 'companyId'
+    >
+  >;
 
 export function sanitizeStoredUser<T extends Partial<StoredUserRecord>>(
   user: T
-): Omit<T, 'passwordHash' | 'passwordSalt' | 'pinHash' | 'pinSalt'> {
+): SanitizedUserRecord<T> {
   const hasConfiguredPin = Boolean(
     user.pinHash || (user.pin && user.pin !== '0000' && !verifyPinScrypt('0000', user))
   );
@@ -235,11 +255,12 @@ export function sanitizeStoredUser<T extends Partial<StoredUserRecord>>(
     pinSalt: _pns,
     ...rest
   } = user;
-  if (typeof rest.pin === 'string' && isScryptHashedPin(rest.pin)) {
-    delete (rest as any).pin;
+  const sanitized = { ...rest } as SanitizedUserRecord<T>;
+  if (typeof sanitized.pin === 'string' && isScryptHashedPin(sanitized.pin)) {
+    delete sanitized.pin;
   }
-  (rest as any).hasPin = hasConfiguredPin;
-  return rest;
+  sanitized.hasPin = hasConfiguredPin;
+  return sanitized;
 }
 
 export interface StoredSessionRecord {
@@ -264,7 +285,7 @@ export interface StoredAuditLogRecord {
   action: string;
   entityType: string;
   entityId: string | null;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   createdAt: string;
 }
 
@@ -346,7 +367,7 @@ function buildDefaultBranches(): BranchRecord[] {
 }
 
 function enrichSeedUserToStoredUser(
-  u: POSUser,
+  u: SeedOrStoredUserInput,
   companyId: string,
   defaultSystemRole?: SystemRoleCode
 ): StoredUserRecord {
@@ -385,8 +406,8 @@ function enrichSeedUserToStoredUser(
       : getDefaultCapabilitiesForRole(sysRole);
 
   let pinFormatted = u.pin;
-  let pinHash: string | null = (u as any).pinHash || null;
-  let pinSalt: string | null = (u as any).pinSalt || null;
+  let pinHash: string | null = u.pinHash || null;
+  let pinSalt: string | null = u.pinSalt || null;
 
   if (pinHash && pinSalt) {
     if (!pinFormatted || !isScryptHashedPin(pinFormatted)) {
@@ -421,7 +442,7 @@ function enrichSeedUserToStoredUser(
     pinHash,
     pinSalt,
     permissions: deriveLegacyPermissionsFromCapabilities(capabilities),
-    hasPassword: Boolean((u as any).passwordHash || u.hasPassword),
+    hasPassword: Boolean(u.passwordHash || u.hasPassword),
     mustChangePassword: false,
     tourProgressJson: {},
   };
@@ -504,14 +525,14 @@ export function loadPlatformState(): PlatformOnboardingState {
       }
 
       const usersList: StoredUserRecord[] = Array.isArray(raw.users)
-        ? raw.users
+        ? (raw.users as SeedOrStoredUserInput[])
             .filter(
-              (u: any) =>
+              (u) =>
                 u &&
                 u.companyId !== 'comp-default' &&
                 !LEGACY_DEMO_USER_IDS.has(String(u.id))
             )
-            .map((u: any) => {
+            .map((u) => {
               const enriched = enrichSeedUserToStoredUser(
                 u,
                 u.companyId || 'comp-demo-practice',
@@ -600,7 +621,7 @@ export function appendPlatformAuditLog(
     action: string;
     entityType: string;
     entityId?: string | null;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
   }
 ): StoredAuditLogRecord {
   const record: StoredAuditLogRecord = {
@@ -625,20 +646,25 @@ export function appendPlatformAuditLog(
 // 3. PRACTICE MODE ISOLATED SANDBOX STORE (.data/practice-store-state.json)
 // ============================================================================
 
+export type PracticeScopedProduct = Product & { companyId?: string };
+export type PracticeScopedTransaction = Partial<Transaction> & { id: string; companyId?: string };
+export type PracticeScopedCustomer = Customer & { companyId?: string };
+export type PracticeScopedStockMovement = StockMovement & { companyId?: string };
+
 export interface PracticeSandboxStoreState {
   companyId: 'comp-demo-practice';
   workspaceMode: 'PRACTICE';
   storeCode: 'DQ-DEMO-PRACTICE';
   updatedAt: string;
   resetCount: number;
-  settings?: Record<string, any>;
-  products: any[];
-  transactions: any[];
-  customers: any[];
-  stockMovements: any[];
-  users: any[];
-  activeSessions: any[];
-  unmetDemandRequests: any[];
+  settings?: Partial<AppSettings>;
+  products: PracticeScopedProduct[];
+  transactions: PracticeScopedTransaction[];
+  customers: PracticeScopedCustomer[];
+  stockMovements: PracticeScopedStockMovement[];
+  users: SanitizedUserRecord[];
+  activeSessions: ActiveUserSession[];
+  unmetDemandRequests: UnmetDemandRequestRecord[];
 }
 
 export function buildFreshPracticeSandboxState(resetCount = 0): PracticeSandboxStoreState {
@@ -653,30 +679,32 @@ export function buildFreshPracticeSandboxState(resetCount = 0): PracticeSandboxS
     storeCode: 'DQ-DEMO-PRACTICE',
     updatedAt: new Date().toISOString(),
     resetCount,
-    products: JSON.parse(JSON.stringify(INITIAL_PRODUCTS)).map((p: any) => ({
+    products: (JSON.parse(JSON.stringify(INITIAL_PRODUCTS)) as Product[]).map((p) => ({
       ...p,
       companyId: 'comp-demo-practice',
     })),
-    transactions: JSON.parse(JSON.stringify(INITIAL_TRANSACTIONS)).map((t: any) => ({
+    transactions: (JSON.parse(JSON.stringify(INITIAL_TRANSACTIONS)) as Transaction[]).map((t) => ({
       ...t,
       companyId: 'comp-demo-practice',
     })),
-    customers: JSON.parse(JSON.stringify(INITIAL_CUSTOMERS)).map((c: any) => ({
+    customers: (JSON.parse(JSON.stringify(INITIAL_CUSTOMERS)) as Customer[]).map((c) => ({
       ...c,
       companyId: 'comp-demo-practice',
     })),
-    stockMovements: JSON.parse(JSON.stringify(INITIAL_STOCK_MOVEMENTS)).map((m: any) => ({
-      ...m,
-      companyId: 'comp-demo-practice',
-    })),
-    users: demoUsers,
-    activeSessions: [],
-    unmetDemandRequests: JSON.parse(JSON.stringify(INITIAL_UNMET_DEMAND_REQUESTS)).map(
-      (r: any) => ({
-        ...r,
+    stockMovements: (JSON.parse(JSON.stringify(INITIAL_STOCK_MOVEMENTS)) as StockMovement[]).map(
+      (m) => ({
+        ...m,
         companyId: 'comp-demo-practice',
       })
     ),
+    users: demoUsers,
+    activeSessions: [],
+    unmetDemandRequests: (
+      JSON.parse(JSON.stringify(INITIAL_UNMET_DEMAND_REQUESTS)) as UnmetDemandRequestRecord[]
+    ).map((r) => ({
+      ...r,
+      companyId: 'comp-demo-practice',
+    })),
   };
 }
 
@@ -1167,6 +1195,12 @@ export async function createCompanyAndInitialOwner(
 
 const SESSION_JWT_SECRET =
   process.env.SESSION_JWT_SECRET || 'dqnamo-pos-enterprise-hmac-sha256-secret-v1';
+
+if (process.env.NODE_ENV === 'production' && !process.env.SESSION_JWT_SECRET) {
+  console.warn(
+    '[SECURITY WARNING] SESSION_JWT_SECRET is not set in production; using built-in fallback signing key.'
+  );
+}
 
 export interface SessionJwtPayload {
   sub: string;
@@ -1848,7 +1882,7 @@ export function updateEmployeeAccount(
 
 export const releasePlatformRouter = Router();
 
-function sendPlatformError(res: Response, err: any, fallbackMessage: string): void {
+function sendPlatformError(res: Response, err: unknown, fallbackMessage: string): void {
   if (err instanceof ReleasePlatformError) {
     res.status(err.statusCode).json({
       success: false,
@@ -1862,7 +1896,7 @@ function sendPlatformError(res: Response, err: any, fallbackMessage: string): vo
     success: false,
     code: 'INTERNAL_SERVER_ERROR',
     errorCode: 'INTERNAL_SERVER_ERROR',
-    error: err?.message || fallbackMessage,
+    error: err instanceof Error && err.message ? err.message : fallbackMessage,
   });
 }
 
@@ -2766,6 +2800,10 @@ releasePlatformRouter.get('/audit-logs', (req: Request, res: Response) => {
  * are evaluated only if no `x-user-role` spoofing is attempted; any spoofed `x-user-role` or unauthorized
  * `x-user-id` is strictly rejected with 401/403.
  */
+interface AuthenticatedRequest extends Request {
+  authenticatedActor?: AuthenticatedActorContext;
+}
+
 export function requireServerCapability(
   capability: CapabilityCode,
   options?: { allowInternalDefaultIfNoHeader?: boolean }
@@ -2825,9 +2863,9 @@ export function requireServerCapability(
       }
 
       assertActorHasCapability(actor, capability);
-      (req as any).authenticatedActor = actor;
+      (req as AuthenticatedRequest).authenticatedActor = actor;
       next();
-    } catch (err) {
+    } catch (err: unknown) {
       sendPlatformError(res, err, `Authorization failed for capability "${capability}"`);
     }
   };

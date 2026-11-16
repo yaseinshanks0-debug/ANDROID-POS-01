@@ -4,20 +4,21 @@
  */
 
 import {
-  CartItem,
-  CheckoutPaymentDetails,
-  Customer,
-  DebtSettlementInput,
-  DebtSettlementPayment,
-  PaymentMethod,
-  PaymentSettlementStatus,
-  Product,
-  SupportedCurrency,
-  AppLanguage,
-  Transaction,
-  SalesRateValuationMode,
-  StockMovement,
-  ExchangeRateHistoryEntry,
+  isRecord,
+  type AppLanguage,
+  type CartItem,
+  type CheckoutPaymentDetails,
+  type Customer,
+  type DebtSettlementInput,
+  type DebtSettlementPayment,
+  type ExchangeRateHistoryEntry,
+  type PaymentMethod,
+  type PaymentSettlementStatus,
+  type Product,
+  type SalesRateValuationMode,
+  type StockMovement,
+  type SupportedCurrency,
+  type Transaction,
 } from './types';
 
 /**
@@ -665,15 +666,17 @@ export function validateCheckout(
  * includes a non-empty operation reference number (`transferReference`).
  * Shared between client checkout validation and server API endpoints (`/api/store-sync`, `/api/transactions`, `/api/lan-sync/push`).
  */
-export function validateBankTransferTransaction(
-  tx: Partial<Transaction> | Record<string, any> | null | undefined
-): {
+export interface BankTransferValidationResult {
   valid: boolean;
   errorCode?: string;
   error?: string;
   errorAr?: string;
-} {
-  if (!tx || typeof tx !== 'object') {
+}
+
+export function validateBankTransferTransaction(
+  tx: Partial<Transaction> | Record<string, unknown> | null | undefined
+): BankTransferValidationResult {
+  if (!isRecord(tx)) {
     return {
       valid: false,
       errorCode: 'INVALID_TRANSACTION_PAYLOAD',
@@ -687,7 +690,13 @@ export function validateBankTransferTransaction(
   }
 
   const paymentMethod = String(tx.paymentMethod || 'cash').trim();
-  const paymentStatus: PaymentSettlementStatus = (tx.paymentStatus || 'paid') as PaymentSettlementStatus;
+  const paymentStatus: PaymentSettlementStatus =
+    typeof tx.paymentStatus === 'string' &&
+    (tx.paymentStatus === 'paid' ||
+      tx.paymentStatus === 'partial' ||
+      tx.paymentStatus === 'unpaid')
+      ? tx.paymentStatus
+      : 'paid';
   const topLevelRef =
     typeof tx.transferReference === 'string' ? tx.transferReference.trim() : '';
 
@@ -695,8 +704,8 @@ export function validateBankTransferTransaction(
 
   if (paymentMethod === 'bank_transfer' && paymentStatus !== 'unpaid') {
     const hasDebtRef = debtPayments.some(
-      (dp: any) =>
-        dp &&
+      (dp: unknown) =>
+        isRecord(dp) &&
         dp.paymentMethod === 'bank_transfer' &&
         typeof dp.transferReference === 'string' &&
         dp.transferReference.trim().length > 0
@@ -713,7 +722,7 @@ export function validateBankTransferTransaction(
 
   for (const dp of debtPayments) {
     if (
-      dp &&
+      isRecord(dp) &&
       dp.paymentMethod === 'bank_transfer' &&
       (dp.amountPaid === undefined || Number(dp.amountPaid) > 0)
     ) {
@@ -733,26 +742,28 @@ export function validateBankTransferTransaction(
   return { valid: true };
 }
 
+export interface ServerTransactionsBatchValidationResult extends BankTransferValidationResult {
+  invalidTransactionId?: string;
+}
+
 /**
  * Validates a batch of transactions submitted to the server.
  */
-export function validateServerTransactionsBatch(transactions: unknown): {
-  valid: boolean;
-  invalidTransactionId?: string;
-  errorCode?: string;
-  error?: string;
-  errorAr?: string;
-} {
+export function validateServerTransactionsBatch(
+  transactions: unknown
+): ServerTransactionsBatchValidationResult {
   if (!Array.isArray(transactions)) {
     return { valid: true };
   }
 
   for (const tx of transactions) {
-    const check = validateBankTransferTransaction(tx);
+    const check = validateBankTransferTransaction(
+      isRecord(tx) ? tx : undefined
+    );
     if (!check.valid) {
       return {
         valid: false,
-        invalidTransactionId: tx && typeof tx === 'object' ? String((tx as any).id || '') : undefined,
+        invalidTransactionId: isRecord(tx) ? String(tx.id || '') : undefined,
         errorCode: check.errorCode,
         error: check.error,
         errorAr: check.errorAr,
@@ -763,7 +774,12 @@ export function validateServerTransactionsBatch(transactions: unknown): {
   return { valid: true };
 }
 
-export const CURRENCY_SYMBOLS: Readonly<Record<string, { en: string; ar: string }>> = Object.freeze({
+export interface CurrencySymbolPair {
+  en: string;
+  ar: string;
+}
+
+export const CURRENCY_SYMBOLS: Readonly<Record<string, CurrencySymbolPair>> = Object.freeze({
   SDG: { en: 'SDG ', ar: ' ج.س' },
   USD: { en: '$', ar: '$' },
   SAR: { en: 'SAR ', ar: ' ر.س' },
@@ -816,6 +832,16 @@ export const DEFAULT_BASELINE_EXCHANGE_RATES: Record<string, number> = {
   GBP: 3450,
 };
 
+export interface ConvertedTransactionLineItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  quantity: number;
+  unitPrice: number;
+  discountPercent: number;
+  total: number;
+}
+
 export interface ConvertedTransactionView {
   currency: SupportedCurrency;
   originalCurrency: SupportedCurrency;
@@ -827,15 +853,7 @@ export interface ConvertedTransactionView {
   debtAmount: number;
   amountTendered: number;
   changeDue: number;
-  items: {
-    productId: string;
-    productName: string;
-    sku: string;
-    quantity: number;
-    unitPrice: number;
-    discountPercent: number;
-    total: number;
-  }[];
+  items: ConvertedTransactionLineItem[];
   historicalGrandTotal: number;
   liveGrandTotal: number;
   indexedGrandTotal: number;
@@ -1284,6 +1302,41 @@ export interface ProductSalesAndCurrencyReport {
   salesTrendPoints: number[];
 }
 
+export interface StoreFulfillmentStats {
+  receivedCount: number;
+  pendingGoodsCount: number;
+  pendingInvoiceCount: number;
+  totalPendingCount: number;
+  fulfillmentRatePercent: number;
+  supplierGoodsReceiptsCount: number;
+}
+
+export interface StoreInventoryHealthStats {
+  totalSkus: number;
+  healthySkus: number;
+  lowStockSkus: number;
+  outOfStockSkus: number;
+  readinessPercent: number;
+}
+
+export interface StorePerformanceBadgeMetric {
+  level: PerformanceBadgeLevel;
+  valuePercent: number;
+}
+
+export interface StorePerformanceBadges {
+  profit: StorePerformanceBadgeMetric;
+  collection: StorePerformanceBadgeMetric;
+  fulfillment: StorePerformanceBadgeMetric;
+  inventory: StorePerformanceBadgeMetric;
+}
+
+export interface StorePaymentCountSummary {
+  count: number;
+  total: number;
+  sharePercent: number;
+}
+
 export interface StoreReportAnalytics {
   currency: SupportedCurrency;
   grossSales: number;
@@ -1297,28 +1350,10 @@ export interface StoreReportAnalytics {
   totalOrders: number;
   profitMarginPercent: number;
   collectionRatePercent: number;
-  fulfillmentStats: {
-    receivedCount: number;
-    pendingGoodsCount: number;
-    pendingInvoiceCount: number;
-    totalPendingCount: number;
-    fulfillmentRatePercent: number;
-    supplierGoodsReceiptsCount: number;
-  };
-  inventoryHealth: {
-    totalSkus: number;
-    healthySkus: number;
-    lowStockSkus: number;
-    outOfStockSkus: number;
-    readinessPercent: number;
-  };
-  performanceBadges: {
-    profit: { level: PerformanceBadgeLevel; valuePercent: number };
-    collection: { level: PerformanceBadgeLevel; valuePercent: number };
-    fulfillment: { level: PerformanceBadgeLevel; valuePercent: number };
-    inventory: { level: PerformanceBadgeLevel; valuePercent: number };
-  };
-  paymentCounts: Record<string, { count: number; total: number; sharePercent: number }>;
+  fulfillmentStats: StoreFulfillmentStats;
+  inventoryHealth: StoreInventoryHealthStats;
+  performanceBadges: StorePerformanceBadges;
+  paymentCounts: Record<string, StorePaymentCountSummary>;
   productReports: ProductSalesAndCurrencyReport[];
 }
 

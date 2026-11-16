@@ -3,15 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Product, Currency, ExchangeRateItem } from '../lib/types';
+import type { Product, Currency, ExchangeRateItem } from '../lib/types';
 import { recordApiTiming } from '../lib/performance-monitor';
 
 const DEFAULT_API_TIMEOUT_MS = 8000;
 const SHORT_CACHE_TTL_MS = 2500;
 
+interface CachedApiResponse {
+  expiresAt: number;
+  data: unknown;
+}
+
 // In-flight GET request deduplication map (#3 Duplicate API Calls)
-const inFlightGetRequests = new Map<string, Promise<any>>();
-const shortTermResponseCache = new Map<string, { expiresAt: number; data: any }>();
+const inFlightGetRequests = new Map<string, Promise<unknown>>();
+const shortTermResponseCache = new Map<string, CachedApiResponse>();
 
 function invalidateApiCache(prefix?: string): void {
   if (!prefix) {
@@ -63,10 +68,10 @@ export async function fetchWithTimeout(
     const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startMs;
     recordApiTiming(url, elapsed, res.status);
     return res;
-  } catch (err: any) {
+  } catch (err: unknown) {
     const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startMs;
     recordApiTiming(url, elapsed, 0);
-    if (err?.name === 'AbortError') {
+    if (err instanceof Error && err.name === 'AbortError') {
       throw new Error(`API request timed out after ${timeoutMs}ms: ${url}`);
     }
     throw err;
@@ -112,13 +117,67 @@ async function deduplicatedGetJson<T>(url: string, errorMessage: string): Promis
   return requestPromise;
 }
 
+export interface CurrenciesCollectionResponse {
+  baseCurrency: string;
+  currencies: Currency[];
+}
+
+export interface BootstrapDataResponse {
+  products: Product[] | null;
+  currencies: CurrenciesCollectionResponse | null;
+  exchangeRates: ExchangeRateItem[] | null;
+}
+
+export interface BatchPriceUpdateItem extends Partial<Product> {
+  id: string;
+}
+
+export interface ApiRequestContext {
+  workspaceMode?: string;
+  companyId?: string;
+}
+
+export interface SaveCurrencyPayload {
+  code: string;
+  name: string;
+  nameAr?: string;
+  symbol: string;
+  decimalPlaces?: number;
+  initialRateToBase?: number;
+}
+
+export interface SaveExchangeRatePayload {
+  sourceCurrency: string;
+  targetCurrency: string;
+  rate: number;
+  effectiveFrom?: string;
+  expiryDate?: string | null;
+}
+
+export interface UpdateExchangeRatePayload {
+  rate?: number;
+  expiryDate?: string | null;
+  isActive?: boolean;
+}
+
+export interface CurrencyConversionResponse {
+  originalAmount: number;
+  fromCurrency: string;
+  toCurrency: string;
+  convertedAmount: number;
+  exchangeRate: number;
+  isInverse: boolean;
+}
+
+export interface HealthCheckResponse {
+  status: string;
+  postgresConfigured: boolean;
+  databaseType: string;
+}
+
 export const api = {
   // Parallel Bootstrap Helper (#16 Parallel Requests)
-  async fetchBootstrapData(): Promise<{
-    products: Product[] | null;
-    currencies: { baseCurrency: string; currencies: Currency[] } | null;
-    exchangeRates: ExchangeRateItem[] | null;
-  }> {
+  async fetchBootstrapData(): Promise<BootstrapDataResponse> {
     const [productsRes, currenciesRes, ratesRes] = await Promise.allSettled([
       this.getProducts(),
       this.getCurrencies(),
@@ -174,8 +233,8 @@ export const api = {
   },
 
   async batchUpdateProductPrices(
-    updates: Array<{ id: string } & Partial<Product>>,
-    context?: { workspaceMode?: string; companyId?: string }
+    updates: BatchPriceUpdateItem[],
+    context?: ApiRequestContext
   ): Promise<{ updatedCount: number }> {
     if (!Array.isArray(updates) || updates.length === 0) {
       return { updatedCount: 0 };
@@ -208,21 +267,14 @@ export const api = {
   },
 
   // Currencies & Exchange Rates API
-  async getCurrencies(): Promise<{ baseCurrency: string; currencies: Currency[] }> {
-    return deduplicatedGetJson<{ baseCurrency: string; currencies: Currency[] }>(
+  async getCurrencies(): Promise<CurrenciesCollectionResponse> {
+    return deduplicatedGetJson<CurrenciesCollectionResponse>(
       '/api/currencies',
       'Failed to fetch currencies'
     );
   },
 
-  async saveCurrency(data: {
-    code: string;
-    name: string;
-    nameAr?: string;
-    symbol: string;
-    decimalPlaces?: number;
-    initialRateToBase?: number;
-  }): Promise<Currency> {
+  async saveCurrency(data: SaveCurrencyPayload): Promise<Currency> {
     const res = await fetchWithTimeout('/api/currencies', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -260,13 +312,7 @@ export const api = {
     return deduplicatedGetJson<ExchangeRateItem[]>(url, 'Failed to fetch exchange rate history');
   },
 
-  async saveExchangeRate(data: {
-    sourceCurrency: string;
-    targetCurrency: string;
-    rate: number;
-    effectiveFrom?: string;
-    expiryDate?: string | null;
-  }): Promise<ExchangeRateItem> {
+  async saveExchangeRate(data: SaveExchangeRatePayload): Promise<ExchangeRateItem> {
     const res = await fetchWithTimeout('/api/exchange-rates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -282,7 +328,7 @@ export const api = {
 
   async updateExchangeRate(
     id: string,
-    updates: { rate?: number; expiryDate?: string | null; isActive?: boolean }
+    updates: UpdateExchangeRatePayload
   ): Promise<ExchangeRateItem> {
     const res = await fetchWithTimeout(`/api/exchange-rates/${id}`, {
       method: 'PUT',
@@ -314,14 +360,7 @@ export const api = {
     from: string,
     to: string,
     timestamp?: string
-  ): Promise<{
-    originalAmount: number;
-    fromCurrency: string;
-    toCurrency: string;
-    convertedAmount: number;
-    exchangeRate: number;
-    isInverse: boolean;
-  }> {
+  ): Promise<CurrencyConversionResponse> {
     const params = new URLSearchParams({
       amount: amount.toString(),
       from,
@@ -329,11 +368,14 @@ export const api = {
     });
     if (timestamp) params.set('timestamp', timestamp);
 
-    return deduplicatedGetJson(`/api/convert?${params.toString()}`, 'Conversion failed');
+    return deduplicatedGetJson<CurrencyConversionResponse>(
+      `/api/convert?${params.toString()}`,
+      'Conversion failed'
+    );
   },
 
   // Health check
-  async checkHealth(): Promise<{ status: string; postgresConfigured: boolean; databaseType: string }> {
-    return deduplicatedGetJson('/api/health', 'Health check failed');
+  async checkHealth(): Promise<HealthCheckResponse> {
+    return deduplicatedGetJson<HealthCheckResponse>('/api/health', 'Health check failed');
   },
 };

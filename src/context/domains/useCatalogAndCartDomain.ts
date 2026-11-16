@@ -765,8 +765,8 @@ export function useCatalogAndCartDomain({
           id: apiRes.id,
           updatedAt: apiRes.updatedAt || nowIso,
         };
-      } catch (err: any) {
-        if (err?.message?.includes('Duplicate')) {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.message.includes('Duplicate')) {
           throw err;
         }
         console.warn('Backend API createProduct failed, saving locally:', err);
@@ -870,8 +870,8 @@ export function useCatalogAndCartDomain({
         );
         triggerHaptic('light', settings.hapticsEnabled);
         return mergedUpdated;
-      } catch (err: any) {
-        if (err?.message?.includes('Duplicate')) {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.message.includes('Duplicate')) {
           throw err;
         }
         console.warn('Backend API updateProduct failed, applying local update:', err);

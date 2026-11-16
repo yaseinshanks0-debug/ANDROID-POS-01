@@ -601,7 +601,7 @@ export function computeForecasts(
     for (const ret of txReturns) {
       for (const ri of ret.items || []) {
         const prod = productsMap.get(ri.productId);
-        const rSaleUnit = (ri as any).saleUnit;
+        const rSaleUnit = ri.saleUnit;
         const retUnits =
           rSaleUnit === 'pack' && prod?.unitsPerPack && prod.unitsPerPack > 1
             ? Math.max(0, ri.quantity) * prod.unitsPerPack

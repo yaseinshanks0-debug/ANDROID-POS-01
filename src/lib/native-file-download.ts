@@ -303,13 +303,13 @@ export function triggerUniversalFileDownload(
         savedPath: safeFileName,
         method: 'browser_blob',
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
         ok: false,
         fileName: safeFileName,
         savedPath: safeFileName,
         method: 'browser_blob',
-        error: err?.message || 'Download failed',
+        error: err instanceof Error ? err.message : 'Download failed',
       };
     }
   }

@@ -20,6 +20,13 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { ProductCustomFields } from '../lib/types';
 
+export interface CustomFieldValidationRules {
+  min?: number;
+  max?: number;
+  pattern?: string;
+  [key: string]: unknown;
+}
+
 // 0. Companies / Tenants (Phase 11 Additive Table)
 export const companies = pgTable(
   'companies',
@@ -133,7 +140,7 @@ export const users = pgTable(
     passwordHash: text('password_hash'),
     passwordSalt: text('password_salt'),
     mustChangePassword: boolean('must_change_password').default(false).notNull(),
-    tourProgressJson: jsonb('tour_progress_json').$type<Record<string, any>>().default({}),
+    tourProgressJson: jsonb('tour_progress_json').$type<Record<string, unknown>>().default({}),
     isActive: boolean('is_active').default(true).notNull(),
     lastLoginAt: timestamp('last_login_at'),
     deactivatedAt: timestamp('deactivated_at'),
@@ -546,7 +553,7 @@ export const customFieldDefinitions = pgTable('custom_field_definitions', {
   isRequired: boolean('is_required').default(false).notNull(),
   defaultValue: text('default_value'),
   options: jsonb('options').$type<string[]>(),
-  validationRules: jsonb('validation_rules').$type<Record<string, any>>(),
+  validationRules: jsonb('validation_rules').$type<CustomFieldValidationRules>(),
   isSearchable: boolean('is_searchable').default(false).notNull(),
   showOnReceipt: boolean('show_on_receipt').default(false).notNull(),
   showInList: boolean('show_in_list').default(true).notNull(),
@@ -722,7 +729,7 @@ export const intelligenceLifecycleItems = pgTable(
     explanationAr: text('explanation_ar').notNull(),
     recommendationEn: text('recommendation_en').notNull(),
     recommendationAr: text('recommendation_ar').notNull(),
-    evidenceJson: jsonb('evidence_json').$type<Record<string, any>>().default({}).notNull(),
+    evidenceJson: jsonb('evidence_json').$type<Record<string, unknown>>().default({}).notNull(),
     status: text('status').default('ACTIVE').notNull(), // 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED' | 'DISMISSED'
     conditionHash: text('condition_hash').notNull(),
     firstDetectedAt: timestamp('first_detected_at').defaultNow().notNull(),
@@ -780,7 +787,7 @@ export const intelligenceLifecycleEvents = pgTable(
     performedByRole: text('performed_by_role').notNull(),
     note: text('note'),
     actionType: text('action_type'),
-    metadataJson: jsonb('metadata_json').$type<Record<string, any>>().default({}),
+    metadataJson: jsonb('metadata_json').$type<Record<string, unknown>>().default({}),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [

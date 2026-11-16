@@ -546,11 +546,14 @@ export function getTourStepsForRole(
 
 export function isTourStepAccessibleForUser(
   step: TrainingTourStep,
-  user?: Pick<POSUser, 'id' | 'role' | 'systemRole' | 'capabilities' | 'permissions'> | null
+  user?: Pick<
+    POSUser,
+    'id' | 'role' | 'systemRole' | 'capabilities' | 'permissions' | 'isActive'
+  > | null
 ): boolean {
   if (!step?.requiredCapability) return true;
   if (!user) return true;
-  return userHasCapability(user as any, step.requiredCapability);
+  return userHasCapability(user, step.requiredCapability);
 }
 
 /**

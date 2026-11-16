@@ -16,13 +16,27 @@ import {
   INITIAL_USERS,
 } from '../lib/initial-data';
 import { DEFAULT_BASELINE_EXCHANGE_RATES } from '../lib/pos-calculations';
-import { Customer, Product, StockMovement, Transaction } from '../lib/types';
 import {
+  isRecord,
+  type Customer,
+  type ExchangeRateHistoryEntry,
+  type PaymentMethod,
+  type POSUser,
+  type Product,
+  type RolePermissions,
+  type StockMovement,
+  type StockMovementType,
+  type Transaction,
+} from '../lib/types';
+import type {
   AnalyticsDatasetSnapshot,
+  AvailabilityStatusAtRequest,
   PurchaseOrderRecordInput,
   ReturnRecordInput,
+  UnavailabilityReason,
   UnmetDemandFulfillmentLinkRecord,
   UnmetDemandFulfillmentLinkStatus,
+  UnmetDemandFulfillmentStatus,
   UnmetDemandRequestInput,
   UnmetDemandRequestRecord,
 } from './analytics.types';
@@ -82,6 +96,118 @@ export interface LoadAnalyticsDatasetOptions {
  * `sales`, `sale_items`, `returns`, `return_items`, `purchases`, `stock_movements`, `customers`, `users`, `unmet_demand_requests`, `unmet_demand_fulfillments`)
  * in a strictly read-only, deduplicated manner with SQL date/status predicate pushdown (PERF-05).
  */
+interface LocalStoreSettingsSnapshot {
+  exchangeRates?: Record<string, number>;
+}
+
+interface LocalStoreStateSnapshot {
+  products?: Product[];
+  transactions?: Transaction[];
+  returns?: ReturnRecordInput[];
+  purchases?: PurchaseOrderRecordInput[];
+  customers?: Customer[];
+  stockMovements?: StockMovement[];
+  users?: PlatformUserRecord[];
+  unmetDemandRequests?: UnmetDemandRequestRecord[];
+  settings?: LocalStoreSettingsSnapshot;
+  exchangeRateHistory?: ExchangeRateHistoryEntry[];
+}
+
+interface PlatformUserRecord extends Partial<POSUser> {
+  id: string;
+  companyId?: string;
+  branchId?: string;
+}
+
+interface PlatformBranchRecord {
+  id: string;
+  companyId?: string;
+  name?: string;
+  nameAr?: string;
+  code?: string;
+  terminalNames?: string[];
+}
+
+function toPaymentMethod(value: string | null | undefined): PaymentMethod {
+  if (
+    value === 'cash' ||
+    value === 'bank_transfer' ||
+    value === 'qr_nfc' ||
+    value === 'card'
+  ) {
+    return value;
+  }
+  return 'cash';
+}
+
+function toPurchaseOrderStatus(
+  value: string | null | undefined
+): PurchaseOrderRecordInput['status'] {
+  if (value === 'ordered' || value === 'received' || value === 'cancelled') {
+    return value;
+  }
+  return 'received';
+}
+
+function toStockMovementType(value: string | null | undefined): StockMovementType {
+  if (
+    value === 'sale' ||
+    value === 'restock' ||
+    value === 'damage' ||
+    value === 'loss' ||
+    value === 'audit'
+  ) {
+    return value;
+  }
+  return 'audit';
+}
+
+function toAvailabilityStatus(
+  value: string | null | undefined
+): AvailabilityStatusAtRequest {
+  if (
+    value === 'OUT_OF_STOCK' ||
+    value === 'INSUFFICIENT_QUANTITY' ||
+    value === 'EXPIRED' ||
+    value === 'DISCONTINUED' ||
+    value === 'UNREGISTERED' ||
+    value === 'TEMPORARILY_UNAVAILABLE'
+  ) {
+    return value;
+  }
+  return 'OUT_OF_STOCK';
+}
+
+function toUnavailabilityReason(
+  value: string | null | undefined
+): UnavailabilityReason {
+  if (
+    value === 'OUT_OF_STOCK' ||
+    value === 'EXPIRED' ||
+    value === 'DISCONTINUED' ||
+    value === 'NOT_STOCKED' ||
+    value === 'TEMPORARILY_UNAVAILABLE' ||
+    value === 'OTHER'
+  ) {
+    return value;
+  }
+  return 'OUT_OF_STOCK';
+}
+
+function toFulfillmentStatus(
+  value: string | null | undefined
+): UnmetDemandFulfillmentStatus {
+  if (
+    value === 'unfulfilled' ||
+    value === 'partially_fulfilled' ||
+    value === 'fulfilled_later' ||
+    value === 'cancelled'
+  ) {
+    return value;
+  }
+  return 'unfulfilled';
+}
+
 export async function loadServerAnalyticsDataset(
   options?: LoadAnalyticsDatasetOptions
 ): Promise<AnalyticsDatasetSnapshot> {
@@ -107,13 +233,14 @@ export async function loadServerAnalyticsDataset(
     return cachedSnapshot.snapshot;
   }
 
-  let localStoreState: any = null;
+  let localStoreState: LocalStoreStateSnapshot | null = null;
   let localProducts: Product[] | null = null;
 
   try {
     if (storeMtime > 0) {
       const raw = fs.readFileSync(stateFile, 'utf-8');
-      localStoreState = JSON.parse(raw);
+      const parsed: unknown = JSON.parse(raw);
+      localStoreState = isRecord(parsed) ? (parsed as LocalStoreStateSnapshot) : null;
     }
   } catch {
     // Ignore read errors and fall back cleanly
@@ -122,9 +249,9 @@ export async function loadServerAnalyticsDataset(
   try {
     if (prodMtime > 0) {
       const raw = fs.readFileSync(prodFile, 'utf-8');
-      const parsed = JSON.parse(raw);
+      const parsed: unknown = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        localProducts = parsed;
+        localProducts = parsed as Product[];
       }
     }
   } catch {
@@ -138,7 +265,7 @@ export async function loadServerAnalyticsDataset(
   const pgPurchases: PurchaseOrderRecordInput[] = [];
   const pgStockMovements: StockMovement[] = [];
   const pgCustomers: Customer[] = [];
-  const pgUsers: any[] = [];
+  const pgUsers: PlatformUserRecord[] = [];
   const pgUnmetDemand: UnmetDemandRequestRecord[] = [];
 
   try {
@@ -289,7 +416,7 @@ export async function loadServerAnalyticsDataset(
             taxAmount: Number(s.taxAmount),
             discountAmount: Number(s.discountAmount || 0),
             grandTotal: Number(s.grandTotal),
-            paymentMethod: (s.paymentMethod as any) || 'cash',
+            paymentMethod: toPaymentMethod(s.paymentMethod),
             amountTendered: Number(s.amountTendered),
             changeDue: Number(s.changeDue || 0),
             customerId: s.customerId || undefined,
@@ -344,7 +471,7 @@ export async function loadServerAnalyticsDataset(
             purchaseNumber: p.purchaseNumber,
             branchId: p.branchId || undefined,
             totalAmount: Number(p.totalAmount),
-            status: (p.status as any) || 'received',
+            status: toPurchaseOrderStatus(p.status),
             invoiceDate:
               p.invoiceDate instanceof Date ? p.invoiceDate.toISOString() : String(p.invoiceDate),
             items: pItems.map((pi) => ({
@@ -363,7 +490,7 @@ export async function loadServerAnalyticsDataset(
           timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : String(m.timestamp),
           productId: m.productId,
           productName: m.productName,
-          type: (m.type as any) || 'audit',
+          type: toStockMovementType(m.type),
           quantityChange: Number(m.quantityChange),
           previousStock: Number(m.previousStock),
           newStock: Number(m.newStock),
@@ -478,10 +605,10 @@ export async function loadServerAnalyticsDataset(
                     ? String(udr.lastFulfilledAt)
                     : null,
               fulfillments: fulfillmentsByRequestId.get(udr.id) || undefined,
-              availabilityStatus: (udr.availabilityStatus as any) || 'OUT_OF_STOCK',
-              unavailabilityReason: (udr.unavailabilityReason as any) || 'OUT_OF_STOCK',
+              availabilityStatus: toAvailabilityStatus(udr.availabilityStatus),
+              unavailabilityReason: toUnavailabilityReason(udr.unavailabilityReason),
               confirmedPurchaseIntent: Boolean(udr.confirmedPurchaseIntent),
-              fulfillmentStatus: (udr.fulfillmentStatus as any) || 'unfulfilled',
+              fulfillmentStatus: toFulfillmentStatus(udr.fulfillmentStatus),
               customerId: udr.customerId || null,
               customerReference: udr.customerReference || null,
               unitSellingPriceSnapshot:
@@ -492,7 +619,7 @@ export async function loadServerAnalyticsDataset(
                 udr.unitCostPriceSnapshot !== null && udr.unitCostPriceSnapshot !== undefined
                   ? Number(udr.unitCostPriceSnapshot)
                   : null,
-              currencySnapshot: (udr.currencySnapshot as any) || 'SDG',
+              currencySnapshot: udr.currencySnapshot || 'SDG',
               exchangeRateSnapshot: Number(udr.exchangeRateSnapshot || 1),
               notes: udr.notes || null,
               recordedByUserId: udr.recordedByUserId || 'user-1',
@@ -584,44 +711,85 @@ export async function loadServerAnalyticsDataset(
       })
     : allUnmetDemandRequests;
 
-  const stateUsers = Array.isArray(localStoreState?.users) ? localStoreState.users : [];
-  let platformUsers: any[] = [];
-  let platformBranches: any[] = [];
+  const stateUsers: PlatformUserRecord[] = Array.isArray(localStoreState?.users)
+    ? localStoreState.users
+    : [];
+  let platformUsers: PlatformUserRecord[] = [];
+  let platformBranches: PlatformBranchRecord[] = [];
   const platformFile = path.join(getDataDir(), 'platform-onboarding-state.json');
   const platformMtime = getFileMtimeMs(platformFile);
   try {
     if (platformMtime > 0) {
-      const rawPlatform = JSON.parse(fs.readFileSync(platformFile, 'utf-8'));
-      if (Array.isArray(rawPlatform?.users)) {
-        platformUsers = rawPlatform.users.filter(
-          (u: any) => u.companyId !== 'comp-demo-practice' && !DEMO_USER_IDS.has(u.id)
-        );
-      }
-      if (Array.isArray(rawPlatform?.branches)) {
-        platformBranches = rawPlatform.branches.filter(
-          (b: any) => b.companyId !== 'comp-demo-practice'
-        );
+      const rawPlatform: unknown = JSON.parse(fs.readFileSync(platformFile, 'utf-8'));
+      if (isRecord(rawPlatform)) {
+        if (Array.isArray(rawPlatform.users)) {
+          platformUsers = rawPlatform.users.filter(
+            (u): u is PlatformUserRecord =>
+              isRecord(u) &&
+              typeof u.id === 'string' &&
+              u.companyId !== 'comp-demo-practice' &&
+              !DEMO_USER_IDS.has(u.id)
+          );
+        }
+        if (Array.isArray(rawPlatform.branches)) {
+          platformBranches = rawPlatform.branches.filter(
+            (b): b is PlatformBranchRecord =>
+              isRecord(b) &&
+              typeof b.id === 'string' &&
+              b.companyId !== 'comp-demo-practice'
+          );
+        }
       }
     }
   } catch {
     // Ignore platform file parse issues
   }
 
-  const usersById = new Map<string, any>();
+  const defaultPermissions: RolePermissions = {
+    canCheckout: true,
+    canManageProducts: false,
+    canEditPrices: false,
+    canManageInventory: false,
+    canVoidTransactions: false,
+    canManageExchangeRates: false,
+    canViewReports: false,
+    canManageUsers: false,
+    canApplyDiscounts: false,
+  };
+
+  const usersById = new Map<string, PlatformUserRecord>();
   for (const u of [...stateUsers, ...pgUsers, ...platformUsers]) {
     if (u && u.id && !DEMO_USER_IDS.has(u.id)) {
       usersById.set(u.id, { ...(usersById.get(u.id) || {}), ...u });
     }
   }
-  const users = Array.from(usersById.values());
+  const users: POSUser[] = Array.from(usersById.values()).map((u) => ({
+    ...u,
+    id: u.id,
+    name: u.name || 'POS User',
+    role: u.role || 'cashier',
+    terminalName: u.terminalName || 'POS Terminal 01',
+    avatarColor: u.avatarColor || '#0f766e',
+    isActive: u.isActive ?? true,
+    permissions: u.permissions || defaultPermissions,
+    lastActiveAt: u.lastActiveAt || new Date().toISOString(),
+  }));
 
-  const branchesById = new Map<string, any>();
+  const branchesById = new Map<string, PlatformBranchRecord>();
   for (const b of platformBranches) {
     if (b && b.id) {
       branchesById.set(b.id, { ...(branchesById.get(b.id) || {}), ...b });
     }
   }
-  const branches = Array.from(branchesById.values());
+  const branches: AnalyticsDatasetSnapshot['branches'] = Array.from(
+    branchesById.values()
+  ).map((b) => ({
+    id: b.id,
+    name: b.name || b.id,
+    nameAr: b.nameAr || b.name || b.id,
+    code: b.code || b.id,
+    terminalNames: Array.isArray(b.terminalNames) ? b.terminalNames : [],
+  }));
 
   const exchangeRates: Record<string, number> = {
     ...(localStoreState?.settings?.exchangeRates || {}),
@@ -672,7 +840,7 @@ export async function recordUnmetDemandRequestServer(params: {
   const dataset = await loadServerAnalyticsDataset({ companyId: params.companyId });
   const matchedServerUser = dataset.users.find(
     (u) => u && u.id === (params.claimingUserId || params.input?.recordedByUserId)
-  ) as (any & { companyId?: string }) | undefined;
+  );
   const resolvedCompanyId =
     params.companyId ||
     matchedServerUser?.companyId ||
@@ -770,10 +938,11 @@ export async function recordUnmetDemandRequestServer(params: {
       fs.mkdirSync(dataDir, { recursive: true });
     }
     const stateFile = path.join(dataDir, 'store-state.json');
-    let currentState: any = {};
+    let currentState: LocalStoreStateSnapshot = {};
     if (fs.existsSync(stateFile)) {
       try {
-        currentState = JSON.parse(fs.readFileSync(stateFile, 'utf-8')) || {};
+        const parsed: unknown = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+        currentState = isRecord(parsed) ? (parsed as LocalStoreStateSnapshot) : {};
       } catch {
         currentState = {};
       }
@@ -816,10 +985,11 @@ function persistUpdatedUnmetDemandRequestsToStoreState(
       fs.mkdirSync(dataDir, { recursive: true });
     }
     const stateFile = path.join(dataDir, 'store-state.json');
-    let currentState: any = {};
+    let currentState: LocalStoreStateSnapshot = {};
     if (fs.existsSync(stateFile)) {
       try {
-        currentState = JSON.parse(fs.readFileSync(stateFile, 'utf-8')) || {};
+        const parsed: unknown = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+        currentState = isRecord(parsed) ? (parsed as LocalStoreStateSnapshot) : {};
       } catch {
         currentState = {};
       }
@@ -885,9 +1055,7 @@ export async function fulfillUnmetDemandRequestFromSaleServer(params: {
     };
   }
 
-  const matchedUser = dataset.users.find((u) => u && u.id === claimingUserId) as
-    | (any & { companyId?: string; branchId?: string })
-    | undefined;
+  const matchedUser = dataset.users.find((u) => u && u.id === claimingUserId);
   if (!matchedUser) {
     return {
       valid: false,

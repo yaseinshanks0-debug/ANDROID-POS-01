@@ -5,11 +5,13 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import type { Request } from 'express';
 import {
   ALL_BACKUP_MODULE_IDS,
   analyzeBackupMergePreview,
   applyIntelligentBackupMerge,
-  BackupPayloadV1,
+  type BackupEnvelopeV1,
+  type BackupPayloadV1,
   normalizeEntityName,
   normalizePhone,
   remapBackupPayloadForNewCompany,
@@ -28,11 +30,14 @@ import {
   verifyAndUnpackBackupEnvelope,
 } from './backup-restore.service.ts';
 import {
-  AuthenticatedActorContext,
+  type AuthenticatedActorContext,
   createCompanyAndInitialOwner,
   createEmployeeAccount,
   loadPlatformState,
+  ReleasePlatformError,
+  type StoredUserRecord,
 } from './release-onboarding.service.ts';
+import { deriveLegacyPermissionsFromCapabilities } from '../lib/rbac-capabilities.ts';
 
 function buildSamplePayload(companyId: string, companyName: string, baseCurrency = 'SDG'): BackupPayloadV1 {
   const now = new Date().toISOString();
@@ -318,7 +323,7 @@ test('1. Full company backup packages all 15 modules, computes SHA-256 checksums
   assert.equal(unpacked.payload.transactions[0].exchangeRatesSnapshot?.SAR, 720);
 
   // Verify credentials were completely stripped
-  const exportedUser = unpacked.payload.employees[0] as any;
+  const exportedUser = unpacked.payload.employees[0] as unknown as Record<string, unknown>;
   assert.equal(exportedUser.passwordHash, undefined);
   assert.equal(exportedUser.passwordSalt, undefined);
   assert.equal(exportedUser.pin, undefined);
@@ -379,13 +384,16 @@ test('3. Encrypted backup with AES-256-GCM decrypts with valid password and reje
   // Missing password must fail
   assert.throws(
     () => verifyAndUnpackBackupEnvelope(encryptedEnvelope),
-    (err: any) => err.errorCode === 'BACKUP_PASSWORD_REQUIRED'
+    (err: unknown) =>
+      err instanceof ReleasePlatformError && err.errorCode === 'BACKUP_PASSWORD_REQUIRED'
   );
 
   // Wrong password must fail
   assert.throws(
     () => verifyAndUnpackBackupEnvelope(encryptedEnvelope, 'WrongPassword123'),
-    (err: any) => err.errorCode === 'INVALID_BACKUP_PASSWORD_OR_TAMPERED'
+    (err: unknown) =>
+      err instanceof ReleasePlatformError &&
+      err.errorCode === 'INVALID_BACKUP_PASSWORD_OR_TAMPERED'
   );
 
   // Correct password succeeds and verifies SHA-256 checksums
@@ -416,15 +424,17 @@ test('4. Tampered backup payload or mismatched module SHA-256 checksum is reject
   };
   assert.throws(
     () => verifyAndUnpackBackupEnvelope(tamperedMaster),
-    (err: any) => err.errorCode === 'BACKUP_CHECKSUM_MISMATCH'
+    (err: unknown) =>
+      err instanceof ReleasePlatformError && err.errorCode === 'BACKUP_CHECKSUM_MISMATCH'
   );
 
   // Tamper with module checksum
-  const tamperedModule: any = JSON.parse(JSON.stringify(envelope));
+  const tamperedModule = JSON.parse(JSON.stringify(envelope)) as BackupEnvelopeV1;
   tamperedModule.manifest.moduleChecksumsSha256.products = 'bad_module_hash';
   assert.throws(
     () => verifyAndUnpackBackupEnvelope(tamperedModule),
-    (err: any) => err.errorCode === 'MODULE_CHECKSUM_MISMATCH'
+    (err: unknown) =>
+      err instanceof ReleasePlatformError && err.errorCode === 'MODULE_CHECKSUM_MISMATCH'
   );
 });
 
@@ -664,7 +674,8 @@ test('7. End-to-end server backup, pre-restore checkpoint, restore in place, res
       createCompanyBackupArchive(cashierActor, {
         backupType: 'FULL_COMPANY',
       }),
-    (err: any) => err.errorCode === 'FORBIDDEN_MISSING_CAPABILITY'
+    (err: unknown) =>
+      err instanceof ReleasePlatformError && err.errorCode === 'FORBIDDEN_MISSING_CAPABILITY'
   );
 
   // 7B: Owner A creates a full backup of Company A with custom products & sales
@@ -695,7 +706,8 @@ test('7. End-to-end server backup, pre-restore checkpoint, restore in place, res
         envelope: backupA,
         ownerPassword: 'OwnerPassB!123',
       }),
-    (err: any) => err.errorCode === 'BACKUP_COMPANY_IDENTITY_MISMATCH'
+    (err: unknown) =>
+      err instanceof ReleasePlatformError && err.errorCode === 'BACKUP_COMPANY_IDENTITY_MISMATCH'
   );
 
   // 7D: Restore into Original Company A requires valid Owner A password and creates an automatic pre-restore checkpoint
@@ -705,7 +717,8 @@ test('7. End-to-end server backup, pre-restore checkpoint, restore in place, res
         envelope: backupA,
         ownerPassword: 'WrongPassword!',
       }),
-    (err: any) => err.errorCode === 'INVALID_OWNER_CREDENTIALS'
+    (err: unknown) =>
+      err instanceof ReleasePlatformError && err.errorCode === 'INVALID_OWNER_CREDENTIALS'
   );
 
   const inPlaceResult = restoreBackupIntoOriginalCompany(actorA, {
@@ -727,7 +740,7 @@ test('7. End-to-end server backup, pre-restore checkpoint, restore in place, res
     headers: { 'x-user-id': ownerAUser.id },
     query: {},
     body: {},
-  } as any;
+  } as unknown as Request;
 
   const newCompanyResult = restoreBackupAsNewCompany(mockReqForOwnerA, {
     envelope: backupA,
@@ -826,24 +839,31 @@ test('8. Client local fallback .backup envelopes (simpleHashHex) and unconfigure
   assert.equal(unpacked.integrityVerified, true);
   assert.equal(unpacked.payload.products.length, 1);
 
+  const localUser: StoredUserRecord = {
+    id: 'unassigned-operator',
+    companyId: 'comp-clean-store',
+    branchId: 'branch-comp-clean-store-main',
+    assignedBranchIds: ['branch-comp-clean-store-main'],
+    name: 'Store Owner',
+    nameAr: 'مالك المتجر',
+    username: 'owner',
+    role: 'admin',
+    systemRole: 'COMPANY_OWNER',
+    capabilities: ['backup.restore'],
+    passwordHash: null,
+    passwordSalt: null,
+    pin: '',
+    hasPassword: false,
+    mustChangePassword: false,
+    terminalName: 'Main POS',
+    terminalNameAr: 'نقطة البيع الرئيسية',
+    avatarColor: '#f59e0b',
+    permissions: deriveLegacyPermissionsFromCapabilities(['backup.restore']),
+    lastActiveAt: new Date().toISOString(),
+    isActive: true,
+  };
   const localActor: AuthenticatedActorContext = {
-    user: {
-      id: 'unassigned-operator',
-      companyId: 'comp-clean-store',
-      branchId: 'branch-comp-clean-store-main',
-      assignedBranchIds: ['branch-comp-clean-store-main'],
-      name: 'Store Owner',
-      username: 'owner',
-      role: 'admin',
-      systemRole: 'COMPANY_OWNER',
-      capabilities: unpacked.manifest.modulesIncluded.map(() => 'backup.restore') as any,
-      passwordHash: null,
-      passwordSalt: null,
-      pin: '',
-      hasPassword: false,
-      mustChangePassword: false,
-      isActive: true,
-    } as any,
+    user: localUser,
     company: {
       id: 'comp-clean-store',
       code: 'CMP-LOCAL',

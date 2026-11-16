@@ -8,8 +8,8 @@
  */
 
 import { formatCurrency } from '../../lib/pos-calculations';
-import { Product } from '../../lib/types';
-import {
+import type { Product } from '../../lib/types';
+import type {
   AnalyticsDatasetSnapshot,
   AnalyticsFilterParams,
   AnalyticsUserContext,
@@ -20,6 +20,7 @@ import {
   ForecastingResult,
   InventoryAnalyticsResult,
   SalesAnalyticsResult,
+  SmartInsightCategory,
   SmartInsightConfidenceLevel,
   SmartIntelligenceAlertItem,
   SmartReplenishmentRecommendationItem,
@@ -1116,7 +1117,7 @@ export function computeSmartStoreIntelligence(params: {
       a.category === 'BRANCH_IMBALANCE' || a.category === 'TRANSFER_OPPORTUNITY'
   );
 
-  const byCategory: Record<string, number> = {
+  const byCategory: Record<SmartInsightCategory, number> = {
     INVENTORY_RISK: 0,
     UNMET_DEMAND: 0,
     RISING_DEMAND: 0,
@@ -1159,7 +1160,7 @@ export function computeSmartStoreIntelligence(params: {
       branchTransferOpportunitiesCount: branchTransferOpportunities.length,
       totalTransferableUnits,
       expiringProductsCount,
-      byCategory: byCategory as any,
+      byCategory,
     },
     unmetDemand,
     smartAlerts: rawAlerts,

@@ -15,7 +15,7 @@
     "preview": "vite preview",
     "clean": "node -e \"const fs=require('node:fs');for(const p of ['dist','dist-server','electron/www','server.js'])fs.rmSync(p,{recursive:true,force:true});\"",
     "lint": "tsc --noEmit",
-    "test": "tsx --test --test-concurrency=1 src/lib/*.test.ts src/lib/__tests__/*.test.ts src/db/products-repo.test.ts src/db/__tests__/*.test.ts src/analytics/unmet-demand.validation.test.ts src/analytics/unmet-demand-fulfillment-api.test.ts src/analytics/phase4-demand-forecasting-replenishment.test.ts src/analytics/phase10-intelligence.test.ts src/analytics/unmet-demand-knowledge-base.test.ts",
+    "test": "tsx --test --test-concurrency=1 src/lib/*.test.ts src/lib/__tests__/*.test.ts src/db/products-repo.test.ts src/db/__tests__/*.test.ts src/analytics/unmet-demand.validation.test.ts src/analytics/unmet-demand-fulfillment-api.test.ts src/analytics/phase4-demand-forecasting-replenishment.test.ts src/analytics/phase10-intelligence.test.ts src/analytics/unmet-demand-knowledge-base.test.ts src/server/backup-restore-acceptance.test.ts src/server/fresh-installation-acceptance.test.ts",
     "test:live-db": "tsx --test --test-concurrency=1 src/db/exchange-rates-workflow.test.ts src/db/phase1-schema.test.ts src/analytics/analytics.test.ts src/analytics/phase11-release.test.ts src/analytics/phase95-lifecycle.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

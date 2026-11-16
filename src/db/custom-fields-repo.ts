@@ -4,20 +4,45 @@
  */
 
 import { db } from './index.ts';
-import { customFieldDefinitions, productCustomFieldValues, products } from './schema.ts';
-import { eq, and } from 'drizzle-orm';
+import {
+  customFieldDefinitions,
+  productCustomFieldValues,
+  products,
+  type CustomFieldValidationRules,
+} from './schema.ts';
+import { eq } from 'drizzle-orm';
+import type { ProductCustomFields } from '../lib/types.ts';
+
+export const CUSTOM_FIELD_DATA_TYPES = {
+  TEXT: 'text',
+  NUMBER: 'number',
+  DATE: 'date',
+  BOOLEAN: 'boolean',
+  DROPDOWN: 'dropdown',
+} as const;
+export type CustomFieldDataType =
+  (typeof CUSTOM_FIELD_DATA_TYPES)[keyof typeof CUSTOM_FIELD_DATA_TYPES];
+
+export type ParsedCustomFieldValue =
+  | string
+  | number
+  | boolean
+  | Date
+  | Record<string, unknown>
+  | unknown[]
+  | null;
 
 export interface CustomFieldDefinitionRecord {
   id: string;
   name: string;
   label: string;
   labelAr?: string | null;
-  dataType: 'text' | 'number' | 'date' | 'boolean' | 'dropdown' | string;
+  dataType: CustomFieldDataType | (string & {});
   description?: string | null;
   isRequired: boolean;
   defaultValue?: string | null;
   options?: string[] | null;
-  validationRules?: Record<string, any> | null;
+  validationRules?: CustomFieldValidationRules | null;
   isSearchable: boolean;
   showOnReceipt: boolean;
   showInList: boolean;
@@ -32,12 +57,12 @@ export interface ProductCustomFieldValueRecord {
   fieldName: string;
   fieldLabel: string;
   dataType: string;
-  value: any;
+  value: unknown;
   valueText?: string | null;
   valueNumber?: number | null;
   valueBoolean?: boolean | null;
   valueDate?: string | null;
-  valueJson?: any;
+  valueJson?: unknown;
 }
 
 /**
@@ -62,7 +87,7 @@ export async function getAllFieldDefinitions(): Promise<CustomFieldDefinitionRec
         isRequired: f.isRequired,
         defaultValue: f.defaultValue,
         options: (f.options as string[]) || null,
-        validationRules: (f.validationRules as Record<string, any>) || null,
+        validationRules: f.validationRules || null,
         isSearchable: f.isSearchable,
         showOnReceipt: f.showOnReceipt,
         showInList: f.showInList,
@@ -90,21 +115,25 @@ export async function getFieldDefinition(nameOrId: string): Promise<CustomFieldD
 /**
  * Create a new user-defined custom field definition without table alterations.
  */
-export async function createFieldDefinition(data: {
+export interface CreateFieldDefinitionInput {
   name: string;
   label: string;
   labelAr?: string;
-  dataType: 'text' | 'number' | 'date' | 'boolean' | 'dropdown';
+  dataType: CustomFieldDataType;
   description?: string;
   isRequired?: boolean;
   defaultValue?: string;
   options?: string[];
-  validationRules?: Record<string, any>;
+  validationRules?: CustomFieldValidationRules;
   isSearchable?: boolean;
   showOnReceipt?: boolean;
   showInList?: boolean;
   displayOrder?: number;
-}): Promise<CustomFieldDefinitionRecord> {
+}
+
+export async function createFieldDefinition(
+  data: CreateFieldDefinitionInput
+): Promise<CustomFieldDefinitionRecord> {
   const cleanName = data.name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
   const id = `cf-${cleanName}`;
 
@@ -154,10 +183,16 @@ export async function createFieldDefinition(data: {
 /**
  * Validate a candidate field value against field definition constraints.
  */
+export interface FieldValidationResult {
+  isValid: boolean;
+  error?: string;
+  parsedValue: ParsedCustomFieldValue;
+}
+
 export function validateFieldValue(
   def: CustomFieldDefinitionRecord,
-  value: any
-): { isValid: boolean; error?: string; parsedValue: any } {
+  value: unknown
+): FieldValidationResult {
   // Required check
   if (value === undefined || value === null || value === '') {
     if (def.isRequired) {
@@ -190,7 +225,10 @@ export function validateFieldValue(
     }
 
     case 'date': {
-      const parsedDate = new Date(value);
+      const parsedDate =
+        value instanceof Date
+          ? value
+          : new Date(typeof value === 'string' || typeof value === 'number' ? value : '');
       if (isNaN(parsedDate.getTime())) {
         return { isValid: false, error: `Field "${def.label}" must be a valid date.`, parsedValue: null };
       }
@@ -239,7 +277,7 @@ export function validateFieldValue(
 export async function setProductCustomFieldValue(
   productId: string,
   fieldNameOrId: string,
-  rawValue: any
+  rawValue: unknown
 ): Promise<ProductCustomFieldValueRecord> {
   const def = await getFieldDefinition(fieldNameOrId);
   if (!def) {
@@ -256,14 +294,14 @@ export async function setProductCustomFieldValue(
   let valueNumber: string | null = null;
   let valueBoolean: boolean | null = null;
   let valueDate: Date | null = null;
-  let valueJson: any = null;
+  let valueJson: unknown = null;
 
   if (def.dataType === 'number') {
     valueNumber = validation.parsedValue !== null ? Number(validation.parsedValue).toFixed(4) : null;
   } else if (def.dataType === 'date') {
-    valueDate = validation.parsedValue;
+    valueDate = validation.parsedValue instanceof Date ? validation.parsedValue : null;
   } else if (def.dataType === 'boolean') {
-    valueBoolean = validation.parsedValue;
+    valueBoolean = typeof validation.parsedValue === 'boolean' ? validation.parsedValue : null;
   } else if (typeof validation.parsedValue === 'object' && validation.parsedValue !== null) {
     valueJson = validation.parsedValue;
   } else {
@@ -300,8 +338,10 @@ export async function setProductCustomFieldValue(
     // Synchronize to denormalized products.custom_fields JSONB
     const prod = await db.select().from(products).where(eq(products.id, productId)).limit(1);
     if (prod.length > 0) {
-      const currentFields = (prod[0].customFields as Record<string, any>) || {};
-      currentFields[def.name] = validation.parsedValue;
+      const currentFields: ProductCustomFields = {
+        ...(prod[0].customFields || {}),
+        [def.name]: validation.parsedValue as ProductCustomFields[string],
+      };
       await db
         .update(products)
         .set({ customFields: currentFields, updatedAt: new Date() })
@@ -352,7 +392,7 @@ export async function getProductCustomFields(
         .where(eq(productCustomFieldValues.productId, productId));
 
       return res.map((r) => {
-        let value: any = null;
+        let value: unknown = null;
         if (r.dataType === 'number') value = r.valueNumber ? parseFloat(r.valueNumber) : null;
         else if (r.dataType === 'date') value = r.valueDate ? r.valueDate.toISOString() : null;
         else if (r.dataType === 'boolean') value = r.valueBoolean;

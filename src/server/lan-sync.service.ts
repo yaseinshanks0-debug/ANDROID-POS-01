@@ -3,19 +3,76 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Router, Request, Response } from 'express';
+import type { Router as _Router, Request, Response } from 'express';
+import { Router } from 'express';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import { getDataDir } from './runtime-paths.ts';
 import { validateServerTransactionsBatch } from '../lib/pos-calculations.ts';
+import type {
+  ActiveUserSession,
+  AppSettings,
+  BranchRecord,
+  CompanyProfile,
+  Currency,
+  Customer,
+  ExchangeRateHistoryEntry,
+  ExchangeRateItem,
+  POSUser,
+  Product,
+  StockMovement,
+  Transaction,
+} from '../lib/types.ts';
+import type { UnmetDemandRequestRecord } from '../analytics/analytics.types.ts';
 
 const LAN_SYNC_FILE = path.resolve(getDataDir(), 'lan-sync-state.json');
+
+export const LAN_SYNC_PLATFORMS = {
+  ANDROID: 'android',
+  WINDOWS: 'windows',
+  WEB: 'web',
+} as const;
+
+export type LanSyncPlatform =
+  (typeof LAN_SYNC_PLATFORMS)[keyof typeof LAN_SYNC_PLATFORMS];
+
+function toLanSyncPlatform(value: unknown): LanSyncPlatform {
+  if (value === LAN_SYNC_PLATFORMS.ANDROID || value === LAN_SYNC_PLATFORMS.WINDOWS) {
+    return value;
+  }
+  return LAN_SYNC_PLATFORMS.WEB;
+}
+
+export type ScopedProduct = Partial<Product> & {
+  id: string;
+  companyId?: string;
+  price?: number;
+  updatedAt?: string;
+};
+export type ScopedTransaction = Partial<Transaction> & {
+  id: string;
+  companyId?: string;
+  createdAt?: string;
+  timestamp?: string;
+};
+export type ScopedCustomer = Partial<Customer> & {
+  id: string;
+  companyId?: string;
+  totalDebt?: number;
+};
+export type ScopedStockMovement = Partial<StockMovement> & {
+  id: string;
+  companyId?: string;
+  date?: string;
+  timestamp?: string;
+};
+export type ScopedCurrency = Partial<Currency> & { code: string };
 
 export interface ConnectedLanDevice {
   deviceId: string;
   deviceName: string;
-  platform: 'android' | 'windows' | 'web';
+  platform: LanSyncPlatform;
   companyId: string;
   ipAddress: string;
   connectedAt: string;
@@ -28,12 +85,43 @@ export interface LiveSyncEventLog {
   timestamp: string;
   deviceId: string;
   deviceName: string;
-  platform: 'android' | 'windows' | 'web';
+  platform: LanSyncPlatform;
   companyId: string;
   operationType: string;
   summaryAr: string;
   summaryEn: string;
   revision: number;
+}
+
+export interface CompanyLiveSyncSnapshot {
+  companyProfile?: CompanyProfile;
+  products?: ScopedProduct[];
+  transactions?: ScopedTransaction[];
+  customers?: ScopedCustomer[];
+  stockMovements?: ScopedStockMovement[];
+  unmetDemandRequests?: UnmetDemandRequestRecord[];
+  currencies?: ScopedCurrency[];
+  exchangeRates?: Record<string, number>;
+  exchangeRateItems?: ExchangeRateItem[];
+  exchangeRateHistory?: ExchangeRateHistoryEntry[];
+  branches?: BranchRecord[];
+  users?: POSUser[];
+  activeSessions?: ActiveUserSession[];
+  categories?: Record<string, unknown>[];
+  settings?: Partial<AppSettings>;
+}
+
+export interface LanSyncIncomingPayload extends CompanyLiveSyncSnapshot {
+  companyId?: string;
+  deviceId?: string;
+  deviceName?: string;
+  replaceProductsCatalog?: boolean;
+  deletedProductIds?: string[];
+  deletedCustomerIds?: string[];
+  snapshot?: CompanyLiveSyncSnapshot & {
+    deletedProductIds?: string[];
+    deletedCustomerIds?: string[];
+  };
 }
 
 export interface CompanyLiveSyncState {
@@ -44,38 +132,22 @@ export interface CompanyLiveSyncState {
   lastUpdatedByDeviceName: string;
   deletedProductIds: string[];
   deletedCustomerIds: string[];
-  companyProfile?: any;
-  products: any[];
-  transactions: any[];
-  customers: any[];
-  stockMovements: any[];
-  unmetDemandRequests: any[];
-  currencies: any[];
+  companyProfile?: CompanyProfile;
+  products: ScopedProduct[];
+  transactions: ScopedTransaction[];
+  customers: ScopedCustomer[];
+  stockMovements: ScopedStockMovement[];
+  unmetDemandRequests: UnmetDemandRequestRecord[];
+  currencies: ScopedCurrency[];
   exchangeRates: Record<string, number>;
-  exchangeRateItems: any[];
-  exchangeRateHistory: any[];
-  branches: any[];
-  users: any[];
-  activeSessions: any[];
-  categories: any[];
-  settings?: any;
-  snapshot?: {
-    companyProfile?: any;
-    products?: any[];
-    transactions?: any[];
-    customers?: any[];
-    stockMovements?: any[];
-    unmetDemandRequests?: any[];
-    currencies?: any[];
-    exchangeRates?: Record<string, number>;
-    exchangeRateItems?: any[];
-    exchangeRateHistory?: any[];
-    branches?: any[];
-    users?: any[];
-    activeSessions?: any[];
-    categories?: any[];
-    settings?: any;
-  };
+  exchangeRateItems: ExchangeRateItem[];
+  exchangeRateHistory: ExchangeRateHistoryEntry[];
+  branches: BranchRecord[];
+  users: POSUser[];
+  activeSessions: ActiveUserSession[];
+  categories: Record<string, unknown>[];
+  settings?: Partial<AppSettings>;
+  snapshot?: CompanyLiveSyncSnapshot;
 }
 
 interface PersistedLanSyncStore {
@@ -206,15 +278,21 @@ export function detectLocalLanAddresses(port: number = 3000): {
   };
 }
 
-function getRecordTimestampMs(item: Record<string, any> | undefined): number {
+function getRecordTimestampMs(item: object | undefined): number {
   if (!item || typeof item !== 'object') return 0;
-  const raw = item.updatedAt || item.fulfilledAt || item.priceUpdatedAt || item.timestamp || item.createdAt;
+  const record = item as Record<string, unknown>;
+  const raw =
+    record.updatedAt ||
+    record.fulfilledAt ||
+    record.priceUpdatedAt ||
+    record.timestamp ||
+    record.createdAt;
   if (!raw) return 0;
   const parsed = Date.parse(String(raw));
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
-function mergeRecordsById<T extends Record<string, any>>(
+function mergeRecordsById<T extends object>(
   existingList: T[] = [],
   incomingList: T[] = [],
   keyField: string = 'id',
@@ -222,13 +300,13 @@ function mergeRecordsById<T extends Record<string, any>>(
 ): T[] {
   const map = new Map<string, T>();
   for (const item of existingList) {
-    const id = String(item?.[keyField] || '');
+    const id = String((item as Record<string, unknown>)?.[keyField] || '');
     if (id && (!deletedIdsSet || !deletedIdsSet.has(id))) {
       map.set(id, item);
     }
   }
   for (const item of incomingList) {
-    const id = String(item?.[keyField] || '');
+    const id = String((item as Record<string, unknown>)?.[keyField] || '');
     if (id && (!deletedIdsSet || !deletedIdsSet.has(id))) {
       const prev = map.get(id);
       if (!prev) {
@@ -250,7 +328,7 @@ function mergeRecordsById<T extends Record<string, any>>(
 
 export function mergeCompanyLiveSnapshot(
   current: CompanyLiveSyncState | undefined,
-  incomingRaw: Record<string, any>,
+  incomingRaw: LanSyncIncomingPayload,
   deviceMeta?: {
     deviceId?: string;
     deviceName?: string;
@@ -260,7 +338,7 @@ export function mergeCompanyLiveSnapshot(
   const nowIso = new Date().toISOString();
   const nextRevision = (current?.revision || 0) + 1;
 
-  const incSnap =
+  const incSnap: LanSyncIncomingPayload | NonNullable<LanSyncIncomingPayload['snapshot']> =
     incomingRaw?.snapshot && typeof incomingRaw.snapshot === 'object'
       ? incomingRaw.snapshot
       : incomingRaw || {};
@@ -303,20 +381,20 @@ export function mergeCompanyLiveSnapshot(
 
   const mergedProducts = Array.isArray(incSnap.products)
     ? incomingRaw?.replaceProductsCatalog
-      ? incSnap.products.filter((p: any) => p?.id && !deletedProdSet.has(p.id))
+      ? incSnap.products.filter((p) => p?.id && !deletedProdSet.has(p.id))
       : mergeRecordsById(prevSnap.products || [], incSnap.products, 'id', deletedProdSet)
-    : (prevSnap.products || []).filter((p: any) => p?.id && !deletedProdSet.has(p.id));
+    : (prevSnap.products || []).filter((p) => p?.id && !deletedProdSet.has(p.id));
 
   const rawMergedTransactions = Array.isArray(incSnap.transactions)
     ? mergeRecordsById(prevSnap.transactions || [], incSnap.transactions, 'id')
     : prevSnap.transactions || [];
 
   // Ensure voided status or higher debt settlement payments are never regressed by an older snapshot
-  const prevTxMap = new Map<string, any>();
+  const prevTxMap = new Map<string, ScopedTransaction>();
   for (const t of prevSnap.transactions || []) {
     if (t?.id) prevTxMap.set(t.id, t);
   }
-  const mergedTransactions = rawMergedTransactions.map((tx: any) => {
+  const mergedTransactions: ScopedTransaction[] = rawMergedTransactions.map((tx) => {
     const oldTx = prevTxMap.get(tx.id);
     if (!oldTx) return { ...tx, syncStatus: 'synced' };
     const isVoided = oldTx.status === 'voided' || tx.status === 'voided';
@@ -338,7 +416,7 @@ export function mergeCompanyLiveSnapshot(
 
   const mergedCustomers = Array.isArray(incSnap.customers)
     ? mergeRecordsById(prevSnap.customers || [], incSnap.customers, 'id', deletedCustSet)
-    : (prevSnap.customers || []).filter((c: any) => c?.id && !deletedCustSet.has(c.id));
+    : (prevSnap.customers || []).filter((c) => c?.id && !deletedCustSet.has(c.id));
 
   const mergedMovements = Array.isArray(incSnap.stockMovements)
     ? mergeRecordsById(prevSnap.stockMovements || [], incSnap.stockMovements, 'id')
@@ -465,7 +543,11 @@ function getConnectedDevicesList(companyId?: string): ConnectedLanDevice[] {
   return Array.from(deviceMap.values());
 }
 
-function broadcastSseEvent(eventType: string, payload: any, targetCompanyId?: string) {
+function broadcastSseEvent(
+  eventType: string,
+  payload: Record<string, unknown>,
+  targetCompanyId?: string
+) {
   const enrichedPayload = { type: eventType, ...payload };
   const serialized = `data: ${JSON.stringify(enrichedPayload)}\n\n`;
   for (const [clientId, client] of activeSseClients.entries()) {
@@ -492,7 +574,7 @@ lanSyncRouter.get('/info', (req: Request, res: Response) => {
   const companyId = String(req.query.companyId || req.headers['x-company-id'] || '').trim();
   const deviceId = String(req.query.deviceId || req.headers['x-device-id'] || '').trim();
   const deviceName = String(req.query.deviceName || '').trim();
-  const platform = (req.query.platform as any) || 'web';
+  const platform = toLanSyncPlatform(req.query.platform);
 
   if (deviceId) {
     const nowIso = new Date().toISOString();
@@ -772,10 +854,13 @@ lanSyncRouter.post('/push', (req: Request, res: Response) => {
       event: eventEntry,
       connectedDevices,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     res.status(500).json({
       ok: false,
-      error: err?.message || 'Failed to process live LAN sync push',
+      error:
+        err instanceof Error && err.message
+          ? err.message
+          : 'Failed to process live LAN sync push',
     });
   }
 });
