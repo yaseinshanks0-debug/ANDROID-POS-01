@@ -111,7 +111,13 @@ import {
   type UpdateExchangeRateInput,
   type UpdateExchangeRateResult,
 } from './domains/useCurrenciesAndSettingsDomain';
-import { useUserAccountsDomain } from './domains/useUserAccountsDomain';
+import {
+  useUserAccountsDomain,
+  type LoginCredentialsInput,
+  type LoginCredentialsResult,
+  type InitialOwnerSetupInput,
+  type InitialOwnerSetupResult,
+} from './domains/useUserAccountsDomain';
 import { useTrainingAndDemandDomain } from './domains/useTrainingAndDemandDomain';
 import { useBackupHydrationDomain } from './domains/useBackupHydrationDomain';
 import { useLanSyncDomain } from './domains/useLanSyncDomain';
@@ -196,10 +202,24 @@ export interface POSContextType {
   deleteBranch: (branchId: string) => void;
   onboardingChecklist: OnboardingChecklistStatus;
 
-  // Users, Role Permissions, Granular Capabilities & Multi-User Concurrent Active Sessions
+  // Users, Authentication, Role Permissions, Granular Capabilities & Multi-User Concurrent Active Sessions
   users: POSUser[];
   activeSessions: ActiveUserSession[];
   currentUser: POSUser;
+  isAuthenticated: boolean;
+  isScreenLocked: boolean;
+  pendingSwitchUserId: string | null;
+  loginWithCredentials: (input: LoginCredentialsInput) => Promise<LoginCredentialsResult>;
+  setupInitialOwnerAccount: (input: InitialOwnerSetupInput) => Promise<InitialOwnerSetupResult>;
+  setLegacyAccountPassword: (
+    userId: string,
+    newPassword: string,
+    newPin?: string
+  ) => Promise<{ ok: boolean; error?: string }>;
+  logoutCurrentUser: () => Promise<void>;
+  lockScreen: () => void;
+  requestAuthenticatedUserSwitch: (userId: string) => void;
+  cancelUserSwitchRequest: () => void;
   switchCurrentUser: (userId: string) => void;
   saveUser: (
     userData: Partial<POSUser> & { name: string; role: UserRole; password?: string }
@@ -1204,6 +1224,48 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const {
+    isAuthenticated,
+    isScreenLocked,
+    pendingSwitchUserId,
+    markSessionAuthenticated,
+    markSessionUnauthenticated,
+    loginWithCredentials,
+    setupInitialOwnerAccount,
+    setLegacyAccountPassword,
+    logoutCurrentUser,
+    lockScreen,
+    requestAuthenticatedUserSwitch,
+    cancelUserSwitchRequest,
+    switchCurrentUser,
+    saveUser,
+    deactivateUserAccount,
+    reactivateUserAccount,
+    resetUserPasswordOrPin,
+    deleteUserAccount,
+    clearAllUserAccounts,
+    removeUser,
+    toggleUserActiveSession,
+    hasPermission,
+    hasCapability,
+  } = useUserAccountsDomain({
+    users,
+    setUsers,
+    setActiveSessions,
+    currentUserId,
+    setCurrentUserId,
+    currentUser,
+    currentCompany,
+    currentCompanyId,
+    setCurrentCompanyId,
+    setCompanies,
+    setAllBranches,
+    setActiveBranchId,
+    activeBranchId,
+    workspaceMode,
+    settings,
+  });
+
+  const {
     isOnboardingModalOpen,
     setIsOnboardingModalOpen,
     onboardingModalInitialView,
@@ -1270,32 +1332,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSqliteDiagnostics,
     setIsSyncing,
     setLastSyncedAt,
-  });
-
-  const {
-    switchCurrentUser,
-    saveUser,
-    deactivateUserAccount,
-    reactivateUserAccount,
-    resetUserPasswordOrPin,
-    deleteUserAccount,
-    clearAllUserAccounts,
-    removeUser,
-    toggleUserActiveSession,
-    hasPermission,
-    hasCapability,
-  } = useUserAccountsDomain({
-    users,
-    setUsers,
-    setActiveSessions,
-    currentUserId,
-    setCurrentUserId,
-    currentUser,
-    currentCompany,
-    currentCompanyId,
-    activeBranchId,
-    workspaceMode,
-    settings,
+    onSessionAuthenticated: markSessionAuthenticated,
+    onSessionCleared: markSessionUnauthenticated,
   });
 
   const {
@@ -1470,6 +1508,16 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       users,
       activeSessions,
       currentUser,
+      isAuthenticated,
+      isScreenLocked,
+      pendingSwitchUserId,
+      loginWithCredentials,
+      setupInitialOwnerAccount,
+      setLegacyAccountPassword,
+      logoutCurrentUser,
+      lockScreen,
+      requestAuthenticatedUserSwitch,
+      cancelUserSwitchRequest,
       switchCurrentUser,
       saveUser,
       removeUser,
@@ -1486,6 +1534,16 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       users,
       activeSessions,
       currentUser,
+      isAuthenticated,
+      isScreenLocked,
+      pendingSwitchUserId,
+      loginWithCredentials,
+      setupInitialOwnerAccount,
+      setLegacyAccountPassword,
+      logoutCurrentUser,
+      lockScreen,
+      requestAuthenticatedUserSwitch,
+      cancelUserSwitchRequest,
       switchCurrentUser,
       saveUser,
       removeUser,
@@ -1617,6 +1675,16 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       users,
       activeSessions,
       currentUser,
+      isAuthenticated,
+      isScreenLocked,
+      pendingSwitchUserId,
+      loginWithCredentials,
+      setupInitialOwnerAccount,
+      setLegacyAccountPassword,
+      logoutCurrentUser,
+      lockScreen,
+      requestAuthenticatedUserSwitch,
+      cancelUserSwitchRequest,
       switchCurrentUser,
       saveUser,
       removeUser,
@@ -1742,6 +1810,16 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       users,
       activeSessions,
       currentUser,
+      isAuthenticated,
+      isScreenLocked,
+      pendingSwitchUserId,
+      loginWithCredentials,
+      setupInitialOwnerAccount,
+      setLegacyAccountPassword,
+      logoutCurrentUser,
+      lockScreen,
+      requestAuthenticatedUserSwitch,
+      cancelUserSwitchRequest,
       switchCurrentUser,
       saveUser,
       removeUser,

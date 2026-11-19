@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dqnamo-pos-offline-v5';
+const CACHE_NAME = 'dqnamo-pos-offline-v6';
 const APP_SHELL = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
@@ -41,12 +41,22 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // Never cache API calls or Service Worker script itself
-  if (url.pathname.startsWith('/api/') || url.pathname === '/sw.js') {
+  // Never intercept cross-origin requests, API calls, Service Worker script, or Vite dev/source modules
+  if (
+    url.origin !== self.location.origin ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname === '/sw.js' ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.endsWith('.ts') ||
+    url.pathname.endsWith('.tsx') ||
+    url.pathname.endsWith('.jsx')
+  ) {
     return;
   }
 
-  // Network-first strategy for navigation & static assets so new deployments apply immediately when online,
+  // Network-first strategy for navigation & production static assets so new deployments apply immediately when online,
   // with full cache fallback when offline.
   event.respondWith(
     fetch(request, { cache: 'no-cache' })

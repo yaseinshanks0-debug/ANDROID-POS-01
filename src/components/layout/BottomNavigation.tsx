@@ -56,7 +56,7 @@ export const BottomNavigation: React.FC = () => {
       role="navigation"
       aria-label="Main application navigation"
     >
-      <div className="max-w-[1600px] mx-auto px-1.5 sm:px-3 flex sm:grid sm:grid-cols-9 overflow-x-auto sm:overflow-visible no-scrollbar gap-1 h-16 items-center">
+      <div className="max-w-[1600px] mx-auto px-1 sm:px-3 grid grid-cols-9 overflow-hidden overscroll-none touch-manipulation gap-0.5 sm:gap-1 h-16 items-center">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -65,10 +65,11 @@ export const BottomNavigation: React.FC = () => {
           return (
             <button
               key={item.id}
+              type="button"
               data-testid={`nav-tab-${item.id}`}
               onClick={() => handleSelect(item.id)}
               aria-label={label}
-              className={`relative flex flex-col items-center justify-center shrink-0 min-w-[62px] sm:min-w-0 sm:w-full min-h-[48px] px-1.5 sm:px-2 py-1 transition-all select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 rounded-xl ${
+              className={`relative flex flex-col items-center justify-center min-w-0 w-full min-h-[48px] px-0.5 sm:px-2 py-1 transition-all select-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 rounded-xl ${
                 isActive ? 'text-amber-400 font-semibold' : 'text-neutral-400 hover:text-neutral-200'
               }`}
             >
@@ -82,7 +83,7 @@ export const BottomNavigation: React.FC = () => {
 
               <div className="relative z-10 flex flex-col items-center min-w-0 w-full">
                 <Icon className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform shrink-0 ${isActive ? 'scale-110' : ''}`} />
-                <span className="text-[9px] sm:text-[10px] tracking-tight mt-0.5 truncate max-w-full px-0.5">
+                <span className="text-[8px] sm:text-[10px] leading-tight tracking-tight mt-0.5 truncate max-w-full px-0.5">
                   {label}
                 </span>
               </div>

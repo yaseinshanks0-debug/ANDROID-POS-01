@@ -336,7 +336,11 @@ export async function setProductCustomFieldValue(
       });
 
     // Synchronize to denormalized products.custom_fields JSONB
-    const prod = await db.select().from(products).where(eq(products.id, productId)).limit(1);
+    const prod = await db
+      .select({ id: products.id, customFields: products.customFields })
+      .from(products)
+      .where(eq(products.id, productId))
+      .limit(1);
     if (prod.length > 0) {
       const currentFields: ProductCustomFields = {
         ...(prod[0].customFields || {}),

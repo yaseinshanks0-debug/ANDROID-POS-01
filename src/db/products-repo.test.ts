@@ -229,3 +229,43 @@ test('Problem #16: Multiple products created without barcodes (empty string or n
     await deleteProduct(prodNoBarcode2.id);
   }
 });
+
+test('Auto-generated placeholder SKU (ITEM-XXXX) auto-advances on collision instead of throwing Duplicate SKU', async () => {
+  const ts = Date.now();
+  const createdIds: string[] = [];
+
+  try {
+    const first = await createProduct({
+      name: `Placeholder SKU Item A (${ts})`,
+      sku: 'ITEM-0003',
+      barcode: '',
+      category: 'General',
+      costPrice: 5,
+      sellingPrice: 10,
+      stock: 4,
+      minStockAlert: 1,
+    });
+    createdIds.push(first.id);
+
+    const second = await createProduct({
+      name: `Placeholder SKU Item B (${ts})`,
+      sku: 'ITEM-0003',
+      barcode: '',
+      category: 'General',
+      costPrice: 6,
+      sellingPrice: 12,
+      stock: 8,
+      minStockAlert: 2,
+    });
+    createdIds.push(second.id);
+
+    assert.match(first.sku, /^ITEM-\d{4,}$/);
+    assert.match(second.sku, /^ITEM-\d{4,}$/);
+    assert.notEqual(first.sku, second.sku, 'Second product must receive a distinct auto-advanced ITEM-XXXX SKU');
+  } finally {
+    for (const id of createdIds) {
+      await deleteProduct(id);
+    }
+  }
+});
+

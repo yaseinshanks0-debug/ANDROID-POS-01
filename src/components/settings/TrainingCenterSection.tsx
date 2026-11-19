@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { usePOS } from '../../context/POSContext';
 import {
   TRAINING_TOUR_STEPS,
@@ -21,6 +21,7 @@ import {
   FlaskConical,
   Building2,
   ClipboardCheck,
+  ChevronDown,
   Lock,
 } from 'lucide-react';
 import { playTactileClick } from '../../lib/sound-fx';
@@ -40,6 +41,8 @@ export const TrainingCenterSection: React.FC = () => {
     onboardingChecklist,
   } = usePOS();
   const isAr = settings.language === 'ar';
+  const [isSectionOpen, setIsSectionOpen] = useState(false);
+  const [isChecklistOpen, setIsChecklistOpen] = useState(false);
 
   const completionPercent = calculateTourCompletionPercent(
     trainingTourProgress,
@@ -100,73 +103,94 @@ export const TrainingCenterSection: React.FC = () => {
   return (
     <AppCard
       data-testid="training-center-section"
-      className="space-y-5 bg-neutral-900/95 border-neutral-800 p-5 sm:p-6"
+      className={`${isSectionOpen ? 'space-y-5' : ''} bg-neutral-900/95 border-neutral-800 p-4 sm:p-5`}
     >
-      {/* Header & Action Toolbar (div:nth-of-type(2) > div:nth-of-type(1) in SettingsView) */}
-      <div className="flex flex-col gap-4 pb-4 border-b border-neutral-800/90">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-          <div className="flex items-start gap-3.5 min-w-0">
-            <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-              <GraduationCap className="w-5 h-5" />
-            </div>
-            <div className="min-w-0 space-y-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-base sm:text-lg font-extrabold text-white tracking-tight">
-                  {isAr
-                    ? 'مركز التدريب والتأسيس والجولة التعريفية'
-                    : 'Onboarding & Guided Training Center'}
-                </h3>
-                <span className="text-neutral-600" aria-hidden="true">
-                  ·
-                </span>
-                <span
-                  className={`text-xs font-bold ${
-                    workspaceMode === 'PRACTICE' ? 'text-amber-400' : 'text-emerald-400'
-                  }`}
-                >
-                  {workspaceMode === 'PRACTICE'
-                    ? isAr
-                      ? 'وضع التدريب التجريبي'
-                      : 'Practice Mode'
-                    : isAr
-                      ? currentCompany.displayNameAr || currentCompany.displayName
-                      : currentCompany.displayName}
-                </span>
-              </div>
-              <p className="text-xs text-neutral-400 tabular-nums">
-                {isAr ? (
-                  <>
-                    نسبة إتمام التدريب:{' '}
-                    <span className="font-mono font-bold text-amber-400">{completionPercent}%</span> ·{' '}
-                    <span className="font-mono font-bold text-neutral-200">
-                      {trainingTourProgress.completedStepIds.length}
-                    </span>{' '}
-                    من{' '}
-                    <span className="font-mono font-bold text-neutral-200">
-                      {TRAINING_TOUR_STEPS.length}
-                    </span>{' '}
-                    قسماً مكتملاً
-                  </>
-                ) : (
-                  <>
-                    Tour Completion:{' '}
-                    <span className="font-mono font-bold text-amber-400">{completionPercent}%</span> ·{' '}
-                    <span className="font-mono font-bold text-neutral-200">
-                      {trainingTourProgress.completedStepIds.length}
-                    </span>{' '}
-                    of{' '}
-                    <span className="font-mono font-bold text-neutral-200">
-                      {TRAINING_TOUR_STEPS.length}
-                    </span>{' '}
-                    modules completed
-                  </>
-                )}
-              </p>
-            </div>
+      {/* Collapsible Section Header Trigger */}
+      <button
+        type="button"
+        data-testid="training-center-toggle"
+        aria-expanded={isSectionOpen}
+        onClick={() => {
+          playTactileClick(settings.soundEnabled);
+          setIsSectionOpen((prev) => !prev);
+        }}
+        className={`w-full flex items-center justify-between gap-3 text-start cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 rounded-xl ${
+          isSectionOpen ? 'pb-4 border-b border-neutral-800/90' : ''
+        }`}
+      >
+        <div className="flex items-start gap-3.5 min-w-0">
+          <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+            <GraduationCap className="w-5 h-5" />
           </div>
+          <div className="min-w-0 space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-base sm:text-lg font-extrabold text-white tracking-tight">
+                {isAr
+                  ? 'مركز التدريب والتأسيس والجولة التعريفية'
+                  : 'Onboarding & Guided Training Center'}
+              </h3>
+              <span className="text-neutral-600" aria-hidden="true">
+                ·
+              </span>
+              <span
+                className={`text-xs font-bold ${
+                  workspaceMode === 'PRACTICE' ? 'text-amber-400' : 'text-emerald-400'
+                }`}
+              >
+                {workspaceMode === 'PRACTICE'
+                  ? isAr
+                    ? 'وضع التدريب التجريبي'
+                    : 'Practice Mode'
+                  : isAr
+                    ? currentCompany.displayNameAr || currentCompany.displayName
+                    : currentCompany.displayName}
+              </span>
+            </div>
+            <p className="text-xs text-neutral-400 tabular-nums">
+              {isAr ? (
+                <>
+                  نسبة إتمام التدريب:{' '}
+                  <span className="font-mono font-bold text-amber-400">{completionPercent}%</span> ·{' '}
+                  <span className="font-mono font-bold text-neutral-200">
+                    {trainingTourProgress.completedStepIds.length}
+                  </span>{' '}
+                  من{' '}
+                  <span className="font-mono font-bold text-neutral-200">
+                    {TRAINING_TOUR_STEPS.length}
+                  </span>{' '}
+                  قسماً مكتملاً
+                </>
+              ) : (
+                <>
+                  Tour Completion:{' '}
+                  <span className="font-mono font-bold text-amber-400">{completionPercent}%</span> ·{' '}
+                  <span className="font-mono font-bold text-neutral-200">
+                    {trainingTourProgress.completedStepIds.length}
+                  </span>{' '}
+                  of{' '}
+                  <span className="font-mono font-bold text-neutral-200">
+                    {TRAINING_TOUR_STEPS.length}
+                  </span>{' '}
+                  modules completed
+                </>
+              )}
+            </p>
+          </div>
+        </div>
 
-          {/* Primary Guided Tour CTA */}
-          <div className="flex items-center gap-2 shrink-0">
+        <ChevronDown
+          className={`w-5 h-5 text-neutral-400 transition-transform duration-200 shrink-0 ${
+            isSectionOpen ? 'rotate-180 text-amber-400' : ''
+          }`}
+        />
+      </button>
+
+      {isSectionOpen && (
+        <div className="space-y-5">
+          {/* Action Toolbar */}
+          <div className="flex flex-col gap-4 pb-4 border-b border-neutral-800/90">
+            {/* Primary Guided Tour CTA */}
+            <div className="flex items-center justify-end gap-2 flex-wrap">
             {trainingTourProgress.completedStepIds.length > 0 && (
               <TactileButton
                 variant="secondary"
@@ -195,8 +219,7 @@ export const TrainingCenterSection: React.FC = () => {
             >
               {isAr ? 'بدء الجولة التدريبية الشاملة' : 'Start Full Guided Tour'}
             </TactileButton>
-          </div>
-        </div>
+            </div>
 
         {/* Secondary Workspace & Company Actions Bar */}
         <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-neutral-800/60">
@@ -254,12 +277,21 @@ export const TrainingCenterSection: React.FC = () => {
         </div>
       </div>
 
-      {/* Live 8-Item Onboarding Checklist Card */}
+      {/* Live 8-Item Onboarding Checklist Card (Collapsible Dropdown) */}
       <div
         data-testid="onboarding-checklist-card"
-        className="p-4 rounded-2xl bg-neutral-950/70 border border-neutral-800/90 space-y-3.5"
+        className="p-4 rounded-2xl bg-neutral-950/70 border border-neutral-800/90 space-y-3"
       >
-        <div className="flex items-center justify-between gap-2 flex-wrap">
+        <button
+          type="button"
+          data-testid="onboarding-checklist-toggle"
+          aria-expanded={isChecklistOpen}
+          onClick={() => {
+            playTactileClick(settings.soundEnabled);
+            setIsChecklistOpen((prev) => !prev);
+          }}
+          className="w-full flex items-center justify-between gap-2 flex-wrap text-start cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 rounded-lg"
+        >
           <div className="flex items-center gap-2">
             <ClipboardCheck className="w-4 h-4 text-emerald-400 shrink-0" />
             <h4 className="text-xs sm:text-sm font-bold text-neutral-100">
@@ -268,11 +300,18 @@ export const TrainingCenterSection: React.FC = () => {
                 : 'Company Setup & Operational Readiness Checklist'}
             </h4>
           </div>
-          <span className="text-xs font-mono font-bold text-emerald-400 tabular-nums">
-            {onboardingChecklist.completedCount} / {onboardingChecklist.totalCount} ·{' '}
-            {onboardingChecklist.completionPercent}%
-          </span>
-        </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono font-bold text-emerald-400 tabular-nums">
+              {onboardingChecklist.completedCount} / {onboardingChecklist.totalCount} ·{' '}
+              {onboardingChecklist.completionPercent}%
+            </span>
+            <ChevronDown
+              className={`w-4 h-4 text-neutral-400 transition-transform duration-200 shrink-0 ${
+                isChecklistOpen ? 'rotate-180 text-emerald-400' : ''
+              }`}
+            />
+          </div>
+        </button>
 
         <div className="w-full h-1.5 rounded-full bg-neutral-900 overflow-hidden">
           <div
@@ -281,26 +320,28 @@ export const TrainingCenterSection: React.FC = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-          {checklistItems.map((item) => (
-            <div
-              key={item.id}
-              data-testid={`checklist-item-${item.id}`}
-              className={`px-3 py-2.5 rounded-xl border flex items-center gap-2.5 text-xs font-semibold leading-snug transition-colors ${
-                item.done
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
-                  : 'bg-neutral-900/60 border-neutral-800/80 text-neutral-300'
-              }`}
-            >
-              <CheckCircle2
-                className={`w-4 h-4 shrink-0 ${
-                  item.done ? 'text-emerald-400' : 'text-neutral-600'
+        {isChecklistOpen && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-0.5">
+            {checklistItems.map((item) => (
+              <div
+                key={item.id}
+                data-testid={`checklist-item-${item.id}`}
+                className={`px-3 py-2.5 rounded-xl border flex items-center gap-2.5 text-xs font-semibold leading-snug transition-colors ${
+                  item.done
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
+                    : 'bg-neutral-900/60 border-neutral-800/80 text-neutral-300'
                 }`}
-              />
-              <span>{isAr ? item.labelAr : item.labelEn}</span>
-            </div>
-          ))}
-        </div>
+              >
+                <CheckCircle2
+                  className={`w-4 h-4 shrink-0 ${
+                    item.done ? 'text-emerald-400' : 'text-neutral-600'
+                  }`}
+                />
+                <span>{isAr ? item.labelAr : item.labelEn}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Grid of all 13 Interactive Training Modules */}
@@ -345,6 +386,8 @@ export const TrainingCenterSection: React.FC = () => {
           );
         })}
       </div>
+        </div>
+      )}
     </AppCard>
   );
 };

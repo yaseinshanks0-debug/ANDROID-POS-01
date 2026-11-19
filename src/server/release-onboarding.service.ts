@@ -2363,10 +2363,28 @@ releasePlatformRouter.post('/auth/login', (req: Request, res: Response) => {
           'Password is required for this account.'
         );
       }
-    } else if (pin !== undefined && pin !== '') {
-      if ((matchedUser.pin || matchedUser.pinHash) && !verifyPinScrypt(String(pin), matchedUser)) {
+    } else if (matchedUser.pin || matchedUser.pinHash) {
+      const candidateSecret = pin !== undefined && String(pin).trim() !== ''
+        ? String(pin).trim()
+        : typeof password === 'string' && password.trim() !== ''
+        ? password.trim()
+        : '';
+      if (!candidateSecret) {
+        throw new ReleasePlatformError(
+          401,
+          'PIN_REQUIRED',
+          'PIN code is required for this account.'
+        );
+      }
+      if (!verifyPinScrypt(candidateSecret, matchedUser)) {
         throw new ReleasePlatformError(401, 'INVALID_CREDENTIALS', 'Incorrect PIN code.');
       }
+    } else {
+      throw new ReleasePlatformError(
+        401,
+        'PASSWORD_REQUIRED',
+        'No password or PIN is configured for this account.'
+      );
     }
 
     matchedUser.lastLoginAt = new Date().toISOString();
@@ -2402,6 +2420,27 @@ releasePlatformRouter.post('/auth/login', (req: Request, res: Response) => {
     });
   } catch (err) {
     sendPlatformError(res, err, 'Login failed');
+  }
+});
+
+// GET /api/auth/session — Verify current Bearer JWT / session token
+releasePlatformRouter.get('/auth/session', (req: Request, res: Response) => {
+  try {
+    const actor = resolveAuthenticatedActorFromRequest(req);
+    const state = loadPlatformState();
+    const companyBranches = state.branches.filter((b) => b.companyId === actor.company.id);
+    res.json({
+      success: true,
+      data: {
+        authenticated: true,
+        workspaceMode: actor.workspaceMode,
+        company: actor.company,
+        branches: companyBranches,
+        user: sanitizeStoredUser(actor.user),
+      },
+    });
+  } catch (err) {
+    sendPlatformError(res, err, 'Session verification failed');
   }
 });
 

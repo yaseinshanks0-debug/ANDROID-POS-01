@@ -34,6 +34,8 @@ import {
   PackageCheck,
   FileText,
   Truck,
+  Tag,
+  X,
 } from 'lucide-react';
 import { playTactileClick } from '../../lib/sound-fx';
 import { normalizeNumberInput, parseNormalizedNumber } from '../../lib/number-utils';
@@ -86,10 +88,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
     customers,
     selectedCustomer,
     setSelectedCustomer,
+    globalDiscountPercent,
+    setGlobalDiscountPercent,
+    globalDiscountAmount,
+    setGlobalDiscountAmount,
     processCheckout,
   } = usePOS();
   const t = getTranslation(settings.language);
   const isAr = settings.language === 'ar';
+
+  const [discountAmountInput, setDiscountAmountInput] = useState<string>(
+    globalDiscountAmount > 0 ? String(globalDiscountAmount) : ''
+  );
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [paymentStatus, setPaymentStatus] = useState<PaymentSettlementStatus>('paid');
@@ -150,13 +160,22 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
     return rounded.toFixed(2);
   };
 
-  // Reset modal state on open
+  // Keep local custom discount text input synced with global discount state
+  useEffect(() => {
+    const currentParsed = parseNormalizedNumber(discountAmountInput, 0);
+    if (Math.abs(currentParsed - globalDiscountAmount) > 0.0001) {
+      setDiscountAmountInput(globalDiscountAmount > 0 ? String(globalDiscountAmount) : '');
+    }
+  }, [globalDiscountAmount]);
+
+  // Reset modal state strictly on open (not when discount changes grandTotal)
   useEffect(() => {
     if (!isOpen) return;
     let isCancelled = false;
 
     setTenderCurrency(settings.currency);
     setTenderedInput(formatAmountForInput(cartTotals.grandTotal));
+    setDiscountAmountInput(globalDiscountAmount > 0 ? String(globalDiscountAmount) : '');
     setPaymentStatus('paid');
     setFulfillmentType('goods_and_invoice');
     setTransferReference('');
@@ -187,7 +206,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
     return () => {
       isCancelled = true;
     };
-  }, [isOpen, cartTotals.grandTotal, settings.currency]);
+  }, [isOpen, settings.currency]);
 
   // Converted total in selected tender currency
   const conversionRate = getRateToBase(tenderCurrency);
@@ -195,6 +214,34 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
     tenderCurrency === settings.currency
       ? cartTotals.grandTotal
       : cartTotals.grandTotal / (conversionRate || 1);
+
+  // When discount updates grandTotal while modal is open, keep tendered amount synced without wiping payment choices
+  const prevGrandTotalRef = useRef<number>(cartTotals.grandTotal);
+  useEffect(() => {
+    if (!isOpen) {
+      prevGrandTotalRef.current = cartTotals.grandTotal;
+      return;
+    }
+    if (Math.abs(prevGrandTotalRef.current - cartTotals.grandTotal) > 0.0001) {
+      prevGrandTotalRef.current = cartTotals.grandTotal;
+      const rate = getRateToBase(tenderCurrency);
+      const nextConvertedTotal =
+        tenderCurrency === settings.currency
+          ? cartTotals.grandTotal
+          : cartTotals.grandTotal / (rate || 1);
+      if (paymentStatus === 'paid') {
+        setTenderedInput(formatAmountForInput(nextConvertedTotal));
+      } else if (paymentStatus === 'unpaid') {
+        setTenderedInput('0');
+      } else if (paymentStatus === 'partial') {
+        const currentPaid = parseNormalizedNumber(tenderedInput, 0);
+        if (currentPaid >= nextConvertedTotal) {
+          setTenderedInput(formatAmountForInput(nextConvertedTotal / 2));
+        }
+      }
+      setErrorMessage(null);
+    }
+  }, [isOpen, cartTotals.grandTotal, tenderCurrency, paymentStatus]);
 
   // Explicit currency switch handler so user can freely edit or clear the input
   const handleSelectTenderCurrency = (newCurr: SupportedCurrency) => {
@@ -427,6 +474,26 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
                 </span>
               )}
             </div>
+            {cartTotals.discountAmount > 0 && (
+              <div
+                data-testid="payment-modal-discount-summary"
+                className="flex flex-wrap items-center gap-2 text-[11px] mt-1"
+              >
+                <span className="text-neutral-400">
+                  {t.subtotal}:{' '}
+                  <span className="font-mono text-neutral-200 tabular-nums">
+                    {formatCurrency(cartTotals.subtotal, settings.currency, settings.language)}
+                  </span>
+                </span>
+                <span className="text-neutral-600">•</span>
+                <span className="text-rose-400 font-semibold">
+                  {isAr ? 'التخفيض:' : `${t.discount}:`}{' '}
+                  <span className="font-mono tabular-nums">
+                    -{formatCurrency(cartTotals.discountAmount, settings.currency, settings.language)}
+                  </span>
+                </span>
+              </div>
+            )}
             <span className="text-[11px] text-emerald-400 font-semibold block mt-1">
               {isAr ? (
                 <>
@@ -716,6 +783,109 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
                 <Truck className="w-3.5 h-3.5 shrink-0" />
                 <span>{isAr ? 'استلام بضاعة فقط' : 'Goods Only'}</span>
               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Discount Section (بند التخفيض) */}
+        <div
+          data-testid="payment-modal-discount-section"
+          className="flex flex-col gap-2.5 p-3.5 bg-neutral-950/70 border border-neutral-800 rounded-2xl"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-neutral-200 flex items-center gap-1.5">
+              <Tag className="w-3.5 h-3.5 text-amber-400" />
+              <span>{isAr ? 'بند التخفيض' : 'Discount'}</span>
+            </span>
+            {cartTotals.discountAmount > 0 && (
+              <span className="text-xs font-mono font-bold text-rose-400 tabular-nums">
+                -{formatCurrency(cartTotals.discountAmount, settings.currency, settings.language)}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-neutral-400 font-semibold">
+              {isAr ? 'نسبة التخفيض %:' : 'Discount %:'}
+            </span>
+            <div className="flex gap-1">
+              {[0, 5, 10, 15].map((d) => {
+                const isChipActive = globalDiscountAmount === 0 && globalDiscountPercent === d;
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    data-testid={`payment-discount-chip-${d}`}
+                    onClick={() => {
+                      playTactileClick(settings.soundEnabled);
+                      setDiscountAmountInput('');
+                      setGlobalDiscountPercent(d);
+                    }}
+                    className={`px-2.5 py-1 text-[11px] font-mono rounded-lg border transition-colors ${
+                      isChipActive
+                        ? 'bg-amber-500 text-neutral-950 font-bold border-amber-400'
+                        : 'bg-neutral-850 text-neutral-300 border-neutral-750 hover:border-neutral-600'
+                    }`}
+                  >
+                    {d}%
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <label
+              htmlFor="payment-modal-discount-amount"
+              className="text-xs text-neutral-400 font-semibold whitespace-nowrap"
+            >
+              {isAr ? 'أو مبلغ التخفيض:' : 'Or Discount Amount:'}
+            </label>
+            <div className="relative flex-1 max-w-[220px]">
+              <input
+                id="payment-modal-discount-amount"
+                data-testid="payment-discount-amount-input"
+                type="text"
+                inputMode="decimal"
+                dir="ltr"
+                value={
+                  globalDiscountAmount === 0 && discountAmountInput === ''
+                    ? ''
+                    : discountAmountInput
+                }
+                onChange={(e) => {
+                  const cleaned = normalizeNumberInput(e.target.value);
+                  setDiscountAmountInput(cleaned);
+                  const parsed = parseNormalizedNumber(cleaned, 0);
+                  setGlobalDiscountAmount(Math.max(0, parsed));
+                }}
+                placeholder={isAr ? `المبلغ (${settings.currency})` : `0.00 (${settings.currency})`}
+                className={`w-full min-h-[38px] pl-3 pr-14 py-1 rounded-xl bg-neutral-900 border text-xs font-mono text-white placeholder:font-sans placeholder:text-neutral-500 focus:outline-none transition-colors ${
+                  globalDiscountAmount > 0
+                    ? 'border-amber-500 ring-1 ring-amber-500/30'
+                    : 'border-neutral-800 focus:border-amber-500'
+                }`}
+              />
+              <div className="absolute inset-y-0 right-2 flex items-center gap-1">
+                {globalDiscountAmount > 0 && (
+                  <button
+                    type="button"
+                    data-testid="payment-clear-discount-btn"
+                    onClick={() => {
+                      playTactileClick(settings.soundEnabled);
+                      setDiscountAmountInput('');
+                      setGlobalDiscountAmount(0);
+                    }}
+                    className="p-0.5 rounded text-neutral-400 hover:text-white"
+                    aria-label={isAr ? 'مسح مبلغ التخفيض' : 'Clear discount amount'}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+                <span className="text-[10px] font-mono font-bold text-amber-400 pointer-events-none">
+                  {settings.currency}
+                </span>
+              </div>
             </div>
           </div>
         </div>

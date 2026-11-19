@@ -499,9 +499,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   <p className="text-[11px] text-neutral-600 mt-0.5">
                     {isAr ? settings.addressAr : settings.address}
                   </p>
-                  <p className="text-[10px] text-neutral-500 mt-0.5">
-                    TAX ID: {settings.taxNumber}
-                  </p>
                   <p className="text-[10px] text-neutral-500">
                     TEL: {settings.phone}
                   </p>
@@ -539,12 +536,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                       <span className="font-bold font-mono">{transaction.transferReference}</span>
                     </div>
                   )}
-                  <div className="flex justify-between">
-                    <span>{isAr ? 'سعر الصرف وقت البيع:' : 'Sale Exchange Rate:'}</span>
-                    <span className="font-bold font-mono" dir="ltr">
-                      1 {converted.referenceCurrency} = {converted.historicalRate} SDG
-                    </span>
-                  </div>
                   {converted.originalCurrency !== settings.currency && (
                     <div className="flex justify-between text-neutral-600">
                       <span>{t.originalInvoiceValue}:</span>

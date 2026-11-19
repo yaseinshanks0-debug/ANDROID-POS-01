@@ -22,6 +22,10 @@ import { AppCard } from '../ui/AppCard';
 import { AppInput } from '../ui/AppInput';
 import { TactileButton } from '../ui/TactileButton';
 import {
+  validatePasswordStrengthPolicy,
+  validatePinPolicy,
+} from '../../lib/local-auth';
+import {
   Users,
   ShieldCheck,
   UserPlus,
@@ -77,10 +81,13 @@ const AVATAR_COLOR_OPTIONS = [
 export const UsersPermissionsSection: React.FC = () => {
   const {
     settings,
+    updateSettings,
     users,
     activeSessions,
     currentUser,
     switchCurrentUser,
+    requestAuthenticatedUserSwitch,
+    logoutCurrentUser,
     saveUser,
     deleteUserAccount,
     clearAllUserAccounts,
@@ -137,6 +144,7 @@ export const UsersPermissionsSection: React.FC = () => {
 
   // Granular Matrix Expansion & Password Reset State
   const [expandedUserMatrixId, setExpandedUserMatrixId] = useState<string | null>(null);
+  const [expandedQuickPermsUserId, setExpandedQuickPermsUserId] = useState<string | null>(null);
   const [resettingPasswordUserId, setResettingPasswordUserId] = useState<string | null>(null);
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [resetNewPin, setResetNewPin] = useState('');
@@ -290,6 +298,41 @@ export const UsersPermissionsSection: React.FC = () => {
     const existingUser = editingAccountId
       ? users.find((u) => u.id === editingAccountId)
       : undefined;
+
+    const cleanPassword = newPassword.trim();
+    const cleanPin = newPin.trim();
+
+    if (!existingUser && !cleanPassword && !cleanPin) {
+      setActionFeedback({
+        type: 'error',
+        message: isAr
+          ? 'يرجى تعيين كلمة مرور أو رمز دخول سريع PIN لحماية الحساب الجديد.'
+          : 'Please set a password or Quick PIN to protect the new account.',
+      });
+      return;
+    }
+
+    if (cleanPassword) {
+      const pwdCheck = validatePasswordStrengthPolicy(cleanPassword);
+      if (!pwdCheck.valid) {
+        setActionFeedback({
+          type: 'error',
+          message: isAr ? pwdCheck.messageAr || '' : pwdCheck.messageEn || '',
+        });
+        return;
+      }
+    }
+
+    if (cleanPin) {
+      const pinCheck = validatePinPolicy(cleanPin);
+      if (!pinCheck.valid) {
+        setActionFeedback({
+          type: 'error',
+          message: isAr ? pinCheck.messageAr || '' : pinCheck.messageEn || '',
+        });
+        return;
+      }
+    }
 
     const legacyRole = mapSystemRoleToLegacyRole(newSystemRole);
     const defaultCaps: CapabilityCode[] =
@@ -559,6 +602,67 @@ export const UsersPermissionsSection: React.FC = () => {
           >
             {isAr ? 'إضافة حساب جديد' : 'Add Account'}
           </TactileButton>
+        </div>
+      </div>
+
+      {/* Login & Password Gate Security Policy Bar */}
+      <div
+        data-testid="login-security-policy-bar"
+        className="p-3.5 rounded-2xl bg-neutral-950/90 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+      >
+        <div className="flex items-start gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+            <Lock className="w-4 h-4 text-amber-400" />
+          </div>
+          <div>
+            <p className="text-xs font-extrabold text-white">
+              {isAr
+                ? 'طلب تسجيل الدخول وكلمة المرور عند فتح التطبيق'
+                : 'Require Login & Password on App Launch'}
+            </p>
+            <p className="text-[11px] text-neutral-400 mt-0.5">
+              {isAr
+                ? 'عند التفعيل يطلب النظام اسم المستخدم وكلمة المرور أو رمز PIN قبل الوصول إلى نقطة البيع وعند تبديل الحسابات.'
+                : 'When enabled, operators must authenticate with password or PIN on launch and when switching accounts.'}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings.requireLoginOnStartup !== false}
+            data-testid="toggle-require-login-btn"
+            onClick={() =>
+              updateSettings({
+                requireLoginOnStartup: settings.requireLoginOnStartup === false,
+              })
+            }
+            className={`px-3 py-2 rounded-xl border text-xs font-extrabold transition-colors ${
+              settings.requireLoginOnStartup !== false
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                : 'bg-neutral-900 border-neutral-700 text-neutral-400'
+            }`}
+          >
+            {settings.requireLoginOnStartup !== false
+              ? isAr
+                ? 'مفعّل ✓'
+                : 'Enabled ✓'
+              : isAr
+              ? 'معطّل'
+              : 'Disabled'}
+          </button>
+          <button
+            type="button"
+            data-testid="settings-lock-logout-btn"
+            onClick={() => {
+              void logoutCurrentUser();
+            }}
+            className="px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 text-xs font-extrabold inline-flex items-center gap-1.5 transition-colors"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>{isAr ? 'قفل الشاشة الآن' : 'Lock Screen Now'}</span>
+          </button>
         </div>
       </div>
 
@@ -994,6 +1098,10 @@ export const UsersPermissionsSection: React.FC = () => {
               SYSTEM_ROLE_DEFINITIONS[0];
             const userCaps = deriveCapabilitiesFromUser(u);
             const isExpanded = expandedUserMatrixId === u.id;
+            const isQuickPermsExpanded = expandedQuickPermsUserId === u.id;
+            const enabledQuickPermCount = PERMISSION_ITEMS.filter((p) =>
+              Boolean(u.permissions?.[p.key])
+            ).length;
             const isConfirmingDelete = confirmDeleteUserId === u.id;
             const assignedBranches =
               Array.isArray(u.assignedBranchIds) && u.assignedBranchIds.length > 0
@@ -1113,7 +1221,7 @@ export const UsersPermissionsSection: React.FC = () => {
                       <button
                         type="button"
                         data-testid={`switch-to-user-btn-${u.id}`}
-                        onClick={() => switchCurrentUser(u.id)}
+                        onClick={() => requestAuthenticatedUserSwitch(u.id)}
                         className="px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-bold transition-colors"
                       >
                         {isAr ? 'تبديل للحساب' : 'Switch'}
@@ -1242,17 +1350,33 @@ export const UsersPermissionsSection: React.FC = () => {
                   })}
                 </div>
 
-                {/* Quick 9 Permissions + Toggle for Full 46-Capability Matrix */}
+                {/* Quick 9 Permissions (Collapsible Dropdown) + Toggle for Full 46-Capability Matrix */}
                 <div>
-                  <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                    <span className="text-[11px] font-bold text-neutral-400 flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      data-testid={`toggle-quick-permissions-btn-${u.id}`}
+                      aria-expanded={isQuickPermsExpanded}
+                      onClick={() =>
+                        setExpandedQuickPermsUserId((prev) => (prev === u.id ? null : u.id))
+                      }
+                      className="px-2.5 py-1.5 rounded-xl bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-800 text-[11px] font-bold text-neutral-200 inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                       <span>
                         {isAr
-                          ? 'تخصيص صلاحيات الحساب:'
-                          : 'Customize Account Permissions:'}
+                          ? 'تخصيص صلاحيات الحساب'
+                          : 'Customize Account Permissions'}
                       </span>
-                    </span>
+                      <span className="px-1.5 py-0.5 rounded bg-neutral-950 text-emerald-400 font-mono text-[10px]">
+                        {enabledQuickPermCount}/{PERMISSION_ITEMS.length}
+                      </span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-neutral-400 transition-transform duration-200 shrink-0 ${
+                          isQuickPermsExpanded ? 'rotate-180 text-amber-400' : ''
+                        }`}
+                      />
+                    </button>
 
                     <div className="flex items-center gap-3">
                       <button
@@ -1289,31 +1413,36 @@ export const UsersPermissionsSection: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {PERMISSION_ITEMS.map((perm) => {
-                      const enabled = Boolean(u.permissions?.[perm.key]);
-                      return (
-                        <label
-                          key={perm.key}
-                          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border text-xs cursor-pointer transition-colors ${
-                            enabled
-                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200 font-semibold'
-                              : 'bg-neutral-900/60 border-neutral-800 text-neutral-500'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={enabled}
-                            onChange={() => handleTogglePermission(u, perm.key)}
-                            className="rounded border-neutral-700 text-emerald-500 focus:ring-emerald-500"
-                          />
-                          <span className="truncate">
-                            {isAr ? perm.labelAr : perm.labelEn}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                  {isQuickPermsExpanded && (
+                    <div
+                      data-testid={`quick-permissions-grid-${u.id}`}
+                      className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2"
+                    >
+                      {PERMISSION_ITEMS.map((perm) => {
+                        const enabled = Boolean(u.permissions?.[perm.key]);
+                        return (
+                          <label
+                            key={perm.key}
+                            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border text-xs cursor-pointer transition-colors ${
+                              enabled
+                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200 font-semibold'
+                                : 'bg-neutral-900/60 border-neutral-800 text-neutral-500'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={enabled}
+                              onChange={() => handleTogglePermission(u, perm.key)}
+                              className="rounded border-neutral-700 text-emerald-500 focus:ring-emerald-500"
+                            />
+                            <span className="truncate">
+                              {isAr ? perm.labelAr : perm.labelEn}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* Expanded 11-Group / 46-Capability Matrix */}
                   {isExpanded && (

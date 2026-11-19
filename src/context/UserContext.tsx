@@ -12,10 +12,31 @@ import {
 } from '../lib/types';
 import { CapabilityCode } from '../lib/rbac-capabilities';
 
+import type {
+  LoginCredentialsInput,
+  LoginCredentialsResult,
+  InitialOwnerSetupInput,
+  InitialOwnerSetupResult,
+} from './domains/useUserAccountsDomain';
+
 export interface UserContextType {
   users: POSUser[];
   activeSessions: ActiveUserSession[];
   currentUser: POSUser;
+  isAuthenticated: boolean;
+  isScreenLocked: boolean;
+  pendingSwitchUserId: string | null;
+  loginWithCredentials: (input: LoginCredentialsInput) => Promise<LoginCredentialsResult>;
+  setupInitialOwnerAccount: (input: InitialOwnerSetupInput) => Promise<InitialOwnerSetupResult>;
+  setLegacyAccountPassword: (
+    userId: string,
+    newPassword: string,
+    newPin?: string
+  ) => Promise<{ ok: boolean; error?: string }>;
+  logoutCurrentUser: () => Promise<void>;
+  lockScreen: () => void;
+  requestAuthenticatedUserSwitch: (userId: string) => void;
+  cancelUserSwitchRequest: () => void;
   switchCurrentUser: (userId: string) => void;
   saveUser: (
     userData: Partial<POSUser> & { name: string; role: UserRole; password?: string }

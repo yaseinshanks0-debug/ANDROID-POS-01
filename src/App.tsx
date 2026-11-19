@@ -3,52 +3,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { POSProvider, usePOS } from './context/POSContext';
 import { AppHeader } from './components/layout/AppHeader';
 import { BottomNavigation } from './components/layout/BottomNavigation';
 import { CheckoutView } from './components/checkout/CheckoutView';
+import { DashboardView } from './components/dashboard/DashboardView';
+import { ProductsView } from './components/products/ProductsView';
+import { InventoryView } from './components/inventory/InventoryView';
+import { CustomersView } from './components/customers/CustomersView';
+import { SalesView } from './components/sales/SalesView';
+import { ExpensesView } from './components/expenses/ExpensesView';
+import { ReportsView } from './components/reports/ReportsView';
+import { SettingsView } from './components/settings/SettingsView';
+import { TrainingTourOverlay } from './components/tour/TrainingTourOverlay';
+import { UnmetDemandCaptureModal } from './components/analytics/UnmetDemandCaptureModal';
 import { PracticeModeBanner } from './components/onboarding/PracticeModeBanner';
 import { FirstRunOnboardingModal } from './components/onboarding/FirstRunOnboardingModal';
-import { ViewSkeleton } from './components/ui/ViewSkeleton';
+import { LoginScreen } from './components/auth/LoginScreen';
+import { ViewErrorBoundary } from './components/ui/ViewErrorBoundary';
+import { shouldShowLoginGate } from './lib/local-auth';
 import { StatusBar, Style } from '@capacitor/status-bar';
-
-// Lazy-load secondary views and heavy overlays for fast initial load & code splitting
-const DashboardView = lazy(() =>
-  import('./components/dashboard/DashboardView').then((m) => ({ default: m.DashboardView }))
-);
-const ProductsView = lazy(() =>
-  import('./components/products/ProductsView').then((m) => ({ default: m.ProductsView }))
-);
-const InventoryView = lazy(() =>
-  import('./components/inventory/InventoryView').then((m) => ({ default: m.InventoryView }))
-);
-const CustomersView = lazy(() =>
-  import('./components/customers/CustomersView').then((m) => ({ default: m.CustomersView }))
-);
-const SalesView = lazy(() =>
-  import('./components/sales/SalesView').then((m) => ({ default: m.SalesView }))
-);
-const ExpensesView = lazy(() =>
-  import('./components/expenses/ExpensesView').then((m) => ({ default: m.ExpensesView }))
-);
-const ReportsView = lazy(() =>
-  import('./components/reports/ReportsView').then((m) => ({ default: m.ReportsView }))
-);
-const SettingsView = lazy(() =>
-  import('./components/settings/SettingsView').then((m) => ({ default: m.SettingsView }))
-);
-const TrainingTourOverlay = lazy(() =>
-  import('./components/tour/TrainingTourOverlay').then((m) => ({ default: m.TrainingTourOverlay }))
-);
-const UnmetDemandCaptureModal = lazy(() =>
-  import('./components/analytics/UnmetDemandCaptureModal').then((m) => ({
-    default: m.UnmetDemandCaptureModal,
-  }))
-);
 
 function POSAppInner() {
   const {
+    settings,
+    workspaceMode,
+    isAuthenticated,
+    isScreenLocked,
+    pendingSwitchUserId,
     activeTab,
     setActiveTab,
     isTrainingTourOpen,
@@ -95,6 +78,22 @@ function POSAppInner() {
     };
   }, [setActiveTab]);
 
+  const showLoginGate = shouldShowLoginGate({
+    workspaceMode,
+    isAuthenticated,
+    isScreenLocked,
+    requireLoginOnStartup: settings.requireLoginOnStartup !== false,
+  });
+
+  if (showLoginGate) {
+    return (
+      <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans select-none">
+        <LoginScreen mode="fullscreen" />
+        <FirstRunOnboardingModal />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans select-none">
       {/* Persistent Practice Mode Top Indicator & Controls (visible only in Practice Mode) */}
@@ -103,15 +102,15 @@ function POSAppInner() {
       {/* Top Header */}
       <AppHeader onOpenCart={() => setIsMobileCartOpen(true)} />
 
-      {/* Main View Router with Skeleton Loading Suspense Boundary */}
+      {/* Main View Router with Scoped Error Boundary */}
       <main className="flex-1 flex flex-col overflow-x-hidden">
-        {activeTab === 'checkout' && (
-          <CheckoutView
-            isCartDrawerOpen={isMobileCartOpen}
-            onCloseCartDrawer={() => setIsMobileCartOpen(false)}
-          />
-        )}
-        <Suspense fallback={<ViewSkeleton />}>
+        <ViewErrorBoundary language={settings.language} resetKey={activeTab}>
+          {activeTab === 'checkout' && (
+            <CheckoutView
+              isCartDrawerOpen={isMobileCartOpen}
+              onCloseCartDrawer={() => setIsMobileCartOpen(false)}
+            />
+          )}
           {activeTab === 'dashboard' && <DashboardView />}
           {activeTab === 'products' && <ProductsView />}
           {activeTab === 'inventory' && <InventoryView />}
@@ -120,22 +119,25 @@ function POSAppInner() {
           {activeTab === 'expenses' && <ExpensesView />}
           {activeTab === 'reports' && <ReportsView />}
           {activeTab === 'settings' && <SettingsView />}
-        </Suspense>
+        </ViewErrorBoundary>
       </main>
 
-      {/* Fast Customer Unmet Demand Request Capture Modal (Lazy-loaded on demand) */}
+      {/* Fast Customer Unmet Demand Request Capture Modal */}
       {isUnmetDemandModalOpen && (
-        <Suspense fallback={null}>
+        <ViewErrorBoundary language={settings.language} resetKey="unmet-demand-modal">
           <UnmetDemandCaptureModal />
-        </Suspense>
+        </ViewErrorBoundary>
       )}
+
+      {/* Authenticated User Switch Modal */}
+      {pendingSwitchUserId && <LoginScreen mode="switch-user" />}
 
       {/* First-Run Onboarding, Practice Mode & Company Workspace Modal */}
       <FirstRunOnboardingModal />
 
-      {/* Interactive Guided Training Tour Overlay (Lazy-loaded on demand) */}
+      {/* Interactive Guided Training Tour Overlay */}
       {isTrainingTourOpen && (
-        <Suspense fallback={null}>
+        <ViewErrorBoundary language={settings.language} resetKey="training-tour-overlay">
           <TrainingTourOverlay
             isOpen={isTrainingTourOpen}
             currentStepIndex={trainingTourStepIndex}
@@ -147,7 +149,7 @@ function POSAppInner() {
             onClose={closeTrainingTour}
             onResetProgress={resetTrainingTour}
           />
-        </Suspense>
+        </ViewErrorBoundary>
       )}
 
       {/* Fixed Bottom Navigation */}

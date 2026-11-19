@@ -57,6 +57,7 @@ import {
   getCompanyStorageKey,
   loadCompanyOperationalState,
 } from '../pos-storage-helpers';
+import { saveLocalUserCredentials } from '../../lib/local-auth';
 
 export type OnboardingModalView =
   | 'hub'
@@ -115,6 +116,8 @@ interface UseWorkspaceCompanyDomainParams {
   setSqliteDiagnostics: React.Dispatch<React.SetStateAction<OfflineSqliteDiagnostics>>;
   setIsSyncing: React.Dispatch<React.SetStateAction<boolean>>;
   setLastSyncedAt: React.Dispatch<React.SetStateAction<Date | null>>;
+  onSessionAuthenticated?: (userId: string, companyId?: string, mode?: WorkspaceMode) => void;
+  onSessionCleared?: (lock?: boolean) => void;
 }
 
 export function useWorkspaceCompanyDomain({
@@ -167,6 +170,8 @@ export function useWorkspaceCompanyDomain({
   setSqliteDiagnostics,
   setIsSyncing,
   setLastSyncedAt,
+  onSessionAuthenticated,
+  onSessionCleared,
 }: UseWorkspaceCompanyDomainParams) {
   const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState(false);
   const [onboardingModalInitialView, setOnboardingModalInitialView] =
@@ -254,6 +259,7 @@ export function useWorkspaceCompanyDomain({
 
     setActiveBranchId('branch-practice-main');
     setIsOnboardingModalOpen(false);
+    onSessionAuthenticated?.('user-1', 'comp-demo-practice', 'PRACTICE');
     playSuccessChime(settings.soundEnabled);
     triggerHaptic('success', settings.hapticsEnabled);
   }, [
@@ -291,6 +297,7 @@ export function useWorkspaceCompanyDomain({
     setUsers,
     setActiveSessions,
     setCurrentUserId,
+    onSessionAuthenticated,
   ]);
 
   const exitPracticeMode = useCallback(async () => {
@@ -338,6 +345,7 @@ export function useWorkspaceCompanyDomain({
     }
 
     setActiveBranchId('branch-main');
+    onSessionCleared?.(false);
     triggerHaptic('medium', settings.hapticsEnabled);
   }, [
     productionSnapshot,
@@ -363,6 +371,7 @@ export function useWorkspaceCompanyDomain({
     setUnmetDemandRequests,
     setCurrentUserId,
     setActiveSessions,
+    onSessionCleared,
   ]);
 
   const resetPracticeModeData = useCallback(async () => {
@@ -916,22 +925,36 @@ export function useWorkspaceCompanyDomain({
         String(input.ownerName || '').trim() || String(input.ownerNameAr || '').trim()
       );
       if (hasEnteredOwnerAccount) {
-        setUsers([finalOwner]);
-        setCurrentUserId(finalOwner.id);
+        const rawOwnerPassword = String(input.ownerPassword || '').trim();
+        const rawOwnerPin = String(input.ownerPin || '').trim();
+        if (rawOwnerPassword || rawOwnerPin) {
+          saveLocalUserCredentials(finalOwner.id, {
+            password: rawOwnerPassword || undefined,
+            pin: rawOwnerPin || undefined,
+          });
+        }
+        const sanitizedFinalOwner: POSUser = {
+          ...finalOwner,
+          hasPassword: finalOwner.hasPassword || Boolean(rawOwnerPassword),
+          pin: '',
+        };
+        setUsers([sanitizedFinalOwner]);
+        setCurrentUserId(sanitizedFinalOwner.id);
         setActiveSessions([
           {
-            sessionId: `sess-${finalOwner.id}-${Date.now()}`,
-            userId: finalOwner.id,
-            userName: finalOwner.name,
-            userNameAr: finalOwner.nameAr,
-            role: finalOwner.role,
-            terminalName: finalOwner.terminalName,
-            terminalNameAr: finalOwner.terminalNameAr,
+            sessionId: `sess-${sanitizedFinalOwner.id}-${Date.now()}`,
+            userId: sanitizedFinalOwner.id,
+            userName: sanitizedFinalOwner.name,
+            userNameAr: sanitizedFinalOwner.nameAr,
+            role: sanitizedFinalOwner.role,
+            terminalName: sanitizedFinalOwner.terminalName,
+            terminalNameAr: sanitizedFinalOwner.terminalNameAr,
             startedAt: nowIso,
             lastPingAt: nowIso,
             status: 'online',
           },
         ]);
+        onSessionAuthenticated?.(sanitizedFinalOwner.id, finalCompany.id, 'PRODUCTION');
       } else {
         setUsers([]);
         setActiveSessions([]);
@@ -969,6 +992,7 @@ export function useWorkspaceCompanyDomain({
       setUsers,
       setCurrentUserId,
       setActiveSessions,
+      onSessionAuthenticated,
     ]
   );
 

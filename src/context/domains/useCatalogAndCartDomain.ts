@@ -763,6 +763,8 @@ export function useCatalogAndCartDomain({
           ...apiRes,
           ...enrichedPayload,
           id: apiRes.id,
+          sku: apiRes.sku || enrichedPayload.sku,
+          serialNumber: apiRes.serialNumber ?? enrichedPayload.serialNumber,
           updatedAt: apiRes.updatedAt || nowIso,
         };
       } catch (err: unknown) {

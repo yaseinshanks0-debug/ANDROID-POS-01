@@ -24,6 +24,8 @@ import {
   Bell,
   BellRing,
   WifiOff,
+  Lock,
+  LogOut,
 } from 'lucide-react';
 import { UserRole } from '../../lib/types';
 import { SmartAlertLifecycleStatus } from '../../analytics/analytics.types';
@@ -78,7 +80,8 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
     users,
     activeSessions,
     currentUser,
-    switchCurrentUser,
+    requestAuthenticatedUserSwitch,
+    logoutCurrentUser,
     toggleUserActiveSession,
     startTrainingTour,
     trainingTourProgress,
@@ -320,8 +323,11 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
                         >
                           <button
                             type="button"
+                            data-testid={`header-switch-user-btn-${u.id}`}
                             onClick={() => {
-                              switchCurrentUser(u.id);
+                              if (u.id !== currentUser.id) {
+                                requestAuthenticatedUserSwitch(u.id);
+                              }
                               setIsUserMenuOpen(false);
                             }}
                             className="flex-1 text-start min-w-0"
@@ -374,24 +380,56 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('settings');
-                    setIsUserMenuOpen(false);
-                  }}
-                  className="w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-colors"
-                >
-                  <SettingsIcon className="w-3.5 h-3.5" />
-                  <span>
-                    {isAr
-                      ? 'تخصيص وإدارة الحسابات والصلاحيات'
-                      : 'Customize & Manage Accounts'}
-                  </span>
-                </button>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('settings');
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <SettingsIcon className="w-3.5 h-3.5" />
+                    <span>
+                      {isAr
+                        ? 'تخصيص وإدارة الحسابات والصلاحيات'
+                        : 'Customize & Manage Accounts'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="user-menu-logout-btn"
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      void logoutCurrentUser();
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>
+                      {isAr ? 'قفل الشاشة / تسجيل الخروج' : 'Lock Screen / Sign Out'}
+                    </span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
+
+          {/* Quick Lock / Sign Out Button */}
+          <button
+            type="button"
+            data-testid="header-lock-logout-btn"
+            onClick={() => {
+              void logoutCurrentUser();
+            }}
+            aria-label={isAr ? 'قفل الشاشة وتسجيل الخروج' : 'Lock Screen & Sign Out'}
+            title={isAr ? 'قفل الشاشة وتسجيل الخروج' : 'Lock Screen & Sign Out'}
+            className="shrink-0 min-h-[34px] sm:min-h-[36px] px-2 sm:px-2.5 py-1 rounded-xl bg-neutral-900 hover:bg-rose-500/15 border border-neutral-800 hover:border-rose-500/40 text-neutral-300 hover:text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="hidden xl:inline">{isAr ? 'قفل / خروج' : 'Lock'}</span>
+          </button>
 
           {/* Quick Currency Switcher */}
           {activeCurrencyCodes.length > 0 ? (

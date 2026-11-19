@@ -597,6 +597,7 @@ export interface AppSettings {
   isTaxInclusive: boolean;
   soundEnabled: boolean;
   hapticsEnabled: boolean;
+  requireLoginOnStartup?: boolean;
   theme: AppTheme;
   language: AppLanguage;
 }

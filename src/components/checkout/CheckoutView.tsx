@@ -305,6 +305,14 @@ export const CheckoutView: React.FC<{ isCartDrawerOpen?: boolean; onCloseCartDra
   const [discountAmountInput, setDiscountAmountInput] = useState<string>(
     globalDiscountAmount > 0 ? String(globalDiscountAmount) : ''
   );
+
+  useEffect(() => {
+    const currentParsed = parseNormalizedNumber(discountAmountInput, 0);
+    if (Math.abs(currentParsed - globalDiscountAmount) > 0.0001) {
+      setDiscountAmountInput(globalDiscountAmount > 0 ? String(globalDiscountAmount) : '');
+    }
+  }, [globalDiscountAmount]);
+
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [completedTransaction, setCompletedTransaction] = useState<Transaction | null>(null);
