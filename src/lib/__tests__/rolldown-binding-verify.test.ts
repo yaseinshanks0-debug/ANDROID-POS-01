@@ -227,8 +227,11 @@ test('Rolldown Hotfix 4 — verifyExtractedBinding rejects missing package, vers
   }
 });
 
-test('Rolldown Hotfix 5 — Real extraction & verification of @rolldown/binding-win32-x64-msvc@1.2.15 and native loading of host binding', () => {
+test('Rolldown Hotfix 5 — Real extraction & verification of native binding and host loading', () => {
   const projectRoot = process.cwd();
+  const ROLLDOWN_VERSION: string = JSON.parse(
+    fs.readFileSync(path.join(projectRoot, 'node_modules', 'rolldown', 'package.json'), 'utf-8')
+  ).version;
 
   // 1. Verify current host binding (@rolldown/binding-linux-x64-gnu on Linux or @rolldown/binding-win32-x64-msvc on Windows) loads in Node.js
   const hostResult = ensureRolldownBinding({
@@ -236,7 +239,7 @@ test('Rolldown Hotfix 5 — Real extraction & verification of @rolldown/binding-
     checkNativeLoad: true,
   });
   assert.equal(hostResult.ok, true);
-  assert.equal(hostResult.version, '1.2.15');
+  assert.equal(hostResult.version, ROLLDOWN_VERSION);
   assert.ok((hostResult.binarySize || 0) > 0);
 
   // 2. Test real npm pack + relative tar extraction of @rolldown/binding-win32-x64-msvc@1.2.15 in an isolated temp workspace
@@ -246,7 +249,7 @@ test('Rolldown Hotfix 5 — Real extraction & verification of @rolldown/binding-
     fs.mkdirSync(rolldownDir, { recursive: true });
     fs.writeFileSync(
       path.join(rolldownDir, 'package.json'),
-      JSON.stringify({ name: 'rolldown', version: '1.2.15' })
+      JSON.stringify({ name: 'rolldown', version: ROLLDOWN_VERSION })
     );
 
     const winSpec = getExpectedRolldownBindingSpec('win32', 'x64');
@@ -263,7 +266,7 @@ test('Rolldown Hotfix 5 — Real extraction & verification of @rolldown/binding-
 
     assert.equal(winExtractResult.ok, true);
     assert.equal(winExtractResult.repaired, true);
-    assert.equal(winExtractResult.version, '1.2.15');
+    assert.equal(winExtractResult.version, ROLLDOWN_VERSION);
 
     const extractedPkgJson = path.join(
       tempWorkspace,
@@ -283,8 +286,8 @@ test('Rolldown Hotfix 5 — Real extraction & verification of @rolldown/binding-
     assert.equal(fs.existsSync(extractedPkgJson), true, 'package.json must exist after extraction');
     assert.equal(
       JSON.parse(fs.readFileSync(extractedPkgJson, 'utf-8')).version,
-      '1.2.15',
-      'Extracted package.json version must be 1.2.15'
+      ROLLDOWN_VERSION,
+      `Extracted package.json version must be ${ROLLDOWN_VERSION}`
     );
     assert.equal(
       fs.existsSync(extractedNodeBin),

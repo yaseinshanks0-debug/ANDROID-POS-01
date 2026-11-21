@@ -901,6 +901,66 @@
   },
   {
     "id": "prod-coffee-1",
+    "companyId": "comp-mwqjb6s1-56eb",
+    "name": "Artisan Arabic Coffee 500g",
+    "nameAr": "قهوة عربية فاخرة 500 جرام",
+    "sku": "COF-500",
+    "barcode": "628100000101",
+    "barcodes": [
+      "628100000101",
+      "628100000102"
+    ],
+    "category": "Beverages",
+    "categoryAr": "مشروبات",
+    "costPrice": 4000,
+    "sellingPrice": 5500,
+    "priceCurrency": "SDG",
+    "stock": 25,
+    "minStockAlert": 5,
+    "updatedAt": "2026-11-21T15:00:00.788Z"
+  },
+  {
+    "id": "prod-jb8e4-l64rx",
+    "companyId": "comp-jb8e4",
+    "name": "Artisan Arabic Coffee 500g",
+    "nameAr": "قهوة عربية فاخرة 500 جرام",
+    "sku": "COF-500",
+    "barcode": "628100000101",
+    "barcodes": [
+      "628100000101",
+      "628100000102"
+    ],
+    "category": "Beverages",
+    "categoryAr": "مشروبات",
+    "costPrice": 4000,
+    "sellingPrice": 5500,
+    "priceCurrency": "SDG",
+    "stock": 25,
+    "minStockAlert": 5,
+    "updatedAt": "2026-11-21T15:00:00.788Z"
+  },
+  {
+    "id": "prod-coffee-1",
+    "companyId": "comp-mwqjb6x2-07f7",
+    "name": "Artisan Arabic Coffee 500g",
+    "nameAr": "قهوة عربية فاخرة 500 جرام",
+    "sku": "COF-500",
+    "barcode": "628100000101",
+    "barcodes": [
+      "628100000101",
+      "628100000102"
+    ],
+    "category": "Beverages",
+    "categoryAr": "مشروبات",
+    "costPrice": 4000,
+    "sellingPrice": 5500,
+    "priceCurrency": "SDG",
+    "stock": 25,
+    "minStockAlert": 5,
+    "updatedAt": "2026-11-21T15:00:03.018Z"
+  },
+  {
+    "id": "prod-coffee-1",
     "companyId": "comp-clean-store",
     "name": "Artisan Arabic Coffee 500g",
     "nameAr": "قهوة عربية فاخرة 500 جرام",
@@ -917,6 +977,6 @@
     "priceCurrency": "SDG",
     "stock": 25,
     "minStockAlert": 5,
-    "updatedAt": "2026-11-21T12:10:24.189Z"
+    "updatedAt": "2026-11-21T15:00:03.557Z"
   }
 ]
