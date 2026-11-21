@@ -54,11 +54,10 @@ function removeSourceMapsRecursively(dirPath) {
 }
 
 function pruneDirectory() {
+  const skipBuildArtifactClean = process.env.SKIP_BUILD_ARTIFACT_CLEAN === '1';
   const dirsToRemove = [
-    // Transient staging/cache directories
-    'electron/www',
-    'dist-server',
-    'release-exe',
+    // Transient staging/cache directories (skipped when explicitly guarded during Electron packaging)
+    ...(skipBuildArtifactClean ? [] : ['electron/www', 'dist-server', 'release-exe']),
     'node_modules/.vite',
     'node_modules/.cache',
 

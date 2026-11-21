@@ -28,10 +28,36 @@ jobs:
           echo "GIT_COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
           echo "Building Windows EXE from commit: $(git rev-parse HEAD)"
 
-      - name: Setup Node.js 22
+      - name: Setup Node.js 24 (>=24.12.0)
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
+
+      - name: Verify Node.js, npm, and Lockfile Consistency
+        shell: bash
+        run: |
+          node -v
+          npm -v
+          node -e "
+            const fs = require('node:fs');
+            const [maj, min] = process.versions.node.split('.').map(Number);
+            if (maj < 24 || (maj === 24 && min < 12)) {
+              console.error('Node.js >= 24.12.0 is required, found:', process.versions.node);
+              process.exit(1);
+            }
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+            const lockRoot = (lock.packages && lock.packages['']) || {};
+            const pkgDeps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+            const lockDeps = { ...(lockRoot.dependencies || {}), ...(lockRoot.devDependencies || {}) };
+            const missing = Object.keys(pkgDeps).filter((k) => !(k in lockDeps));
+            const mismatched = Object.keys(pkgDeps).filter((k) => k in lockDeps && lockDeps[k] !== pkgDeps[k]);
+            if (missing.length || mismatched.length) {
+              console.error('package.json and package-lock.json are out of sync:', { missing, mismatched });
+              process.exit(1);
+            }
+            console.log('Verified Node.js', process.versions.node, 'and lockfile sync for', Object.keys(pkgDeps).length, 'root dependencies.');
+          "
 
       - name: Clean Old Build Files & Install Dependencies via npm ci
         shell: bash
@@ -91,9 +117,12 @@ jobs:
         shell: bash
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          SKIP_BUILD_ARTIFACT_CLEAN: '1'
         run: |
           echo "Installing Electron & Electron Builder after Vite/Rolldown build has already completed..."
           npm install --no-save --legacy-peer-deps --no-audit --no-fund electron@33.4.0 electron-builder@25.1.8
+          test -f electron/www/index.html
+          test -f dist-server/server.cjs
           echo "Attempt 1: Building Windows EXE via default Electron CDN..."
           if npx electron-builder --win --x64 --config electron-builder.json --publish never; then
             echo "Windows EXE build succeeded on Attempt 1."
@@ -115,11 +144,13 @@ jobs:
           test -f release-exe/win-unpacked/resources/app/electron/www/index.html
           test -f release-exe/win-unpacked/resources/app/dist-server/server.cjs
           test -d release-exe/win-unpacked/resources/seed-data
-          cp release-exe/Dqnamo-POS-Setup.exe ./Dqnamo-POS-Setup.exe
-          cp release-exe/Dqnamo-POS-Portable.exe ./Dqnamo-POS-Portable.exe
-          cp Dqnamo-POS-Setup.exe Dqnamo-POS-Portable.exe releases/windows-v2.5.0/
-          ls -lh Dqnamo-POS-Setup.exe Dqnamo-POS-Portable.exe
-          sha256sum Dqnamo-POS-Setup.exe Dqnamo-POS-Portable.exe | tee windows-checksums.txt
+          test -f release-exe/D-POS-Setup.exe
+          test -f release-exe/D-POS-Portable.exe
+          cp release-exe/D-POS-Setup.exe ./D-POS-Setup.exe
+          cp release-exe/D-POS-Portable.exe ./D-POS-Portable.exe
+          cp D-POS-Setup.exe D-POS-Portable.exe releases/windows-v2.5.0/
+          ls -lh D-POS-Setup.exe D-POS-Portable.exe
+          sha256sum D-POS-Setup.exe D-POS-Portable.exe | tee windows-checksums.txt
           cp windows-checksums.txt releases/windows-v2.5.0/CHECKSUMS-WINDOWS.txt
           echo "Running headless smoke test of packaged Windows server.cjs..."
           NODE_ENV=production PORT=3199 DQNAMO_DIST_DIR="$PWD/release-exe/win-unpacked/resources/www" node release-exe/win-unpacked/resources/app/dist-server/server.cjs &
@@ -132,29 +163,29 @@ jobs:
       - name: 6. Upload Windows EXE Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Dqnamo-POS-Windows-EXE
+          name: D-POS-Windows-EXE
           path: |
-            Dqnamo-POS-Setup.exe
-            Dqnamo-POS-Portable.exe
+            D-POS-Setup.exe
+            D-POS-Portable.exe
             windows-checksums.txt
           retention-days: 90
 
       - name: 7. Publish Windows Release to Dedicated GitHub Release Path (latest-windows-exe)
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-windows-exe
-          name: "Dqnamo POS v2.5.0 — Windows Desktop (.exe) Release"
+          name: "D POS - Point of Sale v2.5.0 — Windows Desktop (.exe) Release"
           body: |
-            ### 💻 Dqnamo POS v2.5.0 — إصدار الويندوز المستقل لسطح المكتب (`.exe`)
+            ### 💻 D POS - Point of Sale v2.5.0 — إصدار الويندوز المستقل لسطح المكتب (`.exe`)
             - **Commit:** `${{ env.GIT_COMMIT_SHA }}`
             - **App ID:** `com.dqnamo.pos` | **Version:** `2.5.0` (`Windows x64`)
-            - **`Dqnamo-POS-Setup.exe`**: معالج التثبيت الرسمي لنظام Windows x64 (ينشئ اختصاراً على سطح المكتب وقائمة ابدأ).
-            - **`Dqnamo-POS-Portable.exe`**: نسخة محمولة تعمل فوراً بمجرد النقر عليها دون الحاجة للتثبيت.
+            - **`D-POS-Setup.exe`**: معالج التثبيت الرسمي لنظام Windows x64 (ينشئ اختصاراً على سطح المكتب وقائمة ابدأ).
+            - **`D-POS-Portable.exe`**: نسخة محمولة تعمل فوراً بمجرد النقر عليها دون الحاجة للتثبيت.
             - تتضمن واجهة النظام الكاملة المدمجة مع خادم المزامنة المحلي (`server.cjs`) والبيانات الأولية.
           files: |
-            Dqnamo-POS-Setup.exe
-            Dqnamo-POS-Portable.exe
+            D-POS-Setup.exe
+            D-POS-Portable.exe
             windows-checksums.txt
           prerelease: false
         env:

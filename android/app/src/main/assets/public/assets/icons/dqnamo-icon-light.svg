@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512">
+  <defs>
+    <radialGradient id="dq-light-bg" cx="50%" cy="46%" r="72%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="65%" stop-color="#F8FAFC" />
+      <stop offset="100%" stop-color="#F1F5F9" />
+    </radialGradient>
+    <linearGradient id="dq-light-amber" x1="35" y1="33" x2="74" y2="75" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="55%" stop-color="#E68A00" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+  </defs>
+  <rect width="108" height="108" fill="url(#dq-light-bg)" />
+  <path d="M35,33 L53,33 A21,21 0 0,1 53,75 L35,75 L43.5,66.5 L53,66.5 A12.5,12.5 0 0,0 53,41.5 L43.5,41.5 Z" fill="url(#dq-light-amber)" />
+  <path d="M35,33 L43.5,41.5 L43.5,66.5 L35,75 Z" fill="#0F172A" />
+  <rect x="48.0" y="47.5" width="1.9" height="13.0" fill="#0F172A" />
+  <rect x="51.5" y="47.5" width="2.6" height="13.0" fill="#0F172A" />
+  <circle cx="59.3" cy="54" r="2.8" fill="#059669" />
+</svg>

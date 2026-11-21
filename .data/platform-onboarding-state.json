@@ -970,8 +970,8 @@
       "baseCurrency": "SDG",
       "isDemo": false,
       "setupCompleted": true,
-      "createdAt": "2026-11-16T09:24:17.358Z",
-      "updatedAt": "2026-11-16T09:24:17.718Z",
+      "createdAt": "2026-11-21T12:10:24.189Z",
+      "updatedAt": "2026-11-21T12:10:24.595Z",
       "ownerUserId": "unassigned-operator"
     },
     {
@@ -2598,6 +2598,133 @@
       "ownerUserId": "usr-owner-mwnlv74e-0bed",
       "createdAt": "2026-11-19T13:48:14.413Z",
       "updatedAt": "2026-11-19T13:48:14.413Z"
+    },
+    {
+      "id": "comp-mwqd8mn6-4167",
+      "code": "CMP-MWQD8MN6-4167",
+      "legalName": "JWT Security Co A mwqd8mg1",
+      "displayName": "JWT Security Co A mwqd8mg1",
+      "displayNameAr": "JWT Security Co A mwqd8mg1",
+      "businessType": "retail",
+      "logoUrl": null,
+      "country": "Sudan",
+      "city": "Khartoum",
+      "address": "",
+      "addressAr": "",
+      "phone": "",
+      "email": "",
+      "taxNumber": "",
+      "defaultLanguage": "ar",
+      "defaultTimezone": "Africa/Khartoum",
+      "baseCurrency": "SDG",
+      "currencyDisplayFormat": "symbol_amount",
+      "fiscalYearStartMonth": 1,
+      "rateUpdatePolicy": "admin_or_manager",
+      "isDemo": false,
+      "setupCompleted": true,
+      "ownerUserId": "usr-owner-mwqd8mn6-4167",
+      "createdAt": "2026-11-21T12:10:03.042Z",
+      "updatedAt": "2026-11-21T12:10:03.042Z"
+    },
+    {
+      "id": "comp-mwqd8n0b-1cac",
+      "code": "CMP-MWQD8N0B-1CAC",
+      "legalName": "JWT Security Co B mwqd8mg1",
+      "displayName": "JWT Security Co B mwqd8mg1",
+      "displayNameAr": "JWT Security Co B mwqd8mg1",
+      "businessType": "retail",
+      "logoUrl": null,
+      "country": "Sudan",
+      "city": "Khartoum",
+      "address": "",
+      "addressAr": "",
+      "phone": "",
+      "email": "",
+      "taxNumber": "",
+      "defaultLanguage": "ar",
+      "defaultTimezone": "Africa/Khartoum",
+      "baseCurrency": "SDG",
+      "currencyDisplayFormat": "symbol_amount",
+      "fiscalYearStartMonth": 1,
+      "rateUpdatePolicy": "admin_or_manager",
+      "isDemo": false,
+      "setupCompleted": true,
+      "ownerUserId": "usr-owner-mwqd8n0b-1cac",
+      "createdAt": "2026-11-21T12:10:03.515Z",
+      "updatedAt": "2026-11-21T12:10:03.515Z"
+    },
+    {
+      "id": "comp-mwqd8yrj-2f43",
+      "code": "CMP-2F43",
+      "legalName": "Nile Star Market 8ynh",
+      "displayName": "Nile Star Market 8ynh",
+      "displayNameAr": "Nile Star Market 8ynh",
+      "businessType": "retail",
+      "logoUrl": null,
+      "country": "Sudan",
+      "city": "Khartoum",
+      "address": "",
+      "addressAr": "",
+      "phone": "",
+      "email": "",
+      "taxNumber": "",
+      "defaultLanguage": "ar",
+      "defaultTimezone": "Africa/Khartoum",
+      "baseCurrency": "SDG",
+      "currencyDisplayFormat": "symbol_amount",
+      "fiscalYearStartMonth": 1,
+      "rateUpdatePolicy": "admin_or_manager",
+      "isDemo": false,
+      "setupCompleted": true,
+      "ownerUserId": "usr-owner-mwqd8yrj-2f43",
+      "createdAt": "2026-11-21T12:10:20.053Z",
+      "updatedAt": "2026-11-21T12:10:21.400Z"
+    },
+    {
+      "id": "comp-mwqd8z5m-87bc",
+      "code": "CMP-MWQD8Z5L-87BC",
+      "legalName": "Red Sea Trade 8ynh",
+      "displayName": "Red Sea Trade 8ynh",
+      "displayNameAr": "Red Sea Trade 8ynh",
+      "businessType": "retail",
+      "logoUrl": null,
+      "country": "Sudan",
+      "city": "Khartoum",
+      "address": "",
+      "addressAr": "",
+      "phone": "",
+      "email": "",
+      "taxNumber": "",
+      "defaultLanguage": "ar",
+      "defaultTimezone": "Africa/Khartoum",
+      "baseCurrency": "SDG",
+      "currencyDisplayFormat": "symbol_amount",
+      "fiscalYearStartMonth": 1,
+      "rateUpdatePolicy": "admin_or_manager",
+      "isDemo": false,
+      "setupCompleted": true,
+      "ownerUserId": "usr-owner-mwqd8z5m-87bc",
+      "createdAt": "2026-11-21T12:10:19.257Z",
+      "updatedAt": "2026-11-21T12:10:23.604Z"
+    },
+    {
+      "id": "comp-d91en",
+      "code": "CMP-D91EN",
+      "legalName": "Restored Branch Co 8ynh",
+      "displayName": "Restored Branch Co 8ynh",
+      "displayNameAr": "Restored Branch Co 8ynh",
+      "businessType": "retail",
+      "country": "Sudan",
+      "defaultLanguage": "ar",
+      "fiscalYearStartMonth": 1,
+      "baseCurrency": "SDG",
+      "isDemo": false,
+      "setupCompleted": true,
+      "createdAt": "2026-11-21T12:10:22.175Z",
+      "updatedAt": "2026-11-21T12:10:22.662Z",
+      "isDemoPractice": false,
+      "onboardingCompleted": true,
+      "ownerUserId": "usr-owner-d91en"
     }
   ],
   "branches": [
@@ -4086,17 +4213,6 @@
       "isMainBranch": false
     },
     {
-      "id": "br-comp-clean-store-main",
-      "companyId": "comp-clean-store",
-      "code": "BR-TORE",
-      "name": "Khartoum Main Branch",
-      "nameAr": "فرع الخرطوم الرئيسي",
-      "city": "Khartoum",
-      "isMain": true,
-      "isActive": true,
-      "createdAt": "2026-11-16T09:24:17.358Z"
-    },
-    {
       "id": "br-mwnlv6sw-5c6b-main",
       "companyId": "comp-mwnlv6sw-5c6b",
       "name": "JWT Security Co A mwnlv6of — Main Branch",
@@ -4123,6 +4239,94 @@
       "isMain": true,
       "isActive": true,
       "createdAt": "2026-11-19T13:48:14.413Z"
+    },
+    {
+      "id": "br-mwqd8mn6-4167-main",
+      "companyId": "comp-mwqd8mn6-4167",
+      "name": "JWT Security Co A mwqd8mg1 — Main Branch",
+      "nameAr": "JWT Security Co A mwqd8mg1 — Main Branch",
+      "code": "BR-MWQD8MN6-01",
+      "city": "Khartoum",
+      "address": "",
+      "phone": "",
+      "managerUserId": "usr-owner-mwqd8mn6-4167",
+      "isMain": true,
+      "isActive": true,
+      "createdAt": "2026-11-21T12:10:03.042Z"
+    },
+    {
+      "id": "br-mwqd8n0b-1cac-main",
+      "companyId": "comp-mwqd8n0b-1cac",
+      "name": "JWT Security Co B mwqd8mg1 — Main Branch",
+      "nameAr": "JWT Security Co B mwqd8mg1 — Main Branch",
+      "code": "BR-MWQD8N0B-01",
+      "city": "Khartoum",
+      "address": "",
+      "phone": "",
+      "managerUserId": "usr-owner-mwqd8n0b-1cac",
+      "isMain": true,
+      "isActive": true,
+      "createdAt": "2026-11-21T12:10:03.515Z"
+    },
+    {
+      "id": "br-comp-mwqd8yrj-2f43-main",
+      "companyId": "comp-mwqd8yrj-2f43",
+      "code": "BR-2F43",
+      "name": "Khartoum Main Branch",
+      "nameAr": "فرع الخرطوم الرئيسي",
+      "city": "Khartoum",
+      "isMain": true,
+      "isActive": true,
+      "createdAt": "2026-11-21T12:10:20.053Z"
+    },
+    {
+      "id": "br-d91en-caij8",
+      "companyId": "comp-d91en",
+      "code": "BR-2F43-D91EN-1",
+      "name": "Khartoum Main Branch",
+      "nameAr": "فرع الخرطوم الرئيسي",
+      "city": "Khartoum",
+      "isMain": true,
+      "isActive": true,
+      "createdAt": "2026-11-21T12:10:22.175Z",
+      "isMainBranch": true
+    },
+    {
+      "id": "br-mwqd8z5m-87bc-main",
+      "companyId": "comp-mwqd8z5m-87bc",
+      "name": "Red Sea Trade 8ynh — Main Branch",
+      "nameAr": "Red Sea Trade 8ynh — Main Branch",
+      "code": "BR-MWQD8Z5L-01",
+      "city": "Khartoum",
+      "address": "",
+      "phone": "",
+      "managerUserId": "usr-owner-mwqd8z5m-87bc",
+      "isMain": true,
+      "isActive": true,
+      "createdAt": "2026-11-21T12:10:19.257Z"
+    },
+    {
+      "id": "br-comp-mwqd8yrj-2f43-main",
+      "companyId": "comp-mwqd8z5m-87bc",
+      "code": "BR-2F43",
+      "name": "Khartoum Main Branch",
+      "nameAr": "فرع الخرطوم الرئيسي",
+      "city": "Khartoum",
+      "isMain": false,
+      "isActive": true,
+      "createdAt": "2026-11-21T12:10:20.053Z",
+      "isMainBranch": false
+    },
+    {
+      "id": "br-comp-clean-store-main",
+      "companyId": "comp-clean-store",
+      "code": "BR-TORE",
+      "name": "Khartoum Main Branch",
+      "nameAr": "فرع الخرطوم الرئيسي",
+      "city": "Khartoum",
+      "isMain": true,
+      "isActive": true,
+      "createdAt": "2026-11-21T12:10:24.189Z"
     }
   ],
   "users": [
@@ -4216,7 +4420,9 @@
       "passwordHash": null,
       "passwordSalt": null,
       "pinHash": "5012dbcdcef3c4392323b3aca2506f0ddc0869457c11adad67b640a4cde98adc40f1be23c674e75f772ae1741891d7e2ee57bd941b13b67fc1174ee1d0549890",
-      "pinSalt": "7b19fb4d8698b6e24dd8dd6cfeaafe9e"
+      "pinSalt": "7b19fb4d8698b6e24dd8dd6cfeaafe9e",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "demo-user-cashier",
@@ -4270,7 +4476,9 @@
       "passwordHash": null,
       "passwordSalt": null,
       "pinHash": "02a0e92aa0554fbf3aba81f71c926aab04cfc1fc245b08b8189a4453094df40bf37578b66e391e5b296fde53008dbe92cf8893a1aa59fd3eda1f1bcae1eae270",
-      "pinSalt": "bf018cbe3b05a0e67989b29412b95ffb"
+      "pinSalt": "bf018cbe3b05a0e67989b29412b95ffb",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw206pby",
@@ -4362,7 +4570,9 @@
       "lastLoginAt": "2026-11-04T10:58:09.982Z",
       "tourProgressJson": {},
       "pinHash": "a5c9f6d60c597f926063b706d0c996630bcf3ea82d5e57c386c1f5b0e7c17bfc6f68755e0b7ab325f3515fe4ba498c1c93100bec4b48c47d5e70357d7e18e462",
-      "pinSalt": "6af775d1b0a78404fcac17d1ab3fd433"
+      "pinSalt": "6af775d1b0a78404fcac17d1ab3fd433",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw206tli",
@@ -4454,7 +4664,9 @@
       "lastLoginAt": "2026-11-04T10:58:15.510Z",
       "tourProgressJson": {},
       "pinHash": "924a3d258096f7b81efa32df3b2e761552efdfde8809a7c4b3ea1b0ab41149ecf9a6a898aadd2516a5e2c60e7524664afe5edb9b5f6fa9e4ef1527b6aa38dc97",
-      "pinSalt": "b3658a0301ccbcad08ec05140834945d"
+      "pinSalt": "b3658a0301ccbcad08ec05140834945d",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw206tor",
@@ -4546,7 +4758,9 @@
       "lastLoginAt": "2026-11-04T10:58:15.627Z",
       "tourProgressJson": {},
       "pinHash": "0a7add465aec794c0e8742a0929599f7dc1066f4da0a00c8d3371dc91805aed1c9934c0c3b5254575f692488367d0363448fe7096a160cc7eac3f3c33631d7e0",
-      "pinSalt": "caabdc59b0db3978b58eee19cd4d1c79"
+      "pinSalt": "caabdc59b0db3978b58eee19cd4d1c79",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mw206tto-af63",
@@ -4602,7 +4816,9 @@
       "deactivatedAt": "2026-11-04T10:58:15.853Z",
       "deactivatedBy": "usr-owner-mw206tli",
       "pinHash": "c59c69fafd11b09dda60228b149d901c5809c24a6e44a9e6c8d8669ae24a5e94ddce9b9a691d772a98647ceafd54e5cf1b628d08a7210052e93a77700a2d5d41",
-      "pinSalt": "04852b57533e183b95e212135f3c1dd5"
+      "pinSalt": "04852b57533e183b95e212135f3c1dd5",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw2085z7",
@@ -4694,7 +4910,9 @@
       "lastLoginAt": "2026-11-04T10:59:18.211Z",
       "tourProgressJson": {},
       "pinHash": "d4d284c8b27ed8946f68a73861bd1c074b32d72a7ef2c17e3284b237388aec958e46d04e9d5ed0e12ca6ec71b8529efe3a1564314b66a00841270d54fe7a1912",
-      "pinSalt": "c619e0ce3661ffede1682fbbcbe49bc1"
+      "pinSalt": "c619e0ce3661ffede1682fbbcbe49bc1",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw208663",
@@ -4786,7 +5004,9 @@
       "lastLoginAt": "2026-11-04T10:59:18.459Z",
       "tourProgressJson": {},
       "pinHash": "2344ccb4517746a7ab43e4e6bfea4c475c940981afad6aaee5759e37937889e41d4fd6b99cf0793c9a5dab052cc15c8d03f312d0c72ff93d310cede6acf52423",
-      "pinSalt": "34592006574700a40381e3c61ac9899c"
+      "pinSalt": "34592006574700a40381e3c61ac9899c",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw2086aa",
@@ -4878,7 +5098,9 @@
       "lastLoginAt": "2026-11-04T10:59:18.610Z",
       "tourProgressJson": {},
       "pinHash": "9b694286b378a1042d8fa45c0318df687f773c99230d939df3c87361e377150b0732706be0bc69ac3d181e37d9a9760ead386cde30db837b68d0c8816e8f06eb",
-      "pinSalt": "6318f06eb49061e388f63dc4eb729876"
+      "pinSalt": "6318f06eb49061e388f63dc4eb729876",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mw2086ep-d49f",
@@ -4934,7 +5156,9 @@
       "deactivatedAt": "2026-11-04T10:59:18.834Z",
       "deactivatedBy": "usr-owner-mw208663",
       "pinHash": "2ed3d9011964e31b1499ed1827fc71a4ae1abe5c1cdafdff97f75f13a765f4754b839429ff20f3dae4db13095101cf953748266c4a1984f601596645986f50d0",
-      "pinSalt": "baf1b12e23a87b2ac868f4abca990797"
+      "pinSalt": "baf1b12e23a87b2ac868f4abca990797",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw20a9u2",
@@ -5026,7 +5250,9 @@
       "lastLoginAt": "2026-11-04T11:00:56.522Z",
       "tourProgressJson": {},
       "pinHash": "2da86c166740614e5d4f21f15f11545c164cf2df02d3c7f2136177b2b371ddfae18841207db6ab3a3f3232857de02c7520e2a8499e6fe9e555251036dc2c77eb",
-      "pinSalt": "dae0f1b1dd68388aaaa5815f231c6361"
+      "pinSalt": "dae0f1b1dd68388aaaa5815f231c6361",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw20aa09",
@@ -5118,7 +5344,9 @@
       "lastLoginAt": "2026-11-04T11:00:56.745Z",
       "tourProgressJson": {},
       "pinHash": "275d936e196072a71041aca768d469e79b4c354ed1162ca162a849f681b540d57ea09ec8d643a26c71284381e325901773a0b2331d6f0d5d9084f694197712a0",
-      "pinSalt": "4015b2e6c8ba91263ec677301e4fa6fb"
+      "pinSalt": "4015b2e6c8ba91263ec677301e4fa6fb",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw20aa4n",
@@ -5210,7 +5438,9 @@
       "lastLoginAt": "2026-11-04T11:00:56.903Z",
       "tourProgressJson": {},
       "pinHash": "b1fdfb74bc727c6b48a3b778abf4a15d880af1b6b0fd73273e5dac4cfd9a8c9776affb5ea4d4f0cc9a366f56b3db8a2f0a1162e3cbe174449901c5cd79296d20",
-      "pinSalt": "15bf94d23372b97caea388dc668f883f"
+      "pinSalt": "15bf94d23372b97caea388dc668f883f",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mw20aa91-f1c3",
@@ -5266,7 +5496,9 @@
       "deactivatedAt": "2026-11-04T11:00:57.121Z",
       "deactivatedBy": "usr-owner-mw20aa09",
       "pinHash": "17aef98a1b0764273c1981c44982b4b0d5c99dc1266f185a1ef138f6f5420fb23479cca96e7e62b480092bd08e0e30aa4b7306604f890d72b178dd6e62c797d1",
-      "pinSalt": "6e855f6a816e149d7bc51243ed2f9987"
+      "pinSalt": "6e855f6a816e149d7bc51243ed2f9987",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw228o01",
@@ -5358,7 +5590,9 @@
       "lastLoginAt": "2026-11-04T11:55:40.801Z",
       "tourProgressJson": {},
       "pinHash": "8dcae63aea365bdeaab0c792acfb83c3d4e74f9aaa6aa51197dc2351c4a46bb01a53994fdc7666d6e952a8e4ecaf472b29d14cda8122ef2afed8727b3ad3791e",
-      "pinSalt": "06e0868479db21c9fc38aec3542052ed"
+      "pinSalt": "06e0868479db21c9fc38aec3542052ed",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw228odi",
@@ -5450,7 +5684,9 @@
       "lastLoginAt": "2026-11-04T11:55:41.285Z",
       "tourProgressJson": {},
       "pinHash": "ab041b7129547f7a8f4892acca873a1648bf5afaf6c79374ef9f75b1469200369d3521b450403568eb7af6381ca7eac36246240914ea8729d6ab20810e2a7f5f",
-      "pinSalt": "c7f0945ae6909d5a15a23b6795d4b7de"
+      "pinSalt": "c7f0945ae6909d5a15a23b6795d4b7de",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw228oim",
@@ -5542,7 +5778,9 @@
       "lastLoginAt": "2026-11-04T11:55:41.470Z",
       "tourProgressJson": {},
       "pinHash": "fb4013031e9e709c9f182470b4b7753c8648d1c80dac0adf8be72e89a23d5eaafc1759752d7d3b23e1097c7fc82ef768cab9f8dd231bfd2bb8b619bacee350a5",
-      "pinSalt": "7dd66a2196007e52aad6f0731a4fd633"
+      "pinSalt": "7dd66a2196007e52aad6f0731a4fd633",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mw228on4-89f5",
@@ -5598,7 +5836,9 @@
       "deactivatedAt": "2026-11-04T11:55:41.692Z",
       "deactivatedBy": "usr-owner-mw228odi",
       "pinHash": "a16c897f0301899c3e729c5742fdab7c9df927b51fe1e7706a90e4eb0fc91ca298886144725d60d62ddcf071d8c871cab67dc21d26e47af23fdfbf32d583e8d0",
-      "pinSalt": "bd1c93a66043d6770b87e83b8cfa53e5"
+      "pinSalt": "bd1c93a66043d6770b87e83b8cfa53e5",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw23l1kk",
@@ -5690,7 +5930,9 @@
       "lastLoginAt": "2026-11-04T12:33:17.876Z",
       "tourProgressJson": {},
       "pinHash": "76dfca364df3aa2e6cf75826ccbf7a6906cff3ed2ab9cc20c2186cff20c2c85b313560fa18cb7975b2aef2e6fdbd1f22e5760ca1ddc71eccdee7dbf970a002c6",
-      "pinSalt": "f8383ee54636bd0f21d901882d1bda8b"
+      "pinSalt": "f8383ee54636bd0f21d901882d1bda8b",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw23l1yv",
@@ -5782,7 +6024,9 @@
       "lastLoginAt": "2026-11-04T12:33:18.391Z",
       "tourProgressJson": {},
       "pinHash": "6ec24127dbe1f3b6202c2f8051f8f685696f9178575216c588d71d124c5ef709cdbd9e8add6a5a79cad5fca03dee26839a8f55122494bd6539c865f1270a279a",
-      "pinSalt": "ac967574a46253156a3a888d4d481516"
+      "pinSalt": "ac967574a46253156a3a888d4d481516",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw23l21e",
@@ -5874,7 +6118,9 @@
       "lastLoginAt": "2026-11-04T12:33:18.482Z",
       "tourProgressJson": {},
       "pinHash": "1e4c479721fbc97ac566e2d8dbda5a790db4df12eef58eb0080aee294de54db5f64ac2bd087f1402f0e5f45bb1ffc645ff413ba5dcfa95b01ba53cfe30f3573f",
-      "pinSalt": "058cd17c7c900dbab9e4edb93398eb6c"
+      "pinSalt": "058cd17c7c900dbab9e4edb93398eb6c",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mw23l25d-ca59",
@@ -5930,7 +6176,9 @@
       "deactivatedAt": "2026-11-04T12:33:18.699Z",
       "deactivatedBy": "usr-owner-mw23l1yv",
       "pinHash": "829c393f4f75cdba2b29e306f77a2bc437a0f60cf5387f4d624c134010b94c7c82d6c10200f5602ed92eda5e3ed0e5ecdc0c28f94796c5c89cebd182e78e8cc0",
-      "pinSalt": "d449d35bf65681e38eb99ea8b706c404"
+      "pinSalt": "d449d35bf65681e38eb99ea8b706c404",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw27ma77",
@@ -6022,7 +6270,9 @@
       "lastLoginAt": "2026-11-04T14:26:14.179Z",
       "tourProgressJson": {},
       "pinHash": "19e4b623cf34bf07c8d3084d84a0b95f42da5db817142fa64f14c6991e17f1a4f753db80eb192b2babc84047a1ea00dbe69f6216f7d5885b1d489c39be04a503",
-      "pinSalt": "98d755fa01293bbff7e91a78b2f33778"
+      "pinSalt": "98d755fa01293bbff7e91a78b2f33778",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw27maej",
@@ -6114,7 +6364,9 @@
       "lastLoginAt": "2026-11-04T14:26:14.443Z",
       "tourProgressJson": {},
       "pinHash": "c07103d70607f8c1881c3832a0a8d3d58c51448071f4c92f06366e2b277edf99649c62ab54e34b657342ec785429136d989a91656372772c9b6330d1af132f50",
-      "pinSalt": "c7213c21c476b976e3bf16f122dfe4d0"
+      "pinSalt": "c7213c21c476b976e3bf16f122dfe4d0",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw27mah5",
@@ -6206,7 +6458,9 @@
       "lastLoginAt": "2026-11-04T14:26:14.537Z",
       "tourProgressJson": {},
       "pinHash": "37ae6ddc204a19d002ccfe5600f4f4d59cddeccd98be068154fee22e1c8e1ada31c8ccba5ed001c1165e7bba0d847abcfdd6b8d1fe6fa2a20ec84be092b415ad",
-      "pinSalt": "e93db792c171540510ca0c35a4547e9b"
+      "pinSalt": "e93db792c171540510ca0c35a4547e9b",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mw27malc-a042",
@@ -6262,7 +6516,9 @@
       "deactivatedAt": "2026-11-04T14:26:14.751Z",
       "deactivatedBy": "usr-owner-mw27maej",
       "pinHash": "a5ce3902a42700e462e7be27380f2d4aaa5e574e1e7190ed462c8549c76dd64319223098ba59774e70e8456913c2111da00e18ba0b7ef8c9e3bf1e38eb183696",
-      "pinSalt": "d3b5f3c4d9485d33cc1d9996d99d9852"
+      "pinSalt": "d3b5f3c4d9485d33cc1d9996d99d9852",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw3c2j8i",
@@ -6362,7 +6618,9 @@
       "lastLoginAt": "2026-11-05T09:18:37.026Z",
       "tourProgressJson": {},
       "pinHash": "4f9e0e99f75895ffc62c70f26651fdf95e9350497bf1275d763dd8eeff5473827b00dd82c1d6a6b63ba9e6c5d0a86bb1993f049bbf1752a54afebf17a11c6be4",
-      "pinSalt": "4979fa34a76acb0e5ebd713f0b8f7118"
+      "pinSalt": "4979fa34a76acb0e5ebd713f0b8f7118",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw3c2j8i-4c25-1",
@@ -6457,7 +6715,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "a2c52ef803b9a6a8dead358c3b7db1f4c7777cf40835e18dd5b59cd16ca83fbf4aaa366363a0eb9ebad65576e6e8220ebca9ec16d326f63665bc8d6a1f7c1b84",
-      "pinSalt": "84be63c293126f1ea7dc355db9b6a51d"
+      "pinSalt": "84be63c293126f1ea7dc355db9b6a51d",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-c2rd1",
@@ -6556,7 +6816,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "19b3bdad3e3a739fdf4f90c871475b92adf302f73ceef42709a2e1a4ff7d5a9a69fe6b281ed64e97681c0e4e98f15fb1c0210ad934214c0e2ca81bc2e00589ce",
-      "pinSalt": "6932a68d92d8476e5779906caa937c00"
+      "pinSalt": "6932a68d92d8476e5779906caa937c00",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-c2rd1-kk3xd",
@@ -6651,7 +6913,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "309efdb08f3823e1102388b298f848a38e5d5a8c04c8ee583fda38458393abee6d8c368db8818946886030957438f38eb62c772020a51d8d144af282c272eb1f",
-      "pinSalt": "b3965525f33f5a8cf2546239a57e5695"
+      "pinSalt": "b3965525f33f5a8cf2546239a57e5695",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw3c2r4g",
@@ -6751,7 +7015,9 @@
       "lastLoginAt": "2026-11-05T09:18:47.248Z",
       "tourProgressJson": {},
       "pinHash": "cc1723995bb316508a5f24128274e4e8ae8973068a8a30cb058e8a60594d5b0090981fc83d9e1db3ecb333962c230e3d1fb13301bc58983999bc8a16a3a99146",
-      "pinSalt": "9fd347ab774f35ff1b3b2fbe5468b111"
+      "pinSalt": "9fd347ab774f35ff1b3b2fbe5468b111",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw3c2j8i-4c25-1",
@@ -6846,7 +7112,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "644800424edb7faf1203a8c9d9d70ea5c4603c380e3d205465e65def8eb6716138243ac542e499f56fcab447da9d225e23587fdd52617f69df260d6a483bd6b2",
-      "pinSalt": "60939477c51350e8868197363d75003c"
+      "pinSalt": "60939477c51350e8868197363d75003c",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw3cf7a1-d42a-1",
@@ -6941,7 +7209,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "e3c4a4784ea2507422f6fd8bedcf0ad8b8baeb6037d709623b70a9a3ec3a9ab6e0dfabfd6b4d31848b434dce348598f2aac24b8c8c4d30ae17044207b285b0e0",
-      "pinSalt": "15b4caed9d70ee246de509da7d8d3e0d"
+      "pinSalt": "15b4caed9d70ee246de509da7d8d3e0d",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw3chkmw",
@@ -7041,7 +7311,9 @@
       "lastLoginAt": "2026-11-05T09:30:18.680Z",
       "tourProgressJson": {},
       "pinHash": "d5a975e245ebbc44b70911583e7732d12c80470d62d953d864190039ab0685deb338038d7be83a76eb45c78aed26811285b62c95e66df475283d70e14073f4b0",
-      "pinSalt": "cee919b8f076b72fba8cb1d24eefce6b"
+      "pinSalt": "cee919b8f076b72fba8cb1d24eefce6b",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw3chkmw-d5f8-1",
@@ -7136,7 +7408,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "a014ff7290553420c6520170057db5247da14cd6cfe16050e683332fb3408faa745eab989a0a753d68a0abf1ecba84ae68aded6804d753b49f24dad118852569",
-      "pinSalt": "d7c6c825f75144095e9b0851503867a7"
+      "pinSalt": "d7c6c825f75144095e9b0851503867a7",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-chky7",
@@ -7235,7 +7509,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "61c31d384b5d51e281d3e227b2e909cec1e3ec07431a389b50e17317abbbaea53148bff21b7327e34c7b32f1b17da3e207bc00fd59b88e68924292fd32f8a69c",
-      "pinSalt": "5f1ca6ec841e3605dd97d0317e2b13e4"
+      "pinSalt": "5f1ca6ec841e3605dd97d0317e2b13e4",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-chky7-jfkpu",
@@ -7330,7 +7606,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "b7532c36aa328d1f63adcad6f3dd7cc36a3d5712ac621b71ecc0ca2c8be9f9d43b81a3e723aed3f0c24650382e428aa12bf9a74097fc251ae359c663b707591b",
-      "pinSalt": "9387212f1e4dbb187e0f69ae8c1d2a6c"
+      "pinSalt": "9387212f1e4dbb187e0f69ae8c1d2a6c",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw3chkqw",
@@ -7430,7 +7708,9 @@
       "lastLoginAt": "2026-11-05T09:30:18.824Z",
       "tourProgressJson": {},
       "pinHash": "da437ac96e9dfb3978ff15b5c388c3d9ab7b4b07a3bce9a6350c16a7ba198f37acaffdaccbcc1be4187b2b68747e746d1328d47f482ae59eec3e655407ecd6f6",
-      "pinSalt": "83be00e8cd1366853f4b6b2eef470837"
+      "pinSalt": "83be00e8cd1366853f4b6b2eef470837",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw3chkmw-d5f8-1",
@@ -7525,7 +7805,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "aadb4403d9f28568b2085dc6e04197408825e243ffae63c02889dee4f2d6212accb4543430cd862dc7981df68271d839016dbea4f8586b1de4e48a5426ae0084",
-      "pinSalt": "fb53bc697cea8f72ce808e9fd379a668"
+      "pinSalt": "fb53bc697cea8f72ce808e9fd379a668",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw3crge0",
@@ -7625,7 +7907,9 @@
       "lastLoginAt": "2026-11-05T09:37:59.735Z",
       "tourProgressJson": {},
       "pinHash": "441e7e4c3b962cf95a8e1c7790c504f907e7d2a23a0634f8368480d33417c03690e8170b8f3a468369d4bde39a763701ea567d7b268d6923924b706df321619e",
-      "pinSalt": "a8a1b649881ead5d36eecdd1aeab3bca"
+      "pinSalt": "a8a1b649881ead5d36eecdd1aeab3bca",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw3crgdz-bfaf-1",
@@ -7720,7 +8004,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "61bca812f3ab93b58cda373de5a37937e6b9c45da87f866226cf4961baad6a45c28c6c807896b2ed0c3f439b13d8310cd549c2dbfa7cdaab27ef04c9ec259585",
-      "pinSalt": "33b99de54d3896052938093a41d233f2"
+      "pinSalt": "33b99de54d3896052938093a41d233f2",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-crgr9",
@@ -7819,7 +8105,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "3d1435854a0c72d8488d7032e2110b63e38eaa27a91fcf4ed580f4bef892e1335a142246f3c044702d342e30eead86755f4409a2b6f618dbc5d8f4c48f887b0a",
-      "pinSalt": "7fd379610c721c3c9c0af5937975c519"
+      "pinSalt": "7fd379610c721c3c9c0af5937975c519",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-crgr9-kd4jp",
@@ -7914,7 +8202,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "0eb6e8c34e6b840c335806951ba24b77d65eea736787bb12c3393b940bac0d11cde5def1bda844ea7802168c95666ca9207a804364e3ece8056e48fc3aed7e01",
-      "pinSalt": "ecfb56091a8a8eddc1e1f426cf249021"
+      "pinSalt": "ecfb56091a8a8eddc1e1f426cf249021",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw3crgj4",
@@ -8014,7 +8304,9 @@
       "lastLoginAt": "2026-11-05T09:37:59.920Z",
       "tourProgressJson": {},
       "pinHash": "d7799055adb1b792eb29c647141853a9e4dc39e8a2c1f9f6451bd17f6b44423a40ede677f635342f75333e184ccbc228e4e8e8922258dc53dc2cb4c63c9ee578",
-      "pinSalt": "03af581868a000d8460a0990121fef7b"
+      "pinSalt": "03af581868a000d8460a0990121fef7b",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw3crgdz-bfaf-1",
@@ -8109,7 +8401,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "864e8988fb5deae6caad6a06cd0df284c1b9eeeb0a394d7178c610dc4d3c00c3c4eb382ef3504e69e027f9434377fea56a717aa660759695be81ec9db33fa152",
-      "pinSalt": "85a1408c2c1a0566f4aeb032278703d1"
+      "pinSalt": "85a1408c2c1a0566f4aeb032278703d1",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw3cykgr",
@@ -8209,7 +8503,9 @@
       "lastLoginAt": "2026-11-05T09:43:31.611Z",
       "tourProgressJson": {},
       "pinHash": "1c34449bff5af5539ff4700991883aff50265fc49ddcefec42b8e9c1411344edeed4390b1e40d3ac5a17f51a2f7a3564449dad84c2e97485592c030316d5fc1c",
-      "pinSalt": "c6a18f7e8df23e07f302ae2c818c4293"
+      "pinSalt": "c6a18f7e8df23e07f302ae2c818c4293",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw3cykgr-f427-1",
@@ -8304,7 +8600,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "ada2ca57b0e23cce7a2b32553ecdabf91c9f4a4b4880ae3bd4e1b0394b82ee0d28b68ac2f6e3db89bfbcc620ca2a20b3a8849b2c5c1985236218b810c15acf20",
-      "pinSalt": "72711dde714212200a4e4210a55a4c81"
+      "pinSalt": "72711dde714212200a4e4210a55a4c81",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-cykv7",
@@ -8403,7 +8701,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "64c99a87c1d8562608754bbc9bac6027eef1a73bfb14fd8bdf6907fa078fa4700bf4dc56c12121af70356957d6604baa83ad7ce8e071e7251979643963f32227",
-      "pinSalt": "87893a6d155f8f5da3a4dc01a27f14fd"
+      "pinSalt": "87893a6d155f8f5da3a4dc01a27f14fd",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-cykv7-owjpb",
@@ -8498,7 +8798,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "2b73341e38e9265c494536156d9456e69035c75116262ac679000e9d9d6c96ce6d5a0cfe6e995c10ed78d6312c0939d799d50179157a797709bf720ac399243b",
-      "pinSalt": "a93fc07812fa816e894e5a4520087515"
+      "pinSalt": "a93fc07812fa816e894e5a4520087515",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw3cykm3",
@@ -8598,7 +8900,9 @@
       "lastLoginAt": "2026-11-05T09:43:31.802Z",
       "tourProgressJson": {},
       "pinHash": "7601e6110625af007f61d0cb024a282d9f810858d6177f649dc9cfa57c97c8767b94c09712d35fc75232720f2f30471d366df708e8dd5d524cbfa7c155893212",
-      "pinSalt": "baaa4eccf5e05a084d9704dd6b9b999e"
+      "pinSalt": "baaa4eccf5e05a084d9704dd6b9b999e",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw3cykgr-f427-1",
@@ -8693,7 +8997,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "15c92777437e5d65d2f5b441a8afe11a1b6c340af6393d3dc31f931c168b86b5e6b86d4944d2703cabeceda3342008875cfd8950e8718b3e4868a6a2339c9ec6",
-      "pinSalt": "ebb14dec2e0fcbae195197f3aad4d8d9"
+      "pinSalt": "ebb14dec2e0fcbae195197f3aad4d8d9",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw3dtblk",
@@ -8793,7 +9099,9 @@
       "lastLoginAt": "2026-11-05T10:07:26.456Z",
       "tourProgressJson": {},
       "pinHash": "a59850e7bb84fb2922a6dcb4e4bb862733cf9471207a01a7c26742b675006abec32e21323aebfb91d0054710c981a708b1e3daa70c5b8f0d3919b7a3f3b0aa1b",
-      "pinSalt": "36bc01027e62b2687e536eb95e52273d"
+      "pinSalt": "36bc01027e62b2687e536eb95e52273d",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw3dtblk-426d-1",
@@ -8888,7 +9196,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "b2e55f49efb213122774c0ce4220900e9158e5c3deb1c2c2165c91e98c8de542ea7521c5ccf87e30721c3fbf48b996e9bf09b88843656a36acdb96ce4a5ab83f",
-      "pinSalt": "0d95cc49a167e5b47cfe6e1c31acae3b"
+      "pinSalt": "0d95cc49a167e5b47cfe6e1c31acae3b",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-dtizl",
@@ -8987,7 +9297,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "6bfdac1e302b28fca1d19090245104a255a6062b4cbb3334c42bccb17ad05bdd6ba664b8d248e5e073a6c0621d23ae110ce846892c0d8a3837f2ebc77244e519",
-      "pinSalt": "6ddaeafb68f67c41bda56d28a35efdfc"
+      "pinSalt": "6ddaeafb68f67c41bda56d28a35efdfc",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-dtizl-srpwq",
@@ -9082,7 +9394,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "76b1a76be350fbae005006e20f949111e137d444d364c47f28fbc200123080c267447bedbb38e30d1f4b06a708fc2abf71a8f7427d83feb7273d776f0d7e5831",
-      "pinSalt": "8e863e68eb0a088326251ac71349a141"
+      "pinSalt": "8e863e68eb0a088326251ac71349a141",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw3dtiq4",
@@ -9182,7 +9496,9 @@
       "lastLoginAt": "2026-11-05T10:07:35.692Z",
       "tourProgressJson": {},
       "pinHash": "f0aa967c09b8a823fb2025b39fcf9867be3af5e96cac75a30d360f6a09fd2ffa4be57a760d3ba2c9b3c03ed5a3b1dc1957018d519f2cc211dd03b16e2e80a6e8",
-      "pinSalt": "0f23f2d984ba1a889670026dc6b3e03c"
+      "pinSalt": "0f23f2d984ba1a889670026dc6b3e03c",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw3dtblk-426d-1",
@@ -9277,7 +9593,9 @@
       "phone": "+249 91 000 0000",
       "tourProgressJson": {},
       "pinHash": "e252e6acd8c00c9c0601ca093c4750df17033dfe7c34dfe410dc6c39e7b804e613bb853159d144c153fb333023b94607467da67bc0d013ab51c36249fa08b8b4",
-      "pinSalt": "89afe932e2578767dc4396033c72aff4"
+      "pinSalt": "89afe932e2578767dc4396033c72aff4",
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw949z7q",
@@ -9377,7 +9695,9 @@
       },
       "lastActiveAt": "2026-11-09T10:27:04.454Z",
       "lastLoginAt": "2026-11-09T10:27:04.454Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw949z7q-c2ee-1",
@@ -9472,7 +9792,9 @@
       },
       "email": "emp-comp-mw949z7q-c2ee-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-4a0b1",
@@ -9571,7 +9893,9 @@
       "mustChangePassword": false,
       "email": "usr-owner-4a0b1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-4a0b1-exeat",
@@ -9666,7 +9990,9 @@
       },
       "email": "usr-4a0b1-exeat@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw949zew",
@@ -9766,7 +10092,9 @@
       },
       "lastActiveAt": "2026-11-09T10:27:04.712Z",
       "lastLoginAt": "2026-11-09T10:27:04.712Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw949z7q-c2ee-1",
@@ -9861,7 +10189,9 @@
       },
       "email": "emp-comp-mw949z7q-c2ee-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw94lihj",
@@ -9961,7 +10291,9 @@
       },
       "lastActiveAt": "2026-11-09T10:36:02.647Z",
       "lastLoginAt": "2026-11-09T10:36:02.647Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw94lihj-2805-1",
@@ -10056,7 +10388,9 @@
       },
       "email": "emp-comp-mw94lihj-2805-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-4lji3",
@@ -10155,7 +10489,9 @@
       "mustChangePassword": false,
       "email": "usr-owner-4lji3@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-4lji3-e2th7",
@@ -10250,7 +10586,9 @@
       },
       "email": "usr-4lji3-e2th7@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw94lin4",
@@ -10350,7 +10688,9 @@
       },
       "lastActiveAt": "2026-11-09T10:36:02.848Z",
       "lastLoginAt": "2026-11-09T10:36:02.848Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw94lihj-2805-1",
@@ -10445,7 +10785,9 @@
       },
       "email": "emp-comp-mw94lihj-2805-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw967adp",
@@ -10545,7 +10887,9 @@
       },
       "lastActiveAt": "2026-11-09T11:20:58.189Z",
       "lastLoginAt": "2026-11-09T11:20:58.189Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw967apj",
@@ -10645,7 +10989,9 @@
       },
       "lastActiveAt": "2026-11-09T11:20:58.615Z",
       "lastLoginAt": "2026-11-09T11:20:58.615Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw96891c-4781",
@@ -10745,7 +11091,9 @@
       },
       "lastActiveAt": "2026-11-09T11:21:43.104Z",
       "lastLoginAt": "2026-11-09T11:21:43.104Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw96897u-55fe",
@@ -10845,7 +11193,9 @@
       },
       "lastActiveAt": "2026-11-09T11:21:43.338Z",
       "lastLoginAt": "2026-11-09T11:21:43.338Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mw9689e1-c683",
@@ -10899,7 +11249,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-09T11:21:43.561Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw968l0b-606c",
@@ -10999,7 +11351,9 @@
       },
       "lastActiveAt": "2026-11-09T11:21:58.619Z",
       "lastLoginAt": "2026-11-09T11:21:58.619Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw968l0b-606c-1",
@@ -11094,7 +11448,9 @@
       },
       "email": "emp-comp-mw968l0b-606c-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-68m35",
@@ -11193,7 +11549,9 @@
       "mustChangePassword": false,
       "email": "usr-owner-68m35@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-68m35-gmrm2",
@@ -11288,7 +11646,9 @@
       },
       "email": "usr-68m35-gmrm2@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mw968l7t-c3cb",
@@ -11388,7 +11748,9 @@
       },
       "lastActiveAt": "2026-11-09T11:21:58.889Z",
       "lastLoginAt": "2026-11-09T11:21:58.889Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mw968l0b-606c-1",
@@ -11483,7 +11845,9 @@
       },
       "email": "emp-comp-mw968l0b-606c-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwc5kkt3-6b7d",
@@ -11583,7 +11947,9 @@
       },
       "lastActiveAt": "2026-11-11T13:26:37.142Z",
       "lastLoginAt": "2026-11-11T13:26:37.142Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwc5kl0l-8877",
@@ -11683,7 +12049,9 @@
       },
       "lastActiveAt": "2026-11-11T13:26:37.413Z",
       "lastLoginAt": "2026-11-11T13:26:37.413Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwc5klaf-0a3c",
@@ -11737,7 +12105,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-11T13:26:37.767Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwg8y0qr-c0a4",
@@ -11837,7 +12207,9 @@
       },
       "lastActiveAt": "2026-11-14T10:12:07.875Z",
       "lastLoginAt": "2026-11-14T10:12:07.875Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwg8y0yb-1c89",
@@ -11937,7 +12309,9 @@
       },
       "lastActiveAt": "2026-11-14T10:12:08.147Z",
       "lastLoginAt": "2026-11-14T10:12:08.147Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwg8y17c-fc47",
@@ -11991,7 +12365,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-14T10:12:08.472Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwga3ipm-240b",
@@ -12091,7 +12467,9 @@
       },
       "lastActiveAt": "2026-11-14T10:44:24.057Z",
       "lastLoginAt": "2026-11-14T10:44:24.057Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwga3ixh-6726",
@@ -12191,7 +12569,9 @@
       },
       "lastActiveAt": "2026-11-14T10:44:24.341Z",
       "lastLoginAt": "2026-11-14T10:44:24.341Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwga3j91-b10a",
@@ -12245,7 +12625,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-14T10:44:24.757Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhnfams-5e63",
@@ -12345,7 +12727,9 @@
       },
       "lastActiveAt": "2026-11-15T09:45:14.644Z",
       "lastLoginAt": "2026-11-15T09:45:14.644Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhnfau6-1b95",
@@ -12445,7 +12829,9 @@
       },
       "lastActiveAt": "2026-11-15T09:45:14.910Z",
       "lastLoginAt": "2026-11-15T09:45:14.910Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwhnfb34-956c",
@@ -12499,7 +12885,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-15T09:45:15.232Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhngzty-5140",
@@ -12599,7 +12987,9 @@
       },
       "lastActiveAt": "2026-11-15T09:46:33.958Z",
       "lastLoginAt": "2026-11-15T09:46:33.958Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhnh027-96c1",
@@ -12699,7 +13089,9 @@
       },
       "lastActiveAt": "2026-11-15T09:46:34.255Z",
       "lastLoginAt": "2026-11-15T09:46:34.255Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwhnh0d3-8887",
@@ -12753,7 +13145,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-15T09:46:34.647Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhnmigv-636e",
@@ -12853,7 +13247,9 @@
       },
       "lastActiveAt": "2026-11-15T09:50:51.391Z",
       "lastLoginAt": "2026-11-15T09:50:51.391Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhnmio4-7843",
@@ -12953,7 +13349,9 @@
       },
       "lastActiveAt": "2026-11-15T09:50:51.652Z",
       "lastLoginAt": "2026-11-15T09:50:51.652Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwhnmixd-73e6",
@@ -13007,7 +13405,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-15T09:50:51.985Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhpnlqi-ee64",
@@ -13107,7 +13507,9 @@
       },
       "lastActiveAt": "2026-11-15T10:47:41.514Z",
       "lastLoginAt": "2026-11-15T10:47:41.514Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhpnlyo-e16a",
@@ -13207,7 +13609,9 @@
       },
       "lastActiveAt": "2026-11-15T10:47:41.808Z",
       "lastLoginAt": "2026-11-15T10:47:41.808Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwhpnm87-ba33",
@@ -13261,7 +13665,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-15T10:47:42.151Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhq1wlf-5d72",
@@ -13361,7 +13767,9 @@
       },
       "lastActiveAt": "2026-11-15T10:58:48.771Z",
       "lastLoginAt": "2026-11-15T10:58:48.771Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhq1ws8-7ad9",
@@ -13461,7 +13869,9 @@
       },
       "lastActiveAt": "2026-11-15T10:58:49.016Z",
       "lastLoginAt": "2026-11-15T10:58:49.016Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwhq1x1m-e93c",
@@ -13515,7 +13925,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-15T10:58:49.355Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhqeswo-2f1f",
@@ -13615,7 +14027,9 @@
       },
       "lastActiveAt": "2026-11-15T11:08:50.520Z",
       "lastLoginAt": "2026-11-15T11:08:50.520Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhqet40-849c",
@@ -13715,7 +14129,9 @@
       },
       "lastActiveAt": "2026-11-15T11:08:50.784Z",
       "lastLoginAt": "2026-11-15T11:08:50.784Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwhqetd3-8aec",
@@ -13769,7 +14185,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-15T11:08:51.111Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhy4778-1b4c",
@@ -13869,7 +14287,9 @@
       },
       "lastActiveAt": "2026-11-15T14:44:32.756Z",
       "lastLoginAt": "2026-11-15T14:44:32.756Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhy47fz-ea29",
@@ -13969,7 +14389,9 @@
       },
       "lastActiveAt": "2026-11-15T14:44:33.071Z",
       "lastLoginAt": "2026-11-15T14:44:33.071Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwhy47q5-2c86",
@@ -14023,7 +14445,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-15T14:44:33.437Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhy5bq0-28e2",
@@ -14123,7 +14547,9 @@
       },
       "lastActiveAt": "2026-11-15T14:45:25.272Z",
       "lastLoginAt": "2026-11-15T14:45:25.272Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhy5bza-f59b",
@@ -14223,7 +14649,9 @@
       },
       "lastActiveAt": "2026-11-15T14:45:25.606Z",
       "lastLoginAt": "2026-11-15T14:45:25.606Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwhy5caa-455d",
@@ -14277,7 +14705,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-15T14:45:26.002Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhy6jlo-20cf",
@@ -14377,7 +14807,9 @@
       },
       "lastActiveAt": "2026-11-15T14:46:22.139Z",
       "lastLoginAt": "2026-11-15T14:46:22.139Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwhy6jua-2bdd",
@@ -14477,7 +14909,9 @@
       },
       "lastActiveAt": "2026-11-15T14:46:22.449Z",
       "lastLoginAt": "2026-11-15T14:46:22.449Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwhy6k49-fa08",
@@ -14531,7 +14965,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-15T14:46:22.809Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj104si-94a0",
@@ -14631,7 +15067,9 @@
       },
       "lastActiveAt": "2026-11-16T08:53:08.034Z",
       "lastLoginAt": "2026-11-16T08:53:08.034Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj10529-122d",
@@ -14731,7 +15169,9 @@
       },
       "lastActiveAt": "2026-11-16T08:53:08.384Z",
       "lastLoginAt": "2026-11-16T08:53:08.384Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwj105en-5653",
@@ -14785,7 +15225,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-16T08:53:08.831Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-11gfn",
@@ -14884,7 +15326,9 @@
       "mustChangePassword": false,
       "email": "usr-owner-11gfn@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-11gfn-6vaiw",
@@ -14979,7 +15423,9 @@
       },
       "email": "usr-11gfn-6vaiw@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mwj11e82-be54-1",
@@ -15074,7 +15520,9 @@
       },
       "email": "emp-comp-mwj11e82-be54-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj12csc-ab83",
@@ -15174,7 +15622,9 @@
       },
       "lastActiveAt": "2026-11-16T08:54:51.707Z",
       "lastLoginAt": "2026-11-16T08:54:51.707Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mwj12csc-ab83-1",
@@ -15269,7 +15719,9 @@
       },
       "email": "emp-comp-mwj12csc-ab83-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-12et4",
@@ -15368,7 +15820,9 @@
       "mustChangePassword": false,
       "email": "usr-owner-12et4@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-12et4-txmn4",
@@ -15463,7 +15917,9 @@
       },
       "email": "usr-12et4-txmn4@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj12d26-425b",
@@ -15563,7 +16019,9 @@
       },
       "lastActiveAt": "2026-11-16T08:54:52.062Z",
       "lastLoginAt": "2026-11-16T08:54:52.062Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mwj12csc-ab83-1",
@@ -15658,7 +16116,9 @@
       },
       "email": "emp-comp-mwj12csc-ab83-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj13ofx-6eb8",
@@ -15758,7 +16218,9 @@
       },
       "lastActiveAt": "2026-11-16T08:55:53.469Z",
       "lastLoginAt": "2026-11-16T08:55:53.469Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mwj13ofx-6eb8-1",
@@ -15853,7 +16315,9 @@
       },
       "email": "emp-comp-mwj13ofx-6eb8-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-13qpv",
@@ -15952,7 +16416,9 @@
       "mustChangePassword": false,
       "email": "usr-owner-13qpv@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-13qpv-lg89v",
@@ -16047,7 +16513,9 @@
       },
       "email": "usr-13qpv-lg89v@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj13oqf-1afa",
@@ -16147,7 +16615,9 @@
       },
       "lastActiveAt": "2026-11-16T08:55:53.847Z",
       "lastLoginAt": "2026-11-16T08:55:53.847Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mwj13ofx-6eb8-1",
@@ -16242,7 +16712,9 @@
       },
       "email": "emp-comp-mwj13ofx-6eb8-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj1722j-e607",
@@ -16342,7 +16814,9 @@
       },
       "lastActiveAt": "2026-11-16T08:58:31.098Z",
       "lastLoginAt": "2026-11-16T08:58:31.098Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj172ck-f165",
@@ -16442,7 +16916,9 @@
       },
       "lastActiveAt": "2026-11-16T08:58:31.460Z",
       "lastLoginAt": "2026-11-16T08:58:31.460Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwj172op-37a8",
@@ -16496,7 +16972,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-16T08:58:31.897Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj1hpfp-51c8",
@@ -16596,7 +17074,9 @@
       },
       "lastActiveAt": "2026-11-16T09:06:47.940Z",
       "lastLoginAt": "2026-11-16T09:06:47.940Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj1hppm-456c",
@@ -16696,7 +17176,9 @@
       },
       "lastActiveAt": "2026-11-16T09:06:48.298Z",
       "lastLoginAt": "2026-11-16T09:06:48.298Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwj1hq23-e7f7",
@@ -16750,7 +17232,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-16T09:06:48.747Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj1hw1y-9991",
@@ -16850,7 +17334,9 @@
       },
       "lastActiveAt": "2026-11-16T09:06:56.518Z",
       "lastLoginAt": "2026-11-16T09:06:56.518Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mwj1hw1y-9991-1",
@@ -16945,7 +17431,9 @@
       },
       "email": "emp-comp-mwj1hw1y-9991-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-1hy5d",
@@ -17044,7 +17532,9 @@
       "mustChangePassword": false,
       "email": "usr-owner-1hy5d@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-1hy5d-mtbg1",
@@ -17139,7 +17629,9 @@
       },
       "email": "usr-1hy5d-mtbg1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj1hwbn-3388",
@@ -17239,7 +17731,9 @@
       },
       "lastActiveAt": "2026-11-16T09:06:56.866Z",
       "lastLoginAt": "2026-11-16T09:06:56.866Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mwj1hw1y-9991-1",
@@ -17334,7 +17828,9 @@
       },
       "email": "emp-comp-mwj1hw1y-9991-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj1k4bk-f391",
@@ -17434,7 +17930,9 @@
       },
       "lastActiveAt": "2026-11-16T09:08:40.544Z",
       "lastLoginAt": "2026-11-16T09:08:40.544Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj1k4lj-736c",
@@ -17534,7 +18032,9 @@
       },
       "lastActiveAt": "2026-11-16T09:08:40.903Z",
       "lastLoginAt": "2026-11-16T09:08:40.903Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwj1k4xe-104f",
@@ -17588,7 +18088,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-16T09:08:41.330Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj1ka6b-3105",
@@ -17688,7 +18190,9 @@
       },
       "lastActiveAt": "2026-11-16T09:08:48.130Z",
       "lastLoginAt": "2026-11-16T09:08:48.130Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mwj1ka6b-3105-1",
@@ -17783,7 +18287,9 @@
       },
       "email": "emp-comp-mwj1ka6b-3105-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-1kc6y",
@@ -17882,7 +18388,9 @@
       "mustChangePassword": false,
       "email": "usr-owner-1kc6y@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-1kc6y-xx18q",
@@ -17977,7 +18485,9 @@
       },
       "email": "usr-1kc6y-xx18q@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj1kafo-fc23",
@@ -18077,7 +18587,9 @@
       },
       "lastActiveAt": "2026-11-16T09:08:48.468Z",
       "lastLoginAt": "2026-11-16T09:08:48.468Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mwj1ka6b-3105-1",
@@ -18172,7 +18684,9 @@
       },
       "email": "emp-comp-mwj1ka6b-3105-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj23x01-7d68",
@@ -18272,7 +18786,9 @@
       },
       "lastActiveAt": "2026-11-16T09:24:04.177Z",
       "lastLoginAt": "2026-11-16T09:24:04.177Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj23x9w-5b3a",
@@ -18372,7 +18888,9 @@
       },
       "lastActiveAt": "2026-11-16T09:24:04.532Z",
       "lastLoginAt": "2026-11-16T09:24:04.532Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwj23xnr-8770",
@@ -18426,7 +18944,9 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-16T09:24:05.031Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj243qb-781f",
@@ -18526,7 +19046,9 @@
       },
       "lastActiveAt": "2026-11-16T09:24:12.898Z",
       "lastLoginAt": "2026-11-16T09:24:12.898Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mwj243qb-781f-1",
@@ -18621,7 +19143,9 @@
       },
       "email": "emp-comp-mwj243qb-781f-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-245u6",
@@ -18720,7 +19244,9 @@
       "mustChangePassword": false,
       "email": "usr-owner-245u6@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-245u6-7jeqb",
@@ -18815,7 +19341,9 @@
       },
       "email": "usr-245u6-7jeqb@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwj2440a-c6a1",
@@ -18915,7 +19443,9 @@
       },
       "lastActiveAt": "2026-11-16T09:24:13.258Z",
       "lastLoginAt": "2026-11-16T09:24:13.258Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "emp-comp-mwj243qb-781f-1",
@@ -19010,102 +19540,9 @@
       },
       "email": "emp-comp-mwj243qb-781f-1@dqnamo.sd",
       "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
-    },
-    {
-      "id": "emp-comp-clean-store-1",
-      "companyId": "comp-clean-store",
-      "username": "cashier.comp-clean-store",
-      "name": "Omer Cashier",
-      "role": "cashier",
-      "systemRole": "CASHIER",
-      "isActive": true,
-      "hasPassword": false,
-      "requiresCredentialSetup": true,
-      "capabilities": [
-        "dashboard.view",
-        "sales.view",
-        "sales.create",
-        "sales.edit",
-        "sales.cancel",
-        "sales.refund",
-        "sales.discount",
-        "sales.view_cost",
-        "products.view",
-        "products.create",
-        "products.edit",
-        "products.delete",
-        "inventory.view",
-        "inventory.adjust",
-        "inventory.receive",
-        "inventory.transfer",
-        "inventory.approve_adjustments",
-        "purchases.view",
-        "purchases.create",
-        "purchases.approve",
-        "purchases.receive",
-        "suppliers.manage",
-        "customers.view",
-        "customers.create",
-        "customers.edit",
-        "customers.view_debts",
-        "accounting.view",
-        "accounting.create_expense",
-        "accounting.manage_payables",
-        "accounting.manage_receivables",
-        "accounting.view_financial_reports",
-        "analytics.view",
-        "analytics.financial.view",
-        "analytics.inventory.view",
-        "analytics.export",
-        "intelligence.view",
-        "intelligence.acknowledge",
-        "intelligence.resolve",
-        "intelligence.dismiss",
-        "intelligence.reopen",
-        "users.view",
-        "users.create",
-        "users.edit",
-        "users.deactivate",
-        "roles.manage",
-        "permissions.manage",
-        "company.view",
-        "company.edit",
-        "company.currency.manage",
-        "company.branches.manage",
-        "backup.view",
-        "backup.create",
-        "backup.download",
-        "backup.restore",
-        "backup.import",
-        "backup.merge",
-        "backup.manage",
-        "backup.delete"
-      ],
-      "branchId": "br-comp-clean-store-main",
-      "assignedBranchIds": [
-        "branch-main"
-      ],
-      "passwordHash": null,
-      "passwordSalt": null,
-      "pin": "scrypt$7b7044f22d455b7ab0998d9f3f74f47e$d242bc4ec5e41413219ba51ff1fd0fbfe585b418acda355192745da1693f5f368755f90129cdffef696eaa8b49fbaefd7098ed16d916fef25ffa1169bde47773",
-      "pinHash": "d242bc4ec5e41413219ba51ff1fd0fbfe585b418acda355192745da1693f5f368755f90129cdffef696eaa8b49fbaefd7098ed16d916fef25ffa1169bde47773",
-      "pinSalt": "7b7044f22d455b7ab0998d9f3f74f47e",
-      "mustChangePassword": false,
-      "permissions": {
-        "canCheckout": true,
-        "canApplyDiscounts": true,
-        "canManageProducts": true,
-        "canEditPrices": true,
-        "canManageInventory": true,
-        "canVoidTransactions": true,
-        "canManageExchangeRates": true,
-        "canViewReports": true,
-        "canManageUsers": true
-      },
-      "email": "emp-comp-clean-store-1@dqnamo.sd",
-      "phone": "+249 91 000 0000",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwnlv6sw-5c6b",
@@ -19205,7 +19642,9 @@
       },
       "lastActiveAt": "2026-11-19T13:48:14.000Z",
       "lastLoginAt": "2026-11-19T13:48:14.000Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-owner-mwnlv74e-0bed",
@@ -19305,7 +19744,9 @@
       },
       "lastActiveAt": "2026-11-19T13:48:14.413Z",
       "lastLoginAt": "2026-11-19T13:48:14.413Z",
-      "tourProgressJson": {}
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     },
     {
       "id": "usr-mwnlv7fh-6838",
@@ -19359,10 +19800,1043 @@
         "canManageUsers": false
       },
       "lastActiveAt": "2026-11-19T13:48:14.813Z",
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
+    },
+    {
+      "id": "usr-owner-mwqd8mn6-4167",
+      "companyId": "comp-mwqd8mn6-4167",
+      "username": "jwt.owner.a.mwqd8mg1",
+      "email": "usr-owner-mwqd8mn6-4167@dqnamo.sd",
+      "firebaseUid": null,
+      "emailVerified": false,
+      "phone": "+249 91 000 0000",
+      "name": "Owner A",
+      "nameAr": "Owner A",
+      "role": "admin",
+      "systemRole": "COMPANY_OWNER",
+      "capabilities": [
+        "dashboard.view",
+        "sales.view",
+        "sales.create",
+        "sales.edit",
+        "sales.cancel",
+        "sales.refund",
+        "sales.discount",
+        "sales.view_cost",
+        "products.view",
+        "products.create",
+        "products.edit",
+        "products.delete",
+        "inventory.view",
+        "inventory.adjust",
+        "inventory.receive",
+        "inventory.transfer",
+        "inventory.approve_adjustments",
+        "purchases.view",
+        "purchases.create",
+        "purchases.approve",
+        "purchases.receive",
+        "suppliers.manage",
+        "customers.view",
+        "customers.create",
+        "customers.edit",
+        "customers.view_debts",
+        "accounting.view",
+        "accounting.create_expense",
+        "accounting.manage_payables",
+        "accounting.manage_receivables",
+        "accounting.view_financial_reports",
+        "analytics.view",
+        "analytics.financial.view",
+        "analytics.inventory.view",
+        "analytics.export",
+        "intelligence.view",
+        "intelligence.acknowledge",
+        "intelligence.resolve",
+        "intelligence.dismiss",
+        "intelligence.reopen",
+        "users.view",
+        "users.create",
+        "users.edit",
+        "users.deactivate",
+        "roles.manage",
+        "permissions.manage",
+        "company.view",
+        "company.edit",
+        "company.currency.manage",
+        "company.branches.manage",
+        "backup.view",
+        "backup.create",
+        "backup.download",
+        "backup.restore",
+        "backup.import",
+        "backup.merge",
+        "backup.manage",
+        "backup.delete"
+      ],
+      "branchId": "br-mwqd8mn6-4167-main",
+      "assignedBranchIds": [
+        "br-mwqd8mn6-4167-main"
+      ],
+      "pin": "scrypt$2b5622a2f595a316df963e22cea7c707$7f86b39ba21feabebb0aab4bc35aa333ddb294c30b26c8f190c460bd988ac7bb20cbfb995281262741f2da9911a4c5360190b3b40dddf6fcadb83802ee1fd986",
+      "pinHash": "7f86b39ba21feabebb0aab4bc35aa333ddb294c30b26c8f190c460bd988ac7bb20cbfb995281262741f2da9911a4c5360190b3b40dddf6fcadb83802ee1fd986",
+      "pinSalt": "2b5622a2f595a316df963e22cea7c707",
+      "passwordHash": "0945899c30aef566e3a3cef415a16b1f0a472c992109ab6c3d59af2526d8142f86a07d5c823e07c7c6dc9a08b07c41e8a2dadd3835bb69ca68bfba256dd04f6c",
+      "passwordSalt": "4e17f4b4d4a8b6f33cf72c0e6bbbd8c5",
+      "hasPassword": true,
+      "mustChangePassword": false,
+      "terminalName": "JWT Security Co A mwqd8mg1 — Main Branch — Owner Terminal",
+      "terminalNameAr": "JWT Security Co A mwqd8mg1 — Main Branch — جهاز المالك",
+      "avatarColor": "#f59e0b",
+      "isActive": true,
+      "permissions": {
+        "canCheckout": true,
+        "canApplyDiscounts": true,
+        "canManageProducts": true,
+        "canEditPrices": true,
+        "canManageInventory": true,
+        "canVoidTransactions": true,
+        "canManageExchangeRates": true,
+        "canViewReports": true,
+        "canManageUsers": true
+      },
+      "lastActiveAt": "2026-11-21T12:10:03.042Z",
+      "lastLoginAt": "2026-11-21T12:10:03.042Z",
       "tourProgressJson": {}
+    },
+    {
+      "id": "usr-owner-mwqd8n0b-1cac",
+      "companyId": "comp-mwqd8n0b-1cac",
+      "username": "jwt.owner.b.mwqd8mg1",
+      "email": "usr-owner-mwqd8n0b-1cac@dqnamo.sd",
+      "firebaseUid": null,
+      "emailVerified": false,
+      "phone": "+249 91 000 0000",
+      "name": "Owner B",
+      "nameAr": "Owner B",
+      "role": "admin",
+      "systemRole": "COMPANY_OWNER",
+      "capabilities": [
+        "dashboard.view",
+        "sales.view",
+        "sales.create",
+        "sales.edit",
+        "sales.cancel",
+        "sales.refund",
+        "sales.discount",
+        "sales.view_cost",
+        "products.view",
+        "products.create",
+        "products.edit",
+        "products.delete",
+        "inventory.view",
+        "inventory.adjust",
+        "inventory.receive",
+        "inventory.transfer",
+        "inventory.approve_adjustments",
+        "purchases.view",
+        "purchases.create",
+        "purchases.approve",
+        "purchases.receive",
+        "suppliers.manage",
+        "customers.view",
+        "customers.create",
+        "customers.edit",
+        "customers.view_debts",
+        "accounting.view",
+        "accounting.create_expense",
+        "accounting.manage_payables",
+        "accounting.manage_receivables",
+        "accounting.view_financial_reports",
+        "analytics.view",
+        "analytics.financial.view",
+        "analytics.inventory.view",
+        "analytics.export",
+        "intelligence.view",
+        "intelligence.acknowledge",
+        "intelligence.resolve",
+        "intelligence.dismiss",
+        "intelligence.reopen",
+        "users.view",
+        "users.create",
+        "users.edit",
+        "users.deactivate",
+        "roles.manage",
+        "permissions.manage",
+        "company.view",
+        "company.edit",
+        "company.currency.manage",
+        "company.branches.manage",
+        "backup.view",
+        "backup.create",
+        "backup.download",
+        "backup.restore",
+        "backup.import",
+        "backup.merge",
+        "backup.manage",
+        "backup.delete"
+      ],
+      "branchId": "br-mwqd8n0b-1cac-main",
+      "assignedBranchIds": [
+        "br-mwqd8n0b-1cac-main"
+      ],
+      "pin": "scrypt$c4929998bf4b5f1a0780e85cf7856c97$ff23d02078ce19e5e3d7e01351ecf6915fced61b8250e1fbefdc54fe79435d5b34c60e7ebc6baa12211c2b7c1e815d732c9718b2393ca6a0af714e755e1b88ba",
+      "pinHash": "ff23d02078ce19e5e3d7e01351ecf6915fced61b8250e1fbefdc54fe79435d5b34c60e7ebc6baa12211c2b7c1e815d732c9718b2393ca6a0af714e755e1b88ba",
+      "pinSalt": "c4929998bf4b5f1a0780e85cf7856c97",
+      "passwordHash": "a020e0bc53af647898544631ebf31b04adfce252107bd5ad3856c8c2aa6b3c77055a7236c3b2d5a4ae39276440f027ada146b3ae925b4bc53632835c8bd734db",
+      "passwordSalt": "19c5864e432b4b1ddb8065ed7a78c782",
+      "hasPassword": true,
+      "mustChangePassword": false,
+      "terminalName": "JWT Security Co B mwqd8mg1 — Main Branch — Owner Terminal",
+      "terminalNameAr": "JWT Security Co B mwqd8mg1 — Main Branch — جهاز المالك",
+      "avatarColor": "#f59e0b",
+      "isActive": true,
+      "permissions": {
+        "canCheckout": true,
+        "canApplyDiscounts": true,
+        "canManageProducts": true,
+        "canEditPrices": true,
+        "canManageInventory": true,
+        "canVoidTransactions": true,
+        "canManageExchangeRates": true,
+        "canViewReports": true,
+        "canManageUsers": true
+      },
+      "lastActiveAt": "2026-11-21T12:10:03.515Z",
+      "lastLoginAt": "2026-11-21T12:10:03.515Z",
+      "tourProgressJson": {}
+    },
+    {
+      "id": "usr-mwqd8nfs-fb47",
+      "companyId": "comp-mwqd8mn6-4167",
+      "username": "jwt.cashier.a.mwqd8mg1",
+      "email": "usr-mwqd8nfs-fb47@dqnamo.sd",
+      "phone": "+249 91 000 0000",
+      "name": "Cashier A",
+      "nameAr": "Cashier A",
+      "role": "cashier",
+      "systemRole": "CASHIER",
+      "capabilities": [
+        "dashboard.view",
+        "sales.view",
+        "sales.create",
+        "sales.edit",
+        "sales.discount",
+        "products.view",
+        "customers.view",
+        "customers.create",
+        "customers.edit",
+        "customers.view_debts",
+        "intelligence.view",
+        "intelligence.acknowledge",
+        "company.view"
+      ],
+      "branchId": "br-mwqd8mn6-4167-main",
+      "assignedBranchIds": [
+        "br-mwqd8mn6-4167-main"
+      ],
+      "pin": "scrypt$df39d174d31cd95c8ee93d652f6d097a$8edf5bef8b5e8567fff87241843ccfbb572ca793bd9d59a1ada41d83bc228e22b42ee924489e0e1e9ef617bf978879bdbc4f08ef79e2c1d1b0f0c42cab7811a5",
+      "pinHash": "8edf5bef8b5e8567fff87241843ccfbb572ca793bd9d59a1ada41d83bc228e22b42ee924489e0e1e9ef617bf978879bdbc4f08ef79e2c1d1b0f0c42cab7811a5",
+      "pinSalt": "df39d174d31cd95c8ee93d652f6d097a",
+      "passwordHash": "eb26ff207a624293a467c98e7f376ebe503ae00206740e59699b88551cafe83e6b503ccbae27c0774a4201c9aa6fbc2af98cd2bde7957ded37be58e5c83b0174",
+      "passwordSalt": "26fb28b0091fd4e6c9a142798c76e143",
+      "hasPassword": true,
+      "mustChangePassword": false,
+      "terminalName": "POS Terminal",
+      "terminalNameAr": "نقطة بيع",
+      "avatarColor": "#10b981",
+      "isActive": true,
+      "permissions": {
+        "canCheckout": true,
+        "canApplyDiscounts": true,
+        "canManageProducts": false,
+        "canEditPrices": false,
+        "canManageInventory": false,
+        "canVoidTransactions": false,
+        "canManageExchangeRates": false,
+        "canViewReports": false,
+        "canManageUsers": false
+      },
+      "lastActiveAt": "2026-11-21T12:10:04.072Z",
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
+    },
+    {
+      "id": "usr-owner-mwqd8yrj-2f43",
+      "companyId": "comp-mwqd8yrj-2f43",
+      "username": "hassan.a.8ynh",
+      "email": "usr-owner-mwqd8yrj-2f43@dqnamo.sd",
+      "firebaseUid": null,
+      "emailVerified": false,
+      "phone": "+249 91 000 0000",
+      "name": "Hassan Owner A",
+      "nameAr": "Hassan Owner A",
+      "role": "admin",
+      "systemRole": "COMPANY_OWNER",
+      "capabilities": [
+        "dashboard.view",
+        "sales.view",
+        "sales.create",
+        "sales.edit",
+        "sales.cancel",
+        "sales.refund",
+        "sales.discount",
+        "sales.view_cost",
+        "products.view",
+        "products.create",
+        "products.edit",
+        "products.delete",
+        "inventory.view",
+        "inventory.adjust",
+        "inventory.receive",
+        "inventory.transfer",
+        "inventory.approve_adjustments",
+        "purchases.view",
+        "purchases.create",
+        "purchases.approve",
+        "purchases.receive",
+        "suppliers.manage",
+        "customers.view",
+        "customers.create",
+        "customers.edit",
+        "customers.view_debts",
+        "accounting.view",
+        "accounting.create_expense",
+        "accounting.manage_payables",
+        "accounting.manage_receivables",
+        "accounting.view_financial_reports",
+        "analytics.view",
+        "analytics.financial.view",
+        "analytics.inventory.view",
+        "analytics.export",
+        "intelligence.view",
+        "intelligence.acknowledge",
+        "intelligence.resolve",
+        "intelligence.dismiss",
+        "intelligence.reopen",
+        "users.view",
+        "users.create",
+        "users.edit",
+        "users.deactivate",
+        "roles.manage",
+        "permissions.manage",
+        "company.view",
+        "company.edit",
+        "company.currency.manage",
+        "company.branches.manage",
+        "backup.view",
+        "backup.create",
+        "backup.download",
+        "backup.restore",
+        "backup.import",
+        "backup.merge",
+        "backup.manage",
+        "backup.delete"
+      ],
+      "branchId": "br-mwqd8yrj-2f43-main",
+      "assignedBranchIds": [
+        "br-mwqd8yrj-2f43-main"
+      ],
+      "pin": "scrypt$efdcc49449752bd13819f123e54d347c$e92bfc458a6c574f7aa42963e4bcedbbb45eb977a6ab1ec801162a4640b049ff159e081bb316d8b65551dcb2002142fedad34d412eb4b4d99f38f018c87baa3e",
+      "pinHash": "e92bfc458a6c574f7aa42963e4bcedbbb45eb977a6ab1ec801162a4640b049ff159e081bb316d8b65551dcb2002142fedad34d412eb4b4d99f38f018c87baa3e",
+      "pinSalt": "efdcc49449752bd13819f123e54d347c",
+      "passwordHash": "08ab4f1a2f81e5166bb23d004febcb58e1610749ad096d63f2bd3a0c6efd6d3085ccf1d495f920113fbec397ad764b9d40e95ebb93af5c54be2516526c0c5bf5",
+      "passwordSalt": "310d022e9fa22d690c4179e9a8816acc",
+      "hasPassword": true,
+      "mustChangePassword": false,
+      "terminalName": "Nile Star Market 8ynh — Main Branch — Owner Terminal",
+      "terminalNameAr": "Nile Star Market 8ynh — Main Branch — جهاز المالك",
+      "avatarColor": "#f59e0b",
+      "isActive": true,
+      "permissions": {
+        "canCheckout": true,
+        "canApplyDiscounts": true,
+        "canManageProducts": true,
+        "canEditPrices": true,
+        "canManageInventory": true,
+        "canVoidTransactions": true,
+        "canManageExchangeRates": true,
+        "canViewReports": true,
+        "canManageUsers": true
+      },
+      "lastActiveAt": "2026-11-21T12:10:18.751Z",
+      "lastLoginAt": "2026-11-21T12:10:18.751Z",
+      "tourProgressJson": {}
+    },
+    {
+      "id": "emp-comp-mwqd8yrj-2f43-1",
+      "companyId": "comp-mwqd8yrj-2f43",
+      "username": "cashier.comp-mwqd8yrj-2f43",
+      "name": "Omer Cashier",
+      "role": "cashier",
+      "systemRole": "CASHIER",
+      "isActive": true,
+      "hasPassword": false,
+      "requiresCredentialSetup": true,
+      "capabilities": [
+        "dashboard.view",
+        "sales.view",
+        "sales.create",
+        "sales.edit",
+        "sales.cancel",
+        "sales.refund",
+        "sales.discount",
+        "sales.view_cost",
+        "products.view",
+        "products.create",
+        "products.edit",
+        "products.delete",
+        "inventory.view",
+        "inventory.adjust",
+        "inventory.receive",
+        "inventory.transfer",
+        "inventory.approve_adjustments",
+        "purchases.view",
+        "purchases.create",
+        "purchases.approve",
+        "purchases.receive",
+        "suppliers.manage",
+        "customers.view",
+        "customers.create",
+        "customers.edit",
+        "customers.view_debts",
+        "accounting.view",
+        "accounting.create_expense",
+        "accounting.manage_payables",
+        "accounting.manage_receivables",
+        "accounting.view_financial_reports",
+        "analytics.view",
+        "analytics.financial.view",
+        "analytics.inventory.view",
+        "analytics.export",
+        "intelligence.view",
+        "intelligence.acknowledge",
+        "intelligence.resolve",
+        "intelligence.dismiss",
+        "intelligence.reopen",
+        "users.view",
+        "users.create",
+        "users.edit",
+        "users.deactivate",
+        "roles.manage",
+        "permissions.manage",
+        "company.view",
+        "company.edit",
+        "company.currency.manage",
+        "company.branches.manage",
+        "backup.view",
+        "backup.create",
+        "backup.download",
+        "backup.restore",
+        "backup.import",
+        "backup.merge",
+        "backup.manage",
+        "backup.delete"
+      ],
+      "branchId": "br-comp-mwqd8yrj-2f43-main",
+      "assignedBranchIds": [
+        "branch-main"
+      ],
+      "passwordHash": null,
+      "passwordSalt": null,
+      "pin": "scrypt$f1295796da6b5e23fd51462d2588debb$9e9932605d5311259cfb6cfc01657477a79f9434b2a761395153e9a87152769369f3ad7912b7fa0383d8744e62278d0d40814bcccd42907ad2023f19caa07948",
+      "pinHash": "9e9932605d5311259cfb6cfc01657477a79f9434b2a761395153e9a87152769369f3ad7912b7fa0383d8744e62278d0d40814bcccd42907ad2023f19caa07948",
+      "pinSalt": "f1295796da6b5e23fd51462d2588debb",
+      "mustChangePassword": false,
+      "permissions": {
+        "canCheckout": true,
+        "canApplyDiscounts": true,
+        "canManageProducts": true,
+        "canEditPrices": true,
+        "canManageInventory": true,
+        "canVoidTransactions": true,
+        "canManageExchangeRates": true,
+        "canViewReports": true,
+        "canManageUsers": true
+      },
+      "email": "emp-comp-mwqd8yrj-2f43-1@dqnamo.sd",
+      "phone": "+249 91 000 0000",
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
+    },
+    {
+      "id": "usr-owner-d91en",
+      "companyId": "comp-d91en",
+      "branchId": "br-d91en-caij8",
+      "assignedBranchIds": [
+        "br-d91en-caij8"
+      ],
+      "name": "New Company C Owner",
+      "nameAr": "New Company C Owner",
+      "username": "owner.c.8ynh",
+      "role": "admin",
+      "systemRole": "COMPANY_OWNER",
+      "capabilities": [
+        "dashboard.view",
+        "sales.view",
+        "sales.create",
+        "sales.edit",
+        "sales.cancel",
+        "sales.refund",
+        "sales.discount",
+        "sales.view_cost",
+        "products.view",
+        "products.create",
+        "products.edit",
+        "products.delete",
+        "inventory.view",
+        "inventory.adjust",
+        "inventory.receive",
+        "inventory.transfer",
+        "inventory.approve_adjustments",
+        "purchases.view",
+        "purchases.create",
+        "purchases.approve",
+        "purchases.receive",
+        "suppliers.manage",
+        "customers.view",
+        "customers.create",
+        "customers.edit",
+        "customers.view_debts",
+        "accounting.view",
+        "accounting.create_expense",
+        "accounting.manage_payables",
+        "accounting.manage_receivables",
+        "accounting.view_financial_reports",
+        "analytics.view",
+        "analytics.financial.view",
+        "analytics.inventory.view",
+        "analytics.export",
+        "intelligence.view",
+        "intelligence.acknowledge",
+        "intelligence.resolve",
+        "intelligence.dismiss",
+        "intelligence.reopen",
+        "users.view",
+        "users.create",
+        "users.edit",
+        "users.deactivate",
+        "roles.manage",
+        "permissions.manage",
+        "company.view",
+        "company.edit",
+        "company.currency.manage",
+        "company.branches.manage",
+        "backup.view",
+        "backup.create",
+        "backup.download",
+        "backup.restore",
+        "backup.import",
+        "backup.merge",
+        "backup.manage",
+        "backup.delete"
+      ],
+      "pin": "scrypt$a4999b57e802d78f72e59b306029c4c8$8de5c7492968da52415cd06bcc32f67386d962650aac273542596c8378cefbf446706c815cec9df4bd2f29a71ef08356f2c708f513a8e937f0154a2597735866",
+      "terminalName": "Khartoum Main Branch — Owner Terminal",
+      "terminalNameAr": "فرع الخرطوم الرئيسي — جهاز المالك",
+      "avatarColor": "#10b981",
+      "isActive": true,
+      "permissions": {
+        "canCheckout": true,
+        "canApplyDiscounts": true,
+        "canManageProducts": true,
+        "canEditPrices": true,
+        "canManageInventory": true,
+        "canVoidTransactions": true,
+        "canManageExchangeRates": true,
+        "canViewReports": true,
+        "canManageUsers": true
+      },
+      "lastActiveAt": "2026-11-21T12:10:22.175Z",
+      "pinHash": "8de5c7492968da52415cd06bcc32f67386d962650aac273542596c8378cefbf446706c815cec9df4bd2f29a71ef08356f2c708f513a8e937f0154a2597735866",
+      "pinSalt": "a4999b57e802d78f72e59b306029c4c8",
+      "passwordHash": "4d66f7dabb3794d171d4cd1cc801b0adf902229a2f45e63729c4736d3a89ca68d061365b529152ad564faaf74bf1ccb0a7c2c4feb3501a6f1b648bcab299a42f",
+      "passwordSalt": "0f31e4303b9531d436bdbab5468bcf2b",
+      "hasPassword": true,
+      "mustChangePassword": false,
+      "email": "usr-owner-d91en@dqnamo.sd",
+      "phone": "+249 91 000 0000",
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
+    },
+    {
+      "id": "usr-d91en-zknke",
+      "companyId": "comp-d91en",
+      "username": "cashier.comp-mwqd8yrj-2f43.d91en",
+      "name": "Omer Cashier",
+      "role": "cashier",
+      "systemRole": "CASHIER",
+      "isActive": true,
+      "hasPassword": false,
+      "requiresCredentialSetup": true,
+      "branchId": "br-d91en-caij8",
+      "assignedBranchIds": [
+        "br-d91en-caij8"
+      ],
+      "capabilities": [
+        "dashboard.view",
+        "sales.view",
+        "sales.create",
+        "sales.edit",
+        "sales.cancel",
+        "sales.refund",
+        "sales.discount",
+        "sales.view_cost",
+        "products.view",
+        "products.create",
+        "products.edit",
+        "products.delete",
+        "inventory.view",
+        "inventory.adjust",
+        "inventory.receive",
+        "inventory.transfer",
+        "inventory.approve_adjustments",
+        "purchases.view",
+        "purchases.create",
+        "purchases.approve",
+        "purchases.receive",
+        "suppliers.manage",
+        "customers.view",
+        "customers.create",
+        "customers.edit",
+        "customers.view_debts",
+        "accounting.view",
+        "accounting.create_expense",
+        "accounting.manage_payables",
+        "accounting.manage_receivables",
+        "accounting.view_financial_reports",
+        "analytics.view",
+        "analytics.financial.view",
+        "analytics.inventory.view",
+        "analytics.export",
+        "intelligence.view",
+        "intelligence.acknowledge",
+        "intelligence.resolve",
+        "intelligence.dismiss",
+        "intelligence.reopen",
+        "users.view",
+        "users.create",
+        "users.edit",
+        "users.deactivate",
+        "roles.manage",
+        "permissions.manage",
+        "company.view",
+        "company.edit",
+        "company.currency.manage",
+        "company.branches.manage",
+        "backup.view",
+        "backup.create",
+        "backup.download",
+        "backup.restore",
+        "backup.import",
+        "backup.merge",
+        "backup.manage",
+        "backup.delete"
+      ],
+      "passwordHash": null,
+      "passwordSalt": null,
+      "pin": "scrypt$7eb523e1a7a5764e65138645db985be1$fcba397e9563ec23aab9d5d3e120237fd73d1539eef0591bc5fab23f5e05d4e1ef605375446e36c05ee0d56d13256a4a6ea98eb0b717e618571af6fc9785b1d5",
+      "pinHash": "fcba397e9563ec23aab9d5d3e120237fd73d1539eef0591bc5fab23f5e05d4e1ef605375446e36c05ee0d56d13256a4a6ea98eb0b717e618571af6fc9785b1d5",
+      "pinSalt": "7eb523e1a7a5764e65138645db985be1",
+      "mustChangePassword": false,
+      "permissions": {
+        "canCheckout": true,
+        "canApplyDiscounts": true,
+        "canManageProducts": true,
+        "canEditPrices": true,
+        "canManageInventory": true,
+        "canVoidTransactions": true,
+        "canManageExchangeRates": true,
+        "canViewReports": true,
+        "canManageUsers": true
+      },
+      "email": "usr-d91en-zknke@dqnamo.sd",
+      "phone": "+249 91 000 0000",
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
+    },
+    {
+      "id": "usr-owner-mwqd8z5m-87bc",
+      "companyId": "comp-mwqd8z5m-87bc",
+      "username": "tariq.b.8ynh",
+      "email": "usr-owner-mwqd8z5m-87bc@dqnamo.sd",
+      "firebaseUid": null,
+      "emailVerified": false,
+      "phone": "+249 91 000 0000",
+      "name": "Tariq Owner B",
+      "nameAr": "Tariq Owner B",
+      "role": "admin",
+      "systemRole": "COMPANY_OWNER",
+      "capabilities": [
+        "dashboard.view",
+        "sales.view",
+        "sales.create",
+        "sales.edit",
+        "sales.cancel",
+        "sales.refund",
+        "sales.discount",
+        "sales.view_cost",
+        "products.view",
+        "products.create",
+        "products.edit",
+        "products.delete",
+        "inventory.view",
+        "inventory.adjust",
+        "inventory.receive",
+        "inventory.transfer",
+        "inventory.approve_adjustments",
+        "purchases.view",
+        "purchases.create",
+        "purchases.approve",
+        "purchases.receive",
+        "suppliers.manage",
+        "customers.view",
+        "customers.create",
+        "customers.edit",
+        "customers.view_debts",
+        "accounting.view",
+        "accounting.create_expense",
+        "accounting.manage_payables",
+        "accounting.manage_receivables",
+        "accounting.view_financial_reports",
+        "analytics.view",
+        "analytics.financial.view",
+        "analytics.inventory.view",
+        "analytics.export",
+        "intelligence.view",
+        "intelligence.acknowledge",
+        "intelligence.resolve",
+        "intelligence.dismiss",
+        "intelligence.reopen",
+        "users.view",
+        "users.create",
+        "users.edit",
+        "users.deactivate",
+        "roles.manage",
+        "permissions.manage",
+        "company.view",
+        "company.edit",
+        "company.currency.manage",
+        "company.branches.manage",
+        "backup.view",
+        "backup.create",
+        "backup.download",
+        "backup.restore",
+        "backup.import",
+        "backup.merge",
+        "backup.manage",
+        "backup.delete"
+      ],
+      "branchId": "br-mwqd8z5m-87bc-main",
+      "assignedBranchIds": [
+        "br-mwqd8z5m-87bc-main"
+      ],
+      "pin": "scrypt$6416ec4d5d6a21c07454a51acdf91de6$b93ee5c0986458c86917344b93253b30715c9ab2a39762c2801d7aa0504c8eb9ff2b2db50ddc170948b109d780f54f0a7dbe36088fdc5d822a3c9c2d2ba265c4",
+      "pinHash": "b93ee5c0986458c86917344b93253b30715c9ab2a39762c2801d7aa0504c8eb9ff2b2db50ddc170948b109d780f54f0a7dbe36088fdc5d822a3c9c2d2ba265c4",
+      "pinSalt": "6416ec4d5d6a21c07454a51acdf91de6",
+      "passwordHash": "443a3766d87ac96249eafbbe1749067243fc8a01f074eccab87aa6cce35acc8643aaedb1f96b92de81d3747733ea23b16b2987f9fe32f2f0e549bb3e734751d7",
+      "passwordSalt": "7165ce7f8939cada0d19008db78afa4a",
+      "hasPassword": true,
+      "mustChangePassword": false,
+      "terminalName": "Red Sea Trade 8ynh — Main Branch — Owner Terminal",
+      "terminalNameAr": "Red Sea Trade 8ynh — Main Branch — جهاز المالك",
+      "avatarColor": "#f59e0b",
+      "isActive": true,
+      "permissions": {
+        "canCheckout": true,
+        "canApplyDiscounts": true,
+        "canManageProducts": true,
+        "canEditPrices": true,
+        "canManageInventory": true,
+        "canVoidTransactions": true,
+        "canManageExchangeRates": true,
+        "canViewReports": true,
+        "canManageUsers": true
+      },
+      "lastActiveAt": "2026-11-21T12:10:19.257Z",
+      "lastLoginAt": "2026-11-21T12:10:19.257Z",
+      "tourProgressJson": {}
+    },
+    {
+      "id": "emp-comp-mwqd8yrj-2f43-1",
+      "companyId": "comp-mwqd8z5m-87bc",
+      "username": "cashier.comp-mwqd8yrj-2f43",
+      "name": "Omer Cashier",
+      "role": "cashier",
+      "systemRole": "CASHIER",
+      "isActive": true,
+      "hasPassword": false,
+      "requiresCredentialSetup": true,
+      "branchId": "br-mwqd8z5m-87bc-main",
+      "capabilities": [
+        "dashboard.view",
+        "sales.view",
+        "sales.create",
+        "sales.edit",
+        "sales.cancel",
+        "sales.refund",
+        "sales.discount",
+        "sales.view_cost",
+        "products.view",
+        "products.create",
+        "products.edit",
+        "products.delete",
+        "inventory.view",
+        "inventory.adjust",
+        "inventory.receive",
+        "inventory.transfer",
+        "inventory.approve_adjustments",
+        "purchases.view",
+        "purchases.create",
+        "purchases.approve",
+        "purchases.receive",
+        "suppliers.manage",
+        "customers.view",
+        "customers.create",
+        "customers.edit",
+        "customers.view_debts",
+        "accounting.view",
+        "accounting.create_expense",
+        "accounting.manage_payables",
+        "accounting.manage_receivables",
+        "accounting.view_financial_reports",
+        "analytics.view",
+        "analytics.financial.view",
+        "analytics.inventory.view",
+        "analytics.export",
+        "intelligence.view",
+        "intelligence.acknowledge",
+        "intelligence.resolve",
+        "intelligence.dismiss",
+        "intelligence.reopen",
+        "users.view",
+        "users.create",
+        "users.edit",
+        "users.deactivate",
+        "roles.manage",
+        "permissions.manage",
+        "company.view",
+        "company.edit",
+        "company.currency.manage",
+        "company.branches.manage",
+        "backup.view",
+        "backup.create",
+        "backup.download",
+        "backup.restore",
+        "backup.import",
+        "backup.merge",
+        "backup.manage",
+        "backup.delete"
+      ],
+      "assignedBranchIds": [
+        "br-mwqd8z5m-87bc-main"
+      ],
+      "passwordHash": null,
+      "passwordSalt": null,
+      "pin": "scrypt$711b1408488fc0d00342943ba016e9b1$84917bc906bee8dbc6d7d77e1c73b1c6cd14869c28b45a1a93398738d8ba663afc058ca095235fa6016ffac0b6270f9e8a91f76592b61be0f99547b5af99b5a8",
+      "pinHash": "84917bc906bee8dbc6d7d77e1c73b1c6cd14869c28b45a1a93398738d8ba663afc058ca095235fa6016ffac0b6270f9e8a91f76592b61be0f99547b5af99b5a8",
+      "pinSalt": "711b1408488fc0d00342943ba016e9b1",
+      "mustChangePassword": false,
+      "permissions": {
+        "canCheckout": true,
+        "canApplyDiscounts": true,
+        "canManageProducts": true,
+        "canEditPrices": true,
+        "canManageInventory": true,
+        "canVoidTransactions": true,
+        "canManageExchangeRates": true,
+        "canViewReports": true,
+        "canManageUsers": true
+      },
+      "email": "emp-comp-mwqd8yrj-2f43-1@dqnamo.sd",
+      "phone": "+249 91 000 0000",
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
+    },
+    {
+      "id": "emp-comp-clean-store-1",
+      "companyId": "comp-clean-store",
+      "username": "cashier.comp-clean-store",
+      "name": "Omer Cashier",
+      "role": "cashier",
+      "systemRole": "CASHIER",
+      "isActive": true,
+      "hasPassword": false,
+      "requiresCredentialSetup": true,
+      "capabilities": [
+        "dashboard.view",
+        "sales.view",
+        "sales.create",
+        "sales.edit",
+        "sales.cancel",
+        "sales.refund",
+        "sales.discount",
+        "sales.view_cost",
+        "products.view",
+        "products.create",
+        "products.edit",
+        "products.delete",
+        "inventory.view",
+        "inventory.adjust",
+        "inventory.receive",
+        "inventory.transfer",
+        "inventory.approve_adjustments",
+        "purchases.view",
+        "purchases.create",
+        "purchases.approve",
+        "purchases.receive",
+        "suppliers.manage",
+        "customers.view",
+        "customers.create",
+        "customers.edit",
+        "customers.view_debts",
+        "accounting.view",
+        "accounting.create_expense",
+        "accounting.manage_payables",
+        "accounting.manage_receivables",
+        "accounting.view_financial_reports",
+        "analytics.view",
+        "analytics.financial.view",
+        "analytics.inventory.view",
+        "analytics.export",
+        "intelligence.view",
+        "intelligence.acknowledge",
+        "intelligence.resolve",
+        "intelligence.dismiss",
+        "intelligence.reopen",
+        "users.view",
+        "users.create",
+        "users.edit",
+        "users.deactivate",
+        "roles.manage",
+        "permissions.manage",
+        "company.view",
+        "company.edit",
+        "company.currency.manage",
+        "company.branches.manage",
+        "backup.view",
+        "backup.create",
+        "backup.download",
+        "backup.restore",
+        "backup.import",
+        "backup.merge",
+        "backup.manage",
+        "backup.delete"
+      ],
+      "branchId": "br-comp-clean-store-main",
+      "assignedBranchIds": [
+        "branch-main"
+      ],
+      "passwordHash": null,
+      "passwordSalt": null,
+      "pin": "scrypt$7b7044f22d455b7ab0998d9f3f74f47e$d242bc4ec5e41413219ba51ff1fd0fbfe585b418acda355192745da1693f5f368755f90129cdffef696eaa8b49fbaefd7098ed16d916fef25ffa1169bde47773",
+      "pinHash": "d242bc4ec5e41413219ba51ff1fd0fbfe585b418acda355192745da1693f5f368755f90129cdffef696eaa8b49fbaefd7098ed16d916fef25ffa1169bde47773",
+      "pinSalt": "7b7044f22d455b7ab0998d9f3f74f47e",
+      "mustChangePassword": false,
+      "permissions": {
+        "canCheckout": true,
+        "canApplyDiscounts": true,
+        "canManageProducts": true,
+        "canEditPrices": true,
+        "canManageInventory": true,
+        "canVoidTransactions": true,
+        "canManageExchangeRates": true,
+        "canViewReports": true,
+        "canManageUsers": true
+      },
+      "email": "emp-comp-clean-store-1@dqnamo.sd",
+      "phone": "+249 91 000 0000",
+      "tourProgressJson": {},
+      "firebaseUid": null,
+      "emailVerified": false
     }
   ],
   "sessions": [
+    {
+      "id": "sess-mwqd91nv-2b10e4",
+      "tokenHash": "444fa6f33e305549eb28ca4894f6a6e904b5c9bd1b2c5aa3a922cfc75077c799",
+      "userId": "usr-owner-d91en",
+      "companyId": "comp-d91en",
+      "workspaceMode": "PRODUCTION",
+      "activeBranchId": "br-d91en-caij8",
+      "terminalName": "Khartoum Main Branch — Owner Terminal",
+      "isRevoked": false,
+      "expiresAt": "2026-11-28T12:10:22.507Z",
+      "lastActiveAt": "2026-11-21T12:10:22.507Z",
+      "createdAt": "2026-11-21T12:10:22.507Z"
+    },
+    {
+      "id": "sess-mwqd8z8r-5f97aa",
+      "tokenHash": "1042ef0e73e9a6f481b9ec1e072788a9d9142fe28032d9ce2485af5defb5e867",
+      "userId": "usr-owner-mwqd8z5m-87bc",
+      "companyId": "comp-mwqd8z5m-87bc",
+      "workspaceMode": "PRODUCTION",
+      "activeBranchId": "br-mwqd8z5m-87bc-main",
+      "terminalName": "Red Sea Trade 8ynh — Main Branch — Owner Terminal",
+      "isRevoked": false,
+      "expiresAt": "2026-11-28T12:10:19.371Z",
+      "lastActiveAt": "2026-11-21T12:10:19.371Z",
+      "createdAt": "2026-11-21T12:10:19.371Z"
+    },
+    {
+      "id": "sess-mwqd8yum-fc8821",
+      "tokenHash": "a7ca06c9ae207703da022efac89e82f32fdf825dc47d23e12f2682384d8dd585",
+      "userId": "usr-owner-mwqd8yrj-2f43",
+      "companyId": "comp-mwqd8yrj-2f43",
+      "workspaceMode": "PRODUCTION",
+      "activeBranchId": "br-mwqd8yrj-2f43-main",
+      "terminalName": "Nile Star Market 8ynh — Main Branch — Owner Terminal",
+      "isRevoked": false,
+      "expiresAt": "2026-11-28T12:10:18.862Z",
+      "lastActiveAt": "2026-11-21T12:10:18.862Z",
+      "createdAt": "2026-11-21T12:10:18.862Z"
+    },
+    {
+      "id": "sess-mwqd8nqm-b9b241",
+      "tokenHash": "841eb1dbf57d0268bc5be64d31fcb5a665ec697e637a21131728e026b683c55f",
+      "userId": "usr-mwqd8nfs-fb47",
+      "companyId": "comp-mwqd8mn6-4167",
+      "workspaceMode": "PRODUCTION",
+      "activeBranchId": "br-mwqd8mn6-4167-main",
+      "terminalName": "POS Terminal",
+      "isRevoked": false,
+      "expiresAt": "2026-11-28T12:10:04.462Z",
+      "lastActiveAt": "2026-11-21T12:10:04.462Z",
+      "createdAt": "2026-11-21T12:10:04.462Z"
+    },
+    {
+      "id": "sess-mwqd8n41-549319",
+      "tokenHash": "56fa1aa9be08f9d813eca25d134d6ca4b21399a3a704fca8f1b13655fe0aaa22",
+      "userId": "usr-owner-mwqd8n0b-1cac",
+      "companyId": "comp-mwqd8n0b-1cac",
+      "workspaceMode": "PRODUCTION",
+      "activeBranchId": "br-mwqd8n0b-1cac-main",
+      "terminalName": "JWT Security Co B mwqd8mg1 — Main Branch — Owner Terminal",
+      "isRevoked": false,
+      "expiresAt": "2026-11-28T12:10:03.649Z",
+      "lastActiveAt": "2026-11-21T12:10:03.649Z",
+      "createdAt": "2026-11-21T12:10:03.649Z"
+    },
+    {
+      "id": "sess-mwqd8mqs-ff0ce2",
+      "tokenHash": "0607339db09dd9180e7e26e79317b1a3a4b9c010deefa1b0c61c30a3ebdba2ed",
+      "userId": "usr-owner-mwqd8mn6-4167",
+      "companyId": "comp-mwqd8mn6-4167",
+      "workspaceMode": "PRODUCTION",
+      "activeBranchId": "br-mwqd8mn6-4167-main",
+      "terminalName": "JWT Security Co A mwqd8mg1 — Main Branch — Owner Terminal",
+      "isRevoked": false,
+      "expiresAt": "2026-11-28T12:10:03.172Z",
+      "lastActiveAt": "2026-11-21T12:10:03.172Z",
+      "createdAt": "2026-11-21T12:10:03.172Z"
+    },
     {
       "id": "sess-mwnlv7mu-5b05fe",
       "tokenHash": "91321d64faa0b51314b6aa9c8096eaec9d356e64a43e43f0ca290d949a98ca86",
@@ -20964,6 +22438,344 @@
     }
   ],
   "auditLogs": [
+    {
+      "id": "aud-1795263024861-au3s8f",
+      "companyId": "comp-clean-store",
+      "userId": "unassigned-operator",
+      "actorName": "Store Owner",
+      "action": "BACKUP_RESTORED_IN_PLACE",
+      "entityType": "backup",
+      "entityId": "bkp-20261121-18be38",
+      "details": {
+        "checkpointBackupId": "chk-pre-restore-mwqd935x",
+        "modulesRestored": [
+          "company_settings",
+          "currencies",
+          "branches",
+          "employees_permissions",
+          "uom_custom_fields",
+          "categories",
+          "products",
+          "customers",
+          "suppliers",
+          "inventory",
+          "purchases",
+          "sales",
+          "expenses",
+          "accounting",
+          "intelligence_audit"
+        ],
+        "totalRecordsRestored": 18
+      },
+      "createdAt": "2026-11-21T12:10:24.861Z"
+    },
+    {
+      "id": "aud-1795263024163-zdmmac",
+      "companyId": "comp-mwqd8yrj-2f43",
+      "userId": "usr-owner-mwqd8yrj-2f43",
+      "actorName": "Hassan Owner A",
+      "action": "BACKUP_CHECKPOINT_DELETED",
+      "entityType": "backup",
+      "entityId": "chk-pre-restore-mwqd90p1",
+      "details": {
+        "backupId": "chk-pre-restore-mwqd90p1"
+      },
+      "createdAt": "2026-11-21T12:10:24.163Z"
+    },
+    {
+      "id": "aud-1795263023833-oy7s2c",
+      "companyId": "comp-mwqd8z5m-87bc",
+      "userId": "usr-owner-mwqd8z5m-87bc",
+      "actorName": "Tariq Owner B",
+      "action": "BACKUP_MERGE_EXECUTED",
+      "entityType": "backup",
+      "entityId": "bkp-20261121-af006c",
+      "details": {
+        "checkpointBackupId": "chk-pre-merge-mwqd92ek",
+        "insertedCount": 14,
+        "updatedCount": 0,
+        "mergedCount": 0,
+        "keptExistingCount": 2,
+        "skippedCount": 0,
+        "remappedReferencesCount": 3
+      },
+      "createdAt": "2026-11-21T12:10:23.833Z"
+    },
+    {
+      "id": "aud-1795263023075-lzwq2a",
+      "companyId": "comp-mwqd8z5m-87bc",
+      "userId": "usr-owner-mwqd8z5m-87bc",
+      "actorName": "Tariq Owner B",
+      "action": "BACKUP_MERGE_PREVIEWED",
+      "entityType": "backup",
+      "entityId": "bkp-20261121-af006c",
+      "details": {
+        "totals": {
+          "incomingRecords": 14,
+          "exactMatches": 2,
+          "strongMatches": 0,
+          "possibleMatches": 0,
+          "newRecords": 12,
+          "conflicts": 0
+        },
+        "modulesAnalyzed": [
+          "company_settings",
+          "currencies",
+          "branches",
+          "employees_permissions",
+          "uom_custom_fields",
+          "categories",
+          "products",
+          "customers",
+          "suppliers",
+          "inventory",
+          "purchases",
+          "sales",
+          "expenses",
+          "accounting",
+          "intelligence_audit"
+        ]
+      },
+      "createdAt": "2026-11-21T12:10:23.075Z"
+    },
+    {
+      "id": "aud-1795263022507-gx7k9m",
+      "companyId": "comp-d91en",
+      "userId": "usr-owner-d91en",
+      "actorName": "New Company C Owner",
+      "action": "BACKUP_RESTORED_AS_NEW_COMPANY",
+      "entityType": "company",
+      "entityId": "comp-d91en",
+      "details": {
+        "sourceBackupId": "bkp-20261121-af006c",
+        "sourceCompanyName": "Nile Star Market 8ynh",
+        "newCompanyName": "Restored Branch Co 8ynh",
+        "ownerUsername": "owner.c.8ynh",
+        "initiatedByUserId": "usr-owner-mwqd8yrj-2f43",
+        "remappedEntitiesCount": 13
+      },
+      "createdAt": "2026-11-21T12:10:22.507Z"
+    },
+    {
+      "id": "aud-1795263021661-k1s1s9",
+      "companyId": "comp-mwqd8yrj-2f43",
+      "userId": "usr-owner-mwqd8yrj-2f43",
+      "actorName": "Hassan Owner A",
+      "action": "BACKUP_RESTORED_IN_PLACE",
+      "entityType": "backup",
+      "entityId": "bkp-20261121-af006c",
+      "details": {
+        "checkpointBackupId": "chk-pre-restore-mwqd90p1",
+        "modulesRestored": [
+          "company_settings",
+          "currencies",
+          "branches",
+          "employees_permissions",
+          "uom_custom_fields",
+          "categories",
+          "products",
+          "customers",
+          "suppliers",
+          "inventory",
+          "purchases",
+          "sales",
+          "expenses",
+          "accounting",
+          "intelligence_audit"
+        ],
+        "totalRecordsRestored": 21
+      },
+      "createdAt": "2026-11-21T12:10:21.661Z"
+    },
+    {
+      "id": "aud-1795263020350-6kix9w",
+      "companyId": "comp-mwqd8yrj-2f43",
+      "userId": "usr-owner-mwqd8yrj-2f43",
+      "actorName": "Hassan Owner A",
+      "action": "BACKUP_CREATED",
+      "entityType": "backup",
+      "entityId": "bkp-20261121-af006c",
+      "details": {
+        "backupType": "FULL_COMPANY",
+        "encrypted": false,
+        "modulesIncluded": [
+          "company_settings",
+          "currencies",
+          "branches",
+          "employees_permissions",
+          "uom_custom_fields",
+          "categories",
+          "products",
+          "customers",
+          "suppliers",
+          "inventory",
+          "purchases",
+          "sales",
+          "expenses",
+          "accounting",
+          "intelligence_audit"
+        ],
+        "totalRecords": 21,
+        "payloadChecksumSha256": "e2c033949020d8256f782854bbb602e1e617e0a53b0e51fe02b58dc7c43a8230"
+      },
+      "createdAt": "2026-11-21T12:10:20.350Z"
+    },
+    {
+      "id": "aud-1795263019875-2q9ih8",
+      "companyId": "comp-mwqd8yrj-2f43",
+      "userId": "usr-owner-mwqd8yrj-2f43",
+      "actorName": "Hassan Owner A",
+      "action": "EMPLOYEE_CREATED",
+      "entityType": "user",
+      "entityId": "usr-mwqd8zkv-ca3b",
+      "details": {
+        "name": "Salma Cashier",
+        "systemRole": "CASHIER",
+        "branchId": "br-mwqd8yrj-2f43-main",
+        "assignedBranchIds": [
+          "br-mwqd8yrj-2f43-main"
+        ]
+      },
+      "createdAt": "2026-11-21T12:10:19.875Z"
+    },
+    {
+      "id": "aud-1795263019371-jp8gjr",
+      "companyId": "comp-mwqd8z5m-87bc",
+      "userId": "usr-owner-mwqd8z5m-87bc",
+      "actorName": "Tariq Owner B",
+      "action": "INITIAL_OWNER_CREATED",
+      "entityType": "user",
+      "entityId": "usr-owner-mwqd8z5m-87bc",
+      "details": {
+        "username": "tariq.b.8ynh",
+        "systemRole": "COMPANY_OWNER"
+      },
+      "createdAt": "2026-11-21T12:10:19.371Z"
+    },
+    {
+      "id": "aud-1795263019371-nut5ei",
+      "companyId": "comp-mwqd8z5m-87bc",
+      "userId": "usr-owner-mwqd8z5m-87bc",
+      "actorName": "Tariq Owner B",
+      "action": "COMPANY_CREATED",
+      "entityType": "company",
+      "entityId": "comp-mwqd8z5m-87bc",
+      "details": {
+        "code": "CMP-MWQD8Z5L-87BC",
+        "legalName": "Red Sea Trade 8ynh",
+        "baseCurrency": "SDG",
+        "mainBranchId": "br-mwqd8z5m-87bc-main"
+      },
+      "createdAt": "2026-11-21T12:10:19.371Z"
+    },
+    {
+      "id": "aud-1795263018862-3700cp",
+      "companyId": "comp-mwqd8yrj-2f43",
+      "userId": "usr-owner-mwqd8yrj-2f43",
+      "actorName": "Hassan Owner A",
+      "action": "INITIAL_OWNER_CREATED",
+      "entityType": "user",
+      "entityId": "usr-owner-mwqd8yrj-2f43",
+      "details": {
+        "username": "hassan.a.8ynh",
+        "systemRole": "COMPANY_OWNER"
+      },
+      "createdAt": "2026-11-21T12:10:18.862Z"
+    },
+    {
+      "id": "aud-1795263018862-ys6nw8",
+      "companyId": "comp-mwqd8yrj-2f43",
+      "userId": "usr-owner-mwqd8yrj-2f43",
+      "actorName": "Hassan Owner A",
+      "action": "COMPANY_CREATED",
+      "entityType": "company",
+      "entityId": "comp-mwqd8yrj-2f43",
+      "details": {
+        "code": "CMP-MWQD8YRJ-2F43",
+        "legalName": "Nile Star Market 8ynh",
+        "baseCurrency": "SDG",
+        "mainBranchId": "br-mwqd8yrj-2f43-main"
+      },
+      "createdAt": "2026-11-21T12:10:18.862Z"
+    },
+    {
+      "id": "aud-1795263004143-jokrwb",
+      "companyId": "comp-mwqd8mn6-4167",
+      "userId": "usr-owner-mwqd8mn6-4167",
+      "actorName": "Owner A",
+      "action": "EMPLOYEE_CREATED",
+      "entityType": "user",
+      "entityId": "usr-mwqd8nfs-fb47",
+      "details": {
+        "name": "Cashier A",
+        "systemRole": "CASHIER",
+        "branchId": "br-mwqd8mn6-4167-main",
+        "assignedBranchIds": [
+          "br-mwqd8mn6-4167-main"
+        ]
+      },
+      "createdAt": "2026-11-21T12:10:04.143Z"
+    },
+    {
+      "id": "aud-1795263003649-oz7fid",
+      "companyId": "comp-mwqd8n0b-1cac",
+      "userId": "usr-owner-mwqd8n0b-1cac",
+      "actorName": "Owner B",
+      "action": "INITIAL_OWNER_CREATED",
+      "entityType": "user",
+      "entityId": "usr-owner-mwqd8n0b-1cac",
+      "details": {
+        "username": "jwt.owner.b.mwqd8mg1",
+        "systemRole": "COMPANY_OWNER"
+      },
+      "createdAt": "2026-11-21T12:10:03.649Z"
+    },
+    {
+      "id": "aud-1795263003649-z9fvn0",
+      "companyId": "comp-mwqd8n0b-1cac",
+      "userId": "usr-owner-mwqd8n0b-1cac",
+      "actorName": "Owner B",
+      "action": "COMPANY_CREATED",
+      "entityType": "company",
+      "entityId": "comp-mwqd8n0b-1cac",
+      "details": {
+        "code": "CMP-MWQD8N0B-1CAC",
+        "legalName": "JWT Security Co B mwqd8mg1",
+        "baseCurrency": "SDG",
+        "mainBranchId": "br-mwqd8n0b-1cac-main"
+      },
+      "createdAt": "2026-11-21T12:10:03.649Z"
+    },
+    {
+      "id": "aud-1795263003172-ueb55c",
+      "companyId": "comp-mwqd8mn6-4167",
+      "userId": "usr-owner-mwqd8mn6-4167",
+      "actorName": "Owner A",
+      "action": "INITIAL_OWNER_CREATED",
+      "entityType": "user",
+      "entityId": "usr-owner-mwqd8mn6-4167",
+      "details": {
+        "username": "jwt.owner.a.mwqd8mg1",
+        "systemRole": "COMPANY_OWNER"
+      },
+      "createdAt": "2026-11-21T12:10:03.172Z"
+    },
+    {
+      "id": "aud-1795263003172-fac1w1",
+      "companyId": "comp-mwqd8mn6-4167",
+      "userId": "usr-owner-mwqd8mn6-4167",
+      "actorName": "Owner A",
+      "action": "COMPANY_CREATED",
+      "entityType": "company",
+      "entityId": "comp-mwqd8mn6-4167",
+      "details": {
+        "code": "CMP-MWQD8MN6-4167",
+        "legalName": "JWT Security Co A mwqd8mg1",
+        "baseCurrency": "SDG",
+        "mainBranchId": "br-mwqd8mn6-4167-main"
+      },
+      "createdAt": "2026-11-21T12:10:03.172Z"
+    },
     {
       "id": "aud-1795096094858-0pzkk1",
       "companyId": "comp-mwnlv6sw-5c6b",
@@ -26774,6 +28586,9 @@
     "jwt-comp-a-mwj23wue": "comp-mwj23x01-7d68",
     "jwt-comp-b-mwj23wue": "comp-mwj23x9w-5b3a",
     "jwt-comp-a-mwnlv6of": "comp-mwnlv6sw-5c6b",
-    "jwt-comp-b-mwnlv6of": "comp-mwnlv74e-0bed"
-  }
+    "jwt-comp-b-mwnlv6of": "comp-mwnlv74e-0bed",
+    "jwt-comp-a-mwqd8mg1": "comp-mwqd8mn6-4167",
+    "jwt-comp-b-mwqd8mg1": "comp-mwqd8n0b-1cac"
+  },
+  "invitations": []
 }

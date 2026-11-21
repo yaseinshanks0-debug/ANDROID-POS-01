@@ -27,10 +27,35 @@ jobs:
           echo "GIT_COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
           echo "Building Android APK & AAB from commit: $(git rev-parse HEAD)"
 
-      - name: Setup Node.js 22
+      - name: Setup Node.js 24 (>=24.12.0)
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
+
+      - name: Verify Node.js, npm, and Lockfile Consistency
+        run: |
+          node -v
+          npm -v
+          node -e "
+            const fs = require('node:fs');
+            const [maj, min] = process.versions.node.split('.').map(Number);
+            if (maj < 24 || (maj === 24 && min < 12)) {
+              console.error('Node.js >= 24.12.0 is required, found:', process.versions.node);
+              process.exit(1);
+            }
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+            const lockRoot = (lock.packages && lock.packages['']) || {};
+            const pkgDeps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+            const lockDeps = { ...(lockRoot.dependencies || {}), ...(lockRoot.devDependencies || {}) };
+            const missing = Object.keys(pkgDeps).filter((k) => !(k in lockDeps));
+            const mismatched = Object.keys(pkgDeps).filter((k) => k in lockDeps && lockDeps[k] !== pkgDeps[k]);
+            if (missing.length || mismatched.length) {
+              console.error('package.json and package-lock.json are out of sync:', { missing, mismatched });
+              process.exit(1);
+            }
+            console.log('Verified Node.js', process.versions.node, 'and lockfile sync for', Object.keys(pkgDeps).length, 'root dependencies.');
+          "
 
       - name: Setup Java JDK 21 (Temurin)
         uses: actions/setup-java@v4
@@ -67,13 +92,13 @@ jobs:
       - name: 3c. Build Web Application (npm run build)
         run: npm run build
 
-      - name: 4. Restore Pristine Android Binary Assets & Sync Capacitor
+      - name: 4. Restore Gradle Wrapper Binary (Preserving Custom Icons & Resources) & Sync Capacitor
         run: |
           if [ ! -d "android" ]; then
             npx cap add android
-          elif [ -f "node_modules/@capacitor/cli/assets/android-template.tar.gz" ]; then
-            echo "Restoring clean binary gradle-wrapper.jar and PNG icons from Capacitor template..."
-            tar -xzf node_modules/@capacitor/cli/assets/android-template.tar.gz -C android gradle/wrapper/gradle-wrapper.jar app/src/main/res
+          elif [ -f "node_modules/@capacitor/cli/assets/android-template.tar.gz" ] && ! jar tf android/gradle/wrapper/gradle-wrapper.jar > /dev/null 2>&1; then
+            echo "Restoring clean binary gradle-wrapper.jar from Capacitor template (preserving custom app/src/main/res)..."
+            tar -xzf node_modules/@capacitor/cli/assets/android-template.tar.gz -C android gradle/wrapper/gradle-wrapper.jar
           fi
           npx cap sync android
           test -f android/app/src/main/assets/public/index.html
@@ -140,7 +165,7 @@ jobs:
           retention-days: 90
 
       - name: 9. Publish Android Release to Dedicated GitHub Release Path (latest-apk)
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-apk
