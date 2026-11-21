@@ -1,4 +1,4 @@
-name: 1. Build & Publish Android APK & AAB (Dqnamo POS)
+name: 1. Build & Publish Android APK & AAB (D POS)
 
 on:
   push:
@@ -22,15 +22,20 @@ jobs:
       - name: 1. Checkout Repository & Record Commit Hash
         uses: actions/checkout@v4
 
-      - name: Record Git Commit Hash
-        run: |
-          echo "GIT_COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
-          echo "Building Android APK & AAB from commit: $(git rev-parse HEAD)"
-
       - name: Setup Node.js 24 (>=24.12.0)
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+
+      - name: Record Git Commit Hash & App Version
+        run: |
+          COMMIT_SHA=$(git rev-parse HEAD)
+          APP_VERSION=$(node -p "require('./package.json').version")
+          ANDROID_VERSION_CODE=$(grep -oE 'versionCode[[:space:]]+[0-9]+' android/app/build.gradle | awk '{print $2}' | head -n 1)
+          echo "GIT_COMMIT_SHA=$COMMIT_SHA" >> $GITHUB_ENV
+          echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
+          echo "ANDROID_VERSION_CODE=$ANDROID_VERSION_CODE" >> $GITHUB_ENV
+          echo "Building Android APK & AAB v$APP_VERSION (versionCode $ANDROID_VERSION_CODE) from commit: $COMMIT_SHA"
 
       - name: Verify Node.js, npm, and Lockfile Consistency
         run: |
@@ -39,9 +44,12 @@ jobs:
           node -e "
             const fs = require('node:fs');
             const [maj, min] = process.versions.node.split('.').map(Number);
-            if (maj < 24 || (maj === 24 && min < 12)) {
-              console.error('Node.js >= 24.12.0 is required, found:', process.versions.node);
+            if (maj < 22) {
+              console.error('Node.js >= 22 is required, found:', process.versions.node);
               process.exit(1);
+            }
+            if (maj < 24 || (maj === 24 && min < 12)) {
+              console.warn('Warning: Node.js >= 24.12.0 is recommended for @firebase/* packages; found:', process.versions.node);
             }
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
             const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
@@ -54,7 +62,7 @@ jobs:
               console.error('package.json and package-lock.json are out of sync:', { missing, mismatched });
               process.exit(1);
             }
-            console.log('Verified Node.js', process.versions.node, 'and lockfile sync for', Object.keys(pkgDeps).length, 'root dependencies.');
+            console.log('Verified Node.js', process.versions.node, 'and lockfile sync for v' + pkg.version, '(' + Object.keys(pkgDeps).length + ' root dependencies).');
           "
 
       - name: Setup Java JDK 21 (Temurin)
@@ -110,7 +118,7 @@ jobs:
         run: |
           if ! jar tf gradle/wrapper/gradle-wrapper.jar > /dev/null 2>&1; then
             echo "Regenerating valid gradle-wrapper.jar..."
-            gradle wrapper --gradle-version 8.13 --distribution-type bin
+            gradle wrapper --gradle-version 8.14.3 --distribution-type bin
           fi
           sed -i 's/networkTimeout=.*/networkTimeout=120000/g' gradle/wrapper/gradle-wrapper.properties
           sed -i 's/-all\.zip/-bin.zip/g' gradle/wrapper/gradle-wrapper.properties
@@ -122,7 +130,7 @@ jobs:
           GRADLE_OPTS="-Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000"
           export GRADLE_OPTS
           for attempt in 1 2 3; do
-            echo "Building Android APK & AAB (Attempt $attempt)..."
+            echo "Building Android APK & AAB v${APP_VERSION} (Attempt $attempt)..."
             if ./gradlew clean assembleDebug bundleRelease --no-daemon; then
               echo "Android APK & AAB built successfully on attempt $attempt."
               break
@@ -137,50 +145,55 @@ jobs:
 
       - name: 7. Verify Android Outputs, Metadata, & Compute SHA256 Checksums
         run: |
-          mkdir -p releases/android-v2.5.0
-          cp android/app/build/outputs/apk/debug/app-debug.apk Dqnamo-POS-v2.5.0.apk
-          cp android/app/build/outputs/apk/debug/app-debug.apk Dqnamo-POS.apk
-          cp android/app/build/outputs/bundle/release/app-release.aab Dqnamo-POS-v2.5.0.aab
-          cp Dqnamo-POS-v2.5.0.apk Dqnamo-POS.apk Dqnamo-POS-v2.5.0.aab releases/android-v2.5.0/
-          ls -lh Dqnamo-POS-v2.5.0.apk Dqnamo-POS-v2.5.0.aab
+          APK_FILE="D-POS-v${APP_VERSION}.apk"
+          AAB_FILE="D-POS-v${APP_VERSION}.aab"
+          CHECKSUM_FILE="android-checksums-v${APP_VERSION}.txt"
+          mkdir -p "releases/android-v${APP_VERSION}"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "./${APK_FILE}"
+          cp android/app/build/outputs/bundle/release/app-release.aab "./${AAB_FILE}"
+          cp "./${APK_FILE}" "./${AAB_FILE}" "releases/android-v${APP_VERSION}/"
+          ls -lh "./${APK_FILE}" "./${AAB_FILE}"
           AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort -V | tail -n 1)
           if [ -n "$AAPT" ]; then
-            "$AAPT" dump badging Dqnamo-POS-v2.5.0.apk | grep -E "package:|sdkVersion:|targetSdkVersion:"
-            "$AAPT" dump badging Dqnamo-POS-v2.5.0.apk | grep "name='com.dqnamo.pos'"
-            "$AAPT" dump badging Dqnamo-POS-v2.5.0.apk | grep "versionCode='250'"
-            "$AAPT" dump badging Dqnamo-POS-v2.5.0.apk | grep "versionName='2.5.0'"
+            "$AAPT" dump badging "./${APK_FILE}" | grep -E "package:|sdkVersion:|targetSdkVersion:"
+            "$AAPT" dump badging "./${APK_FILE}" | grep "name='com.dqnamo.pos'"
+            "$AAPT" dump badging "./${APK_FILE}" | grep "versionCode='${ANDROID_VERSION_CODE}'"
+            "$AAPT" dump badging "./${APK_FILE}" | grep "versionName='${APP_VERSION}'"
           fi
-          sha256sum Dqnamo-POS-v2.5.0.apk Dqnamo-POS.apk Dqnamo-POS-v2.5.0.aab | tee android-checksums.txt
-          cp android-checksums.txt releases/android-v2.5.0/CHECKSUMS-ANDROID.txt
+          sha256sum "${APK_FILE}" "${AAB_FILE}" | tee "${CHECKSUM_FILE}"
+          cp "${CHECKSUM_FILE}" "releases/android-v${APP_VERSION}/CHECKSUMS-ANDROID.txt"
 
       - name: 8. Upload Android APK & AAB Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Dqnamo-POS-Android-APK-AAB
+          name: D-POS-v${{ env.APP_VERSION }}-Android-APK-AAB
           path: |
-            Dqnamo-POS-v2.5.0.apk
-            Dqnamo-POS.apk
-            Dqnamo-POS-v2.5.0.aab
-            android-checksums.txt
+            D-POS-v${{ env.APP_VERSION }}.apk
+            D-POS-v${{ env.APP_VERSION }}.aab
+            android-checksums-v${{ env.APP_VERSION }}.txt
           retention-days: 90
 
-      - name: 9. Publish Android Release to Dedicated GitHub Release Path (latest-apk)
-        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      - name: 9. Publish New Versioned Android Release (v${{ env.APP_VERSION }}-android)
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest-apk
-          name: "Dqnamo POS v2.5.0 — Android (.apk & .aab) Release"
+          tag_name: v${{ env.APP_VERSION }}-android
+          target_commitish: ${{ github.sha }}
+          name: "D POS - Point of Sale v${{ env.APP_VERSION }} — Android (.apk & .aab)"
           body: |
-            ### 📱 Dqnamo POS v2.5.0 — إصدار الأندرويد المستقل (`.apk` & `.aab`)
+            ### 📱 D POS - Point of Sale v${{ env.APP_VERSION }} — إصدار الأندرويد الجديد المستقل (`.apk` & `.aab`)
+            - **Release Tag:** `v${{ env.APP_VERSION }}-android` (إصدار جديد مستقل لا يستبدل الإصدار القديم)
             - **Commit:** `${{ env.GIT_COMMIT_SHA }}`
-            - **Application ID:** `com.dqnamo.pos` | **Version:** `2.5.0` (`versionCode: 250`)
-            - **`Dqnamo-POS-v2.5.0.apk`** (و`Dqnamo-POS.apk`): نسخة `Debug APK` جاهزة للتثبيت المباشر على هواتف وأجهزة الأندرويد اللوحية.
-            - **`Dqnamo-POS-v2.5.0.aab`**: حزمة `Android App Bundle (Release)` غير موقعة (`Unsigned`)؛ تتطلب التوقيع بمفتاح الرفع الخاص بالمالك قبل رفعها إلى Google Play Console.
+            - **Application ID:** `com.dqnamo.pos` | **Version:** `${{ env.APP_VERSION }}` (`versionCode: ${{ env.ANDROID_VERSION_CODE }}`)
+            - **`D-POS-v${{ env.APP_VERSION }}.apk`**: نسخة `Debug APK` جاهزة للتثبيت المباشر على هواتف وأجهزة الأندرويد اللوحية.
+            - **`D-POS-v${{ env.APP_VERSION }}.aab`**: حزمة `Android App Bundle (Release)` غير موقعة (`Unsigned`)؛ تتطلب التوقيع بمفتاح الرفع الخاص بالمالك قبل رفعها إلى Google Play Console.
           files: |
-            Dqnamo-POS-v2.5.0.apk
-            Dqnamo-POS.apk
-            Dqnamo-POS-v2.5.0.aab
-            android-checksums.txt
+            D-POS-v${{ env.APP_VERSION }}.apk
+            D-POS-v${{ env.APP_VERSION }}.aab
+            android-checksums-v${{ env.APP_VERSION }}.txt
+          draft: false
           prerelease: false
+          make_latest: true
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

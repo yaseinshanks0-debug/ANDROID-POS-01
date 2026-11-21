@@ -7,7 +7,7 @@ test('APK & Windows EXE Packaging Integrity — package.json includes react-is, 
   const pkgPath = path.join(process.cwd(), 'package.json');
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
 
-  assert.equal(pkg.version, '2.5.0', 'package.json version must be aligned to 2.5.0');
+  assert.equal(pkg.version, '2.6.0', 'package.json version must be aligned to 2.6.0');
   assert.equal(
     pkg.main,
     'electron/main.cjs',
@@ -41,18 +41,19 @@ test('APK & Windows EXE Packaging Integrity — package.json includes react-is, 
   );
 });
 
-test('APK & Windows EXE Packaging Integrity — Version 2.5.0 and App ID com.dqnamo.pos are aligned across all targets', () => {
+test('APK & Windows EXE Packaging Integrity — Version 2.6.0 and App ID com.dqnamo.pos are aligned across all targets', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8'));
   const eb = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'electron-builder.json'), 'utf-8'));
   const capContent = fs.readFileSync(path.join(process.cwd(), 'capacitor.config.ts'), 'utf-8');
   const gradleContent = fs.readFileSync(path.join(process.cwd(), 'android', 'app', 'build.gradle'), 'utf-8');
 
-  assert.equal(pkg.version, '2.5.0');
+  assert.equal(pkg.version, '2.6.0');
+  assert.equal(eb.extraMetadata?.version, '2.6.0');
   assert.equal(eb.appId, 'com.dqnamo.pos');
   assert.ok(capContent.includes("appId: 'com.dqnamo.pos'"));
   assert.ok(gradleContent.includes('applicationId "com.dqnamo.pos"'));
-  assert.ok(gradleContent.includes('versionCode 250'));
-  assert.ok(gradleContent.includes('versionName "2.5.0"'));
+  assert.ok(gradleContent.includes('versionCode 260'));
+  assert.ok(gradleContent.includes('versionName "2.6.0"'));
 });
 
 test('APK & Windows EXE Packaging Integrity — electron-builder.json disables ASAR and bundles extraResources', () => {
@@ -120,8 +121,8 @@ test('APK & Windows EXE Packaging Integrity — Separate GitHub Actions workflow
     'build-apk.yml must verify Rolldown native binding before running Vite build'
   );
   assert.ok(
-    androidWf.includes('tag_name: latest-apk'),
-    'build-apk.yml must publish Android APK/AAB to its own release tag (latest-apk)'
+    androidWf.includes('tag_name: v${{ env.APP_VERSION }}-android') && androidWf.includes('make_latest: true'),
+    'build-apk.yml must publish Android APK/AAB to a new versioned visible GitHub Release (v<version>-android)'
   );
   assert.ok(
     !androidWf.includes('runs-on: windows-latest'),
@@ -145,7 +146,7 @@ test('APK & Windows EXE Packaging Integrity — Separate GitHub Actions workflow
     'build-windows-exe.yml must verify Rolldown native binding before running Vite build'
   );
   assert.ok(
-    windowsWf.includes('tag_name: latest-windows-exe'),
-    'build-windows-exe.yml must publish Windows EXE to its own dedicated release tag (latest-windows-exe)'
+    windowsWf.includes('tag_name: v${{ env.APP_VERSION }}-windows') && windowsWf.includes('make_latest: true'),
+    'build-windows-exe.yml must publish Windows EXE to a new versioned visible GitHub Release (v<version>-windows)'
   );
 });

@@ -1,4 +1,4 @@
-name: 2. Build & Publish Windows Desktop EXE (Dqnamo POS)
+name: 2. Build & Publish Windows Desktop EXE (D POS)
 
 on:
   push:
@@ -22,16 +22,19 @@ jobs:
       - name: 1. Checkout Repository & Record Commit Hash
         uses: actions/checkout@v4
 
-      - name: Record Git Commit Hash
-        shell: bash
-        run: |
-          echo "GIT_COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
-          echo "Building Windows EXE from commit: $(git rev-parse HEAD)"
-
       - name: Setup Node.js 24 (>=24.12.0)
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+
+      - name: Record Git Commit Hash & App Version
+        shell: bash
+        run: |
+          COMMIT_SHA=$(git rev-parse HEAD)
+          APP_VERSION=$(node -p "require('./package.json').version")
+          echo "GIT_COMMIT_SHA=$COMMIT_SHA" >> $GITHUB_ENV
+          echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
+          echo "Building Windows EXE v$APP_VERSION from commit: $COMMIT_SHA"
 
       - name: Verify Node.js, npm, and Lockfile Consistency
         shell: bash
@@ -41,9 +44,12 @@ jobs:
           node -e "
             const fs = require('node:fs');
             const [maj, min] = process.versions.node.split('.').map(Number);
-            if (maj < 24 || (maj === 24 && min < 12)) {
-              console.error('Node.js >= 24.12.0 is required, found:', process.versions.node);
+            if (maj < 22) {
+              console.error('Node.js >= 22 is required, found:', process.versions.node);
               process.exit(1);
+            }
+            if (maj < 24 || (maj === 24 && min < 12)) {
+              console.warn('Warning: Node.js >= 24.12.0 is recommended for @firebase/* packages; found:', process.versions.node);
             }
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
             const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
@@ -56,7 +62,7 @@ jobs:
               console.error('package.json and package-lock.json are out of sync:', { missing, mismatched });
               process.exit(1);
             }
-            console.log('Verified Node.js', process.versions.node, 'and lockfile sync for', Object.keys(pkgDeps).length, 'root dependencies.');
+            console.log('Verified Node.js', process.versions.node, 'and lockfile sync for v' + pkg.version, '(' + Object.keys(pkgDeps).length + ' root dependencies).');
           "
 
       - name: Clean Old Build Files & Install Dependencies via npm ci
@@ -92,15 +98,19 @@ jobs:
           "
 
       - name: 3a. Run TypeScript Check (npm run lint)
+        shell: bash
         run: npm run lint
 
       - name: 3b. Run Unit Tests (npm test)
+        shell: bash
         run: npm test
 
       - name: 3c. Build Frontend (npm run build)
+        shell: bash
         run: npm run build
 
       - name: 3d. Bundle Embedded Server (npm run server:bundle)
+        shell: bash
         run: npm run server:bundle
 
       - name: 3e. Stage UI Assets (npm run exe:stage-ui)
@@ -123,7 +133,7 @@ jobs:
           npm install --no-save --legacy-peer-deps --no-audit --no-fund electron@33.4.0 electron-builder@25.1.8
           test -f electron/www/index.html
           test -f dist-server/server.cjs
-          echo "Attempt 1: Building Windows EXE via default Electron CDN..."
+          echo "Attempt 1: Building Windows EXE v${APP_VERSION} via default Electron CDN..."
           if npx electron-builder --win --x64 --config electron-builder.json --publish never; then
             echo "Windows EXE build succeeded on Attempt 1."
           else
@@ -138,22 +148,27 @@ jobs:
         shell: bash
         run: |
           echo "Verifying packaged frontend, backend, and seed data inside win-unpacked..."
-          mkdir -p releases/windows-v2.5.0
+          SETUP_EXE="D-POS-v${APP_VERSION}-Setup.exe"
+          PORTABLE_EXE="D-POS-v${APP_VERSION}-Portable.exe"
+          CHECKSUM_FILE="windows-checksums-v${APP_VERSION}.txt"
+          mkdir -p "releases/windows-v${APP_VERSION}"
+          ls -la release-exe/
           ls -la release-exe/win-unpacked/resources/
           test -f release-exe/win-unpacked/resources/www/index.html
           test -f release-exe/win-unpacked/resources/app/electron/www/index.html
           test -f release-exe/win-unpacked/resources/app/dist-server/server.cjs
           test -d release-exe/win-unpacked/resources/seed-data
-          test -f release-exe/D-POS-Setup.exe
-          test -f release-exe/D-POS-Portable.exe
-          cp release-exe/D-POS-Setup.exe ./D-POS-Setup.exe
-          cp release-exe/D-POS-Portable.exe ./D-POS-Portable.exe
-          cp D-POS-Setup.exe D-POS-Portable.exe releases/windows-v2.5.0/
-          ls -lh D-POS-Setup.exe D-POS-Portable.exe
-          sha256sum D-POS-Setup.exe D-POS-Portable.exe | tee windows-checksums.txt
-          cp windows-checksums.txt releases/windows-v2.5.0/CHECKSUMS-WINDOWS.txt
+          test -f "release-exe/${SETUP_EXE}"
+          test -f "release-exe/${PORTABLE_EXE}"
+          cp "release-exe/${SETUP_EXE}" "./${SETUP_EXE}"
+          cp "release-exe/${PORTABLE_EXE}" "./${PORTABLE_EXE}"
+          cp "./${SETUP_EXE}" "./${PORTABLE_EXE}" "releases/windows-v${APP_VERSION}/"
+          ls -lh "./${SETUP_EXE}" "./${PORTABLE_EXE}"
+          sha256sum "${SETUP_EXE}" "${PORTABLE_EXE}" | tee "${CHECKSUM_FILE}"
+          cp "${CHECKSUM_FILE}" "releases/windows-v${APP_VERSION}/CHECKSUMS-WINDOWS.txt"
           echo "Running headless smoke test of packaged Windows server.cjs..."
-          NODE_ENV=production PORT=3199 DQNAMO_DIST_DIR="$PWD/release-exe/win-unpacked/resources/www" node release-exe/win-unpacked/resources/app/dist-server/server.cjs &
+          WIN_PWD=$(pwd -W 2>/dev/null || pwd)
+          NODE_ENV=production PORT=3199 DQNAMO_DIST_DIR="${WIN_PWD}/release-exe/win-unpacked/resources/www" node release-exe/win-unpacked/resources/app/dist-server/server.cjs &
           SRV_PID=$!
           sleep 3
           curl -fsS http://127.0.0.1:3199/api/lan-sync/info
@@ -163,30 +178,35 @@ jobs:
       - name: 6. Upload Windows EXE Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: D-POS-Windows-EXE
+          name: D-POS-v${{ env.APP_VERSION }}-Windows-EXE
           path: |
-            D-POS-Setup.exe
-            D-POS-Portable.exe
-            windows-checksums.txt
+            D-POS-v${{ env.APP_VERSION }}-Setup.exe
+            D-POS-v${{ env.APP_VERSION }}-Portable.exe
+            windows-checksums-v${{ env.APP_VERSION }}.txt
           retention-days: 90
 
-      - name: 7. Publish Windows Release to Dedicated GitHub Release Path (latest-windows-exe)
-        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      - name: 7. Publish New Versioned Windows Release (v${{ env.APP_VERSION }}-windows)
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest-windows-exe
-          name: "D POS - Point of Sale v2.5.0 — Windows Desktop (.exe) Release"
+          tag_name: v${{ env.APP_VERSION }}-windows
+          target_commitish: ${{ github.sha }}
+          name: "D POS - Point of Sale v${{ env.APP_VERSION }} — Windows Desktop (.exe)"
           body: |
-            ### 💻 D POS - Point of Sale v2.5.0 — إصدار الويندوز المستقل لسطح المكتب (`.exe`)
+            ### 💻 D POS - Point of Sale v${{ env.APP_VERSION }} — إصدار الويندوز الجديد المستقل لسطح المكتب (`.exe`)
+            - **Release Tag:** `v${{ env.APP_VERSION }}-windows` (إصدار جديد مستقل لا يستبدل الإصدار القديم)
             - **Commit:** `${{ env.GIT_COMMIT_SHA }}`
-            - **App ID:** `com.dqnamo.pos` | **Version:** `2.5.0` (`Windows x64`)
-            - **`D-POS-Setup.exe`**: معالج التثبيت الرسمي لنظام Windows x64 (ينشئ اختصاراً على سطح المكتب وقائمة ابدأ).
-            - **`D-POS-Portable.exe`**: نسخة محمولة تعمل فوراً بمجرد النقر عليها دون الحاجة للتثبيت.
+            - **App ID:** `com.dqnamo.pos` | **Version:** `${{ env.APP_VERSION }}` (`Windows x64`)
+            - **`D-POS-v${{ env.APP_VERSION }}-Setup.exe`**: معالج التثبيت الرسمي لنظام Windows x64 (ينشئ اختصاراً على سطح المكتب وقائمة ابدأ).
+            - **`D-POS-v${{ env.APP_VERSION }}-Portable.exe`**: نسخة محمولة تعمل فوراً بمجرد النقر عليها دون الحاجة للتثبيت.
             - تتضمن واجهة النظام الكاملة المدمجة مع خادم المزامنة المحلي (`server.cjs`) والبيانات الأولية.
           files: |
-            D-POS-Setup.exe
-            D-POS-Portable.exe
-            windows-checksums.txt
+            D-POS-v${{ env.APP_VERSION }}-Setup.exe
+            D-POS-v${{ env.APP_VERSION }}-Portable.exe
+            windows-checksums-v${{ env.APP_VERSION }}.txt
+          draft: false
           prerelease: false
+          make_latest: true
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,9 +1,10 @@
 # CI Build & Dependency Pipeline Repair Report
 
-**Project:** D POS - Point of Sale (`ANDROID-POS-01` / `com.dqnamo.pos` v2.5.0)  
+**Project:** D POS - Point of Sale (`ANDROID-POS-01` / `com.dqnamo.pos` v2.6.0 / `versionCode 260`)  
+**Target Release Tags:** `v2.6.0-windows` (Windows `.exe`) & `v2.6.0-android` (Android `.apk` & `.aab`) — published as new visible GitHub Releases (`draft: false`, `prerelease: false`, `make_latest: true`) without overwriting previous `2.5.0` / `latest-*` releases.  
 **Target Branch:** `fix/ci-dependency-lockfile`  
 **Reference Failing Run:** `https://github.com/yaseinshanks0-debug/ANDROID-POS-01/actions/runs/44900462475`  
-**Scope:** Build infrastructure and CI/CD pipeline repair only (zero changes to POS business logic, PostgreSQL/Drizzle schema, auth/RBAC, analytics, RTL/LTR UI, `capacitor.config.ts`, or `electron-builder.json`).
+**Scope:** Build infrastructure, version alignment (`2.5.0` → `2.6.0`), and CI/CD release pipeline repair only (zero changes to POS business logic, PostgreSQL/Drizzle schema, auth/RBAC, analytics, or RTL/LTR UI).
 
 ---
 

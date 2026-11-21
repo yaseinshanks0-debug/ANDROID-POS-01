@@ -4,7 +4,7 @@
   "electronVersion": "33.4.0",
   "extraMetadata": {
     "name": "dqnamo-pos",
-    "version": "2.5.0",
+    "version": "2.6.0",
     "main": "electron/main.cjs",
     "description": "D POS - Point of Sale & Live Wi-Fi LAN Sync"
   },
@@ -59,9 +59,9 @@
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
     "shortcutName": "D POS - Point of Sale",
-    "artifactName": "D-POS-Setup.exe"
+    "artifactName": "D-POS-v${version}-Setup.exe"
   },
   "portable": {
-    "artifactName": "D-POS-Portable.exe"
+    "artifactName": "D-POS-v${version}-Portable.exe"
   }
 }
