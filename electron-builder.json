@@ -1,12 +1,12 @@
 {
   "appId": "com.dqnamo.pos",
-  "productName": "Dqnamo POS",
+  "productName": "D POS - Point of Sale",
   "electronVersion": "33.4.0",
   "extraMetadata": {
     "name": "dqnamo-pos",
     "version": "2.5.0",
     "main": "electron/main.cjs",
-    "description": "Dqnamo POS — Enterprise Retail Point of Sale & Live Wi-Fi LAN Sync"
+    "description": "D POS - Point of Sale & Live Wi-Fi LAN Sync"
   },
   "directories": {
     "output": "release-exe"
@@ -58,10 +58,10 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "Dqnamo POS",
-    "artifactName": "Dqnamo-POS-Setup.exe"
+    "shortcutName": "D POS - Point of Sale",
+    "artifactName": "D-POS-Setup.exe"
   },
   "portable": {
-    "artifactName": "Dqnamo-POS-Portable.exe"
+    "artifactName": "D-POS-Portable.exe"
   }
 }

@@ -6,7 +6,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
+  ArrowLeft,
   Building2,
+  CheckCircle2,
   Delete,
   Eye,
   EyeOff,
@@ -15,7 +17,9 @@ import {
   KeyRound,
   Lock,
   LogIn,
+  Mail,
   ShieldCheck,
+  Ticket,
   UserCheck,
   UserPlus,
   X,
@@ -28,6 +32,8 @@ import {
   validatePasswordStrengthPolicy,
   type LoginMethod,
 } from '../../lib/local-auth';
+import { isValidEmailFormat } from '../../lib/invitation-utils';
+import { AcceptInviteModal } from './AcceptInviteModal';
 
 const ROLE_BADGE_LABELS: Record<UserRole, { en: string; ar: string; cls: string }> = {
   admin: {
@@ -66,6 +72,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ mode = 'fullscreen' })
     workspaceMode,
     pendingSwitchUserId,
     loginWithCredentials,
+    signInWithEmailAccount,
+    sendPasswordResetForEmail,
     setupInitialOwnerAccount,
     setLegacyAccountPassword,
     cancelUserSwitchRequest,
@@ -125,6 +133,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ mode = 'fullscreen' })
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Forgot Password via Email state
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+  const [forgotEmailInput, setForgotEmailInput] = useState('');
+  const [forgotStatusMessage, setForgotStatusMessage] = useState<string | null>(null);
+  const [isSendingReset, setIsSendingReset] = useState(false);
+
+  // Company Invitation Modal state (auto-detects ?invite=<token>)
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [initialInviteToken, setInitialInviteToken] = useState<string>('');
+
+  useEffect(() => {
+    if (isSwitchMode || typeof window === 'undefined') return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tokenFromUrl = (params.get('invite') || '').trim();
+      if (tokenFromUrl) {
+        setInitialInviteToken(tokenFromUrl);
+        setIsInviteModalOpen(true);
+      }
+    } catch {}
+  }, [isSwitchMode]);
+
   useEffect(() => {
     if (isSwitchMode && switchTargetUser) {
       setActiveTab('signin');
@@ -134,6 +164,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ mode = 'fullscreen' })
       setPinInput('');
       setErrorMessage(null);
       setLegacySetupUser(null);
+      setIsForgotPasswordOpen(false);
     }
   }, [isSwitchMode, switchTargetUser]);
 
@@ -186,12 +217,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ mode = 'fullscreen' })
 
     setIsSubmitting(true);
     try {
-      const result = await loginWithCredentials({
-        userId: targetId,
-        usernameOrEmail: cleanUsername || undefined,
-        password: loginMethod === LOGIN_METHODS.PASSWORD ? passwordInput : undefined,
-        pin: loginMethod === LOGIN_METHODS.PIN ? pinInput : undefined,
-      });
+      const useFirebaseEmailPath =
+        !isSwitchMode &&
+        workspaceMode === 'PRODUCTION' &&
+        loginMethod === LOGIN_METHODS.PASSWORD &&
+        isValidEmailFormat(cleanUsername);
+
+      const result = useFirebaseEmailPath
+        ? await signInWithEmailAccount(cleanUsername, passwordInput)
+        : await loginWithCredentials({
+            userId: targetId,
+            usernameOrEmail: cleanUsername || undefined,
+            password: loginMethod === LOGIN_METHODS.PASSWORD ? passwordInput : undefined,
+            pin: loginMethod === LOGIN_METHODS.PIN ? pinInput : undefined,
+          });
 
       if (!result.ok) {
         if (result.errorCode === AUTH_ERROR_CODES.NEEDS_PASSWORD_SETUP && result.user) {
@@ -216,6 +255,39 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ mode = 'fullscreen' })
       setErrorMessage(null);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    setForgotStatusMessage(null);
+
+    if (!forgotEmailInput.trim()) {
+      setErrorMessage(
+        isAr ? 'يرجى إدخال بريدك الإلكتروني أولاً.' : 'Please enter your email address first.'
+      );
+      return;
+    }
+
+    setIsSendingReset(true);
+    try {
+      const res = await sendPasswordResetForEmail(forgotEmailInput.trim());
+      if (!res.ok) {
+        setErrorMessage(
+          res.error ||
+            (isAr ? 'تعذر إرسال رابط استعادة كلمة المرور.' : 'Failed to send password reset link.')
+        );
+        return;
+      }
+      setForgotStatusMessage(
+        res.message ||
+          (isAr
+            ? 'تم إرسال رابط استعادة كلمة المرور إلى بريدك الإلكتروني.'
+            : 'Password reset link sent to your email.')
+      );
+    } finally {
+      setIsSendingReset(false);
     }
   };
 
@@ -347,8 +419,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ mode = 'fullscreen' })
               </h1>
               <p className="text-xs text-neutral-400 truncate">
                 {isAr
-                  ? settings.storeNameAr || currentCompany.displayNameAr || 'نقطة البيع'
-                  : settings.storeName || currentCompany.displayName || 'POS Terminal'}
+                  ? settings.storeNameAr || currentCompany.displayNameAr || 'D POS - Point of Sale'
+                  : settings.storeName || currentCompany.displayName || 'D POS - Point of Sale'}
               </p>
             </div>
           </div>
@@ -430,7 +502,93 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ mode = 'fullscreen' })
           </div>
         )}
 
-        {legacySetupUser ? (
+        {isForgotPasswordOpen && !isSwitchMode ? (
+          <form
+            onSubmit={handleForgotPasswordSubmit}
+            className="space-y-3.5"
+            data-testid="forgot-password-form"
+          >
+            <div className="p-3.5 rounded-2xl bg-sky-500/10 border border-sky-500/30 text-xs text-sky-200 space-y-1">
+              <div className="font-extrabold flex items-center gap-1.5 text-sky-300">
+                <Mail className="w-4 h-4 shrink-0" />
+                <span>
+                  {isAr ? 'استعادة كلمة المرور عبر البريد الإلكتروني' : 'Reset Password via Email'}
+                </span>
+              </div>
+              <p className="text-[11px] text-sky-200/80 leading-relaxed">
+                {isAr
+                  ? 'أدخل بريدك الإلكتروني المسجّل وسنرسل لك رابطاً آمناً لإعادة تعيين كلمة المرور فوراً.'
+                  : 'Enter your registered email address and we will send you a secure link to reset your password.'}
+              </p>
+            </div>
+
+            {forgotStatusMessage && (
+              <div
+                role="status"
+                data-testid="forgot-password-success-banner"
+                className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/35 text-emerald-300 text-xs font-bold flex items-start gap-2"
+              >
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{forgotStatusMessage}</span>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="forgot-email-input" className="block text-xs font-bold text-neutral-300 mb-1.5">
+                {isAr ? 'البريد الإلكتروني المسجّل *' : 'Registered Email Address *'}
+              </label>
+              <div className="relative" dir="ltr">
+                <Mail className="w-4 h-4 text-neutral-500 absolute start-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  id="forgot-email-input"
+                  type="email"
+                  data-testid="forgot-password-email-input"
+                  value={forgotEmailInput}
+                  onChange={(e) => {
+                    setForgotEmailInput(e.target.value);
+                    setErrorMessage(null);
+                  }}
+                  placeholder="owner@company.com"
+                  dir="ltr"
+                  className="w-full min-h-[44px] ps-10 pe-3.5 py-2.5 rounded-xl bg-neutral-950 border border-neutral-800 focus:border-sky-500 focus:outline-none text-sm font-mono text-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                data-testid="forgot-password-back-btn"
+                onClick={() => {
+                  setIsForgotPasswordOpen(false);
+                  setForgotStatusMessage(null);
+                  setErrorMessage(null);
+                }}
+                className="px-4 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-bold inline-flex items-center gap-1.5 transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>{isAr ? 'رجوع' : 'Back'}</span>
+              </button>
+              <button
+                type="submit"
+                disabled={isSendingReset}
+                data-testid="forgot-password-submit-btn"
+                className="flex-1 py-3 px-4 rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-60 text-neutral-950 text-sm font-black inline-flex items-center justify-center gap-2 transition-colors"
+              >
+                <Mail className="w-4 h-4" />
+                <span>
+                  {isSendingReset
+                    ? isAr
+                      ? 'جاري الإرسال...'
+                      : 'Sending...'
+                    : isAr
+                    ? 'إرسال رابط الاستعادة'
+                    : 'Send Reset Link'}
+                </span>
+              </button>
+            </div>
+          </form>
+        ) : legacySetupUser ? (
           <form onSubmit={handleLegacyPasswordSubmit} className="space-y-3.5" data-testid="legacy-password-setup-form">
             <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/35 text-xs text-amber-200 space-y-1">
               <div className="font-extrabold flex items-center gap-1.5 text-amber-300">
@@ -803,9 +961,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ mode = 'fullscreen' })
 
             {loginMethod === LOGIN_METHODS.PASSWORD ? (
               <div>
-                <label htmlFor="login-password-input" className="block text-xs font-bold text-neutral-300 mb-1.5">
-                  {isAr ? 'كلمة المرور' : 'Password'}
-                </label>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <label htmlFor="login-password-input" className="block text-xs font-bold text-neutral-300">
+                    {isAr ? 'كلمة المرور' : 'Password'}
+                  </label>
+                  {!isSwitchMode && (
+                    <button
+                      type="button"
+                      data-testid="login-forgot-password-btn"
+                      onClick={() => {
+                        setForgotEmailInput(
+                          isValidEmailFormat(usernameInput.trim()) ? usernameInput.trim() : ''
+                        );
+                        setForgotStatusMessage(null);
+                        setErrorMessage(null);
+                        setIsForgotPasswordOpen(true);
+                      }}
+                      className="text-[11px] font-bold text-sky-400 hover:text-sky-300 transition-colors"
+                    >
+                      {isAr ? 'نسيت كلمة المرور؟' : 'Forgot Password?'}
+                    </button>
+                  )}
+                </div>
                 <div className="relative" dir="ltr">
                   <input
                     id="login-password-input"
@@ -934,28 +1111,47 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ mode = 'fullscreen' })
         )}
 
         {!isSwitchMode && (
-          <div className="pt-3 border-t border-neutral-800/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+          <div className="pt-3 border-t border-neutral-800/80 space-y-2">
             <button
               type="button"
-              data-testid="login-open-company-wizard-btn"
-              onClick={() => openOnboardingModal('create-company')}
-              className="px-3 py-2 rounded-xl bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-colors"
+              data-testid="login-join-with-invite-btn"
+              onClick={() => {
+                setInitialInviteToken('');
+                setIsInviteModalOpen(true);
+              }}
+              className="w-full px-3 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/35 text-emerald-300 text-xs font-extrabold inline-flex items-center justify-center gap-2 transition-colors"
             >
-              <Building2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{isAr ? 'معالج إعداد شركة جديدة' : 'New Company Setup'}</span>
+              <Ticket className="w-4 h-4 shrink-0" />
+              <span>
+                {isAr
+                  ? 'لديك دعوة؟ الانضمام لشركة بكود دعوة'
+                  : 'Have an Invite? Join Company with Code'}
+              </span>
             </button>
 
-            <button
-              type="button"
-              data-testid="login-enter-practice-mode-btn"
-              onClick={() => {
-                void enterPracticeMode();
-              }}
-              className="px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 text-amber-300 text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <FlaskConical className="w-3.5 h-3.5" />
-              <span>{isAr ? 'وضع التدريب التجريبي' : 'Practice Mode'}</span>
-            </button>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+              <button
+                type="button"
+                data-testid="login-open-company-wizard-btn"
+                onClick={() => openOnboardingModal('create-company')}
+                className="flex-1 px-3 py-2 rounded-xl bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{isAr ? 'معالج إعداد شركة جديدة' : 'New Company Setup'}</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="login-enter-practice-mode-btn"
+                onClick={() => {
+                  void enterPracticeMode();
+                }}
+                className="flex-1 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 text-amber-300 text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <FlaskConical className="w-3.5 h-3.5" />
+                <span>{isAr ? 'وضع التدريب التجريبي' : 'Practice Mode'}</span>
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -983,10 +1179,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ mode = 'fullscreen' })
         {cardContent}
         <p className="mt-4 text-[11px] text-neutral-500 text-center max-w-sm">
           {isAr
-            ? 'جلسة محمية بتشفير كلمة المرور ورمز الدخول السريع لضمان أمان نقطة البيع وصلاحيات الموظفين.'
-            : 'Protected session with salted password & PIN verification for POS terminal security.'}
+            ? 'جلسة محمية بتسجيل الدخول عبر البريد الإلكتروني واستعادة كلمة المرور ورمز الدخول السريع أوفلاين.'
+            : 'Protected session with Email sign-in, password recovery, and offline Quick PIN verification.'}
         </p>
       </div>
+      <AcceptInviteModal
+        isOpen={isInviteModalOpen}
+        initialToken={initialInviteToken}
+        onClose={() => {
+          setIsInviteModalOpen(false);
+          setInitialInviteToken('');
+        }}
+      />
     </div>
   );
 };

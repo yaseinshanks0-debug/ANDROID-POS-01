@@ -21,6 +21,7 @@ import { UnmetDemandCaptureModal } from './components/analytics/UnmetDemandCaptu
 import { PracticeModeBanner } from './components/onboarding/PracticeModeBanner';
 import { FirstRunOnboardingModal } from './components/onboarding/FirstRunOnboardingModal';
 import { LoginScreen } from './components/auth/LoginScreen';
+import { AcceptInviteModal } from './components/auth/AcceptInviteModal';
 import { ViewErrorBoundary } from './components/ui/ViewErrorBoundary';
 import { shouldShowLoginGate } from './lib/local-auth';
 import { StatusBar, Style } from '@capacitor/status-bar';
@@ -46,11 +47,28 @@ function POSAppInner() {
     isUnmetDemandModalOpen,
   } = usePOS();
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+  const [urlInviteToken, setUrlInviteToken] = useState<string>('');
+  const [isUrlInviteModalOpen, setIsUrlInviteModalOpen] = useState(false);
 
   const isMobileCartOpenRef = useRef(isMobileCartOpen);
   isMobileCartOpenRef.current = isMobileCartOpen;
   const activeTabRef = useRef(activeTab);
   activeTabRef.current = activeTab;
+
+  // Detect ?invite=<token> on initial launch even when not on LoginScreen (e.g. FIRST_RUN)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tokenFromUrl = (params.get('invite') || '').trim();
+      if (tokenFromUrl) {
+        setUrlInviteToken(tokenFromUrl);
+        setIsUrlInviteModalOpen(true);
+      }
+    } catch {
+      // Ignore malformed query string
+    }
+  }, []);
 
   // Initialize Capacitor Android status bar strictly once on mount
   useEffect(() => {
@@ -134,6 +152,27 @@ function POSAppInner() {
 
       {/* First-Run Onboarding, Practice Mode & Company Workspace Modal */}
       <FirstRunOnboardingModal />
+
+      {/* Deep-Link Company Invitation Modal (supports fresh installs opening ?invite= directly) */}
+      {isUrlInviteModalOpen && (
+        <AcceptInviteModal
+          isOpen={isUrlInviteModalOpen}
+          initialToken={urlInviteToken}
+          onClose={() => {
+            setIsUrlInviteModalOpen(false);
+            setUrlInviteToken('');
+            try {
+              const url = new URL(window.location.href);
+              if (url.searchParams.has('invite')) {
+                url.searchParams.delete('invite');
+                window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+              }
+            } catch {
+              // Ignore history errors
+            }
+          }}
+        />
+      )}
 
       {/* Interactive Guided Training Tour Overlay */}
       {isTrainingTourOpen && (

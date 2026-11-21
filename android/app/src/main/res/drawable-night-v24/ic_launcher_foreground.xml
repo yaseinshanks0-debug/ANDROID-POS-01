@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Dqnamo POS Dark Mode Adaptive Foreground (API 24+ luminous gradient variant, 60dp optical keyline) -->
+    <path android:pathData="M35,33 L53,33 A21,21 0 0,1 53,75 L35,75 L43.5,66.5 L53,66.5 A12.5,12.5 0 0,0 53,41.5 L43.5,41.5 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="35"
+                android:startY="33"
+                android:endX="74"
+                android:endY="75">
+                <item android:offset="0.0" android:color="#FFFBBF24" />
+                <item android:offset="0.52" android:color="#FFF59E0B" />
+                <item android:offset="1.0" android:color="#FFD97706" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M35,33 L43.5,41.5 L43.5,66.5 L35,75 Z" />
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M48.0,47.5 h1.9 v13.0 h-1.9 Z M51.5,47.5 h2.6 v13.0 h-2.6 Z" />
+    <path
+        android:fillColor="#3310B981"
+        android:pathData="M59.3,49.4 A4.6,4.6 0 1,0 59.3,58.6 A4.6,4.6 0 1,0 59.3,49.4 Z" />
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M59.3,51.2 A2.8,2.8 0 1,0 59.3,56.8 A2.8,2.8 0 1,0 59.3,51.2 Z" />
+</vector>

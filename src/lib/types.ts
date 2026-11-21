@@ -81,6 +81,8 @@ export interface POSUser {
   companyId?: string;
   username?: string;
   email?: string;
+  firebaseUid?: string | null;
+  emailVerified?: boolean;
   phone?: string;
   name: string;
   nameAr?: string;
@@ -91,6 +93,7 @@ export interface POSUser {
   assignedBranchIds?: string[];
   pin?: string;
   hasPassword?: boolean;
+  hasPin?: boolean;
   mustChangePassword?: boolean;
   terminalName: string;
   terminalNameAr?: string;
@@ -102,6 +105,40 @@ export interface POSUser {
   deactivatedAt?: string | null;
   deactivatedBy?: string | null;
   deactivationReason?: string | null;
+}
+
+export interface CompanyInvitationSummary {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  branchName?: string;
+  invitedEmail: string;
+  invitedName?: string | null;
+  roleId: string;
+  shortCode: string;
+  status: 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED';
+  expiresAt: string;
+  invitedByUserId?: string | null;
+  invitedByName?: string | null;
+  acceptedByUserId?: string | null;
+  acceptedAt?: string | null;
+  revokedAt?: string | null;
+  createdAt: string;
+}
+
+export interface InvitationPreviewResult {
+  valid: boolean;
+  status: 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED' | 'NOT_FOUND';
+  companyName?: string;
+  companyNameAr?: string;
+  branchName?: string;
+  branchNameAr?: string;
+  roleId?: string;
+  roleName?: string;
+  roleNameAr?: string;
+  maskedEmail?: string;
+  invitedName?: string | null;
+  expiresAt?: string;
 }
 
 export interface ActiveUserSession {

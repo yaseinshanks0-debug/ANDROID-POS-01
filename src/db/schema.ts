@@ -129,6 +129,8 @@ export const users = pgTable(
     name: text('name').notNull(),
     nameAr: text('name_ar'),
     email: text('email'),
+    firebaseUid: text('firebase_uid'),
+    emailVerified: boolean('email_verified').default(false).notNull(),
     phone: text('phone'),
     roleId: text('role_id').references(() => roles.id).notNull(),
     branchId: text('branch_id').references(() => branches.id),
@@ -150,6 +152,8 @@ export const users = pgTable(
   (table) => [
     index('users_company_idx').on(table.companyId),
     index('users_branch_idx').on(table.branchId),
+    index('users_email_idx').on(table.email),
+    uniqueIndex('users_firebase_uid_idx').on(table.firebaseUid),
   ]
 );
 
@@ -1032,3 +1036,42 @@ export const saleItemsRelations = relations(saleItems, ({ one }) => ({
     references: [products.id],
   }),
 }));
+
+// Additive Table: Company Staff Invitations (Email Auth + Link/ShortCode/QR)
+export const companyInvitations = pgTable(
+  'company_invitations',
+  {
+    id: text('id').primaryKey(),
+    companyId: text('company_id')
+      .references(() => companies.id, { onDelete: 'cascade' })
+      .notNull(),
+    branchId: text('branch_id').references(() => branches.id),
+    roleId: text('role_id')
+      .references(() => roles.id)
+      .notNull(),
+    invitedEmail: text('invited_email').notNull(),
+    invitedName: text('invited_name'),
+    tokenHash: text('token_hash').notNull(),
+    shortCode: text('short_code').notNull(),
+    status: text('status').default('PENDING').notNull(),
+    invitedByUserId: text('invited_by_user_id')
+      .references(() => users.id)
+      .notNull(),
+    acceptedByUserId: text('accepted_by_user_id').references(() => users.id),
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    acceptedAt: timestamp('accepted_at'),
+    revokedAt: timestamp('revoked_at'),
+  },
+  (table) => [
+    uniqueIndex('company_invitations_token_hash_idx').on(table.tokenHash),
+    uniqueIndex('company_invitations_short_code_idx').on(table.shortCode),
+    index('company_invitations_company_status_idx').on(table.companyId, table.status),
+    index('company_invitations_email_status_idx').on(table.invitedEmail, table.status),
+    check(
+      'company_invitations_status_chk',
+      sql`${table.status} IN ('PENDING', 'ACCEPTED', 'REVOKED', 'EXPIRED')`
+    ),
+  ]
+);
+

@@ -10,6 +10,11 @@ import {
   signInWithPopup,
   signOut,
   onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  sendEmailVerification,
+  updateProfile,
   User as FirebaseUser,
 } from 'firebase/auth';
 import {
@@ -138,7 +143,7 @@ export async function upsertFirebaseUserProfile(
   const safeDisplayName = truncateString(
     user.displayName || user.email?.split('@')[0],
     120,
-    'Dqnamo User'
+    'D POS User'
   );
   const safePhotoURL = truncateString(user.photoURL, 512, '');
   const safeCompanyId = sanitizeRuleId(companyId, 'comp-default');
@@ -227,7 +232,7 @@ export async function pushWorkspaceToFirestoreCloud(params: {
   const wsPath = `cloudWorkspaces/${workspaceId}`;
   const wsRef = doc(db, 'cloudWorkspaces', workspaceId);
 
-  const safeCompanyName = truncateString(params.companyName, 160, 'Dqnamo POS Store');
+  const safeCompanyName = truncateString(params.companyName, 160, 'D POS - Point of Sale');
   const safeDeviceName = truncateString(params.deviceName, 120, 'POS Terminal');
   const productsCount = Math.min(100000, Math.max(0, (params.payload.products || []).length));
   const transactionsCount = Math.min(
@@ -439,6 +444,140 @@ export function subscribeToFirestoreWorkspace(params: {
       handleFirestoreError(error, OperationType.GET, wsPath);
     }
   );
+}
+
+export interface FirebaseAuthMappedError {
+  code: string;
+  messageEn: string;
+  messageAr: string;
+  isOfflineOrNetwork: boolean;
+}
+
+export function extractFirebaseErrorCode(error: unknown): string {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    return String((error as { code?: unknown }).code || '');
+  }
+  return '';
+}
+
+export function mapFirebaseAuthError(error: unknown): FirebaseAuthMappedError {
+  const code = extractFirebaseErrorCode(error);
+  switch (code) {
+    case 'auth/email-already-in-use':
+      return {
+        code,
+        messageEn: 'This email is already registered. Sign in with it instead or reset your password.',
+        messageAr: 'هذا البريد الإلكتروني مسجل مسبقاً. يمكنك تسجيل الدخول به أو استعادة كلمة المرور.',
+        isOfflineOrNetwork: false,
+      };
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+      return {
+        code,
+        messageEn: 'Incorrect email or password. Use "Forgot Password?" to recover via email.',
+        messageAr: 'البريد الإلكتروني أو كلمة المرور غير صحيحة. استخدم "نسيت كلمة المرور؟" للاستعادة عبر البريد.',
+        isOfflineOrNetwork: false,
+      };
+    case 'auth/invalid-email':
+      return {
+        code,
+        messageEn: 'Please enter a valid email address.',
+        messageAr: 'يرجى إدخال بريد إلكتروني صحيح.',
+        isOfflineOrNetwork: false,
+      };
+    case 'auth/weak-password':
+      return {
+        code,
+        messageEn: 'Password is too weak. Use at least 8 characters with letters and numbers.',
+        messageAr: 'كلمة المرور ضعيفة. استخدم 8 خانات على الأقل تحتوي على أحرف وأرقام.',
+        isOfflineOrNetwork: false,
+      };
+    case 'auth/too-many-requests':
+      return {
+        code,
+        messageEn: 'Too many attempts. Please wait a few minutes before trying again.',
+        messageAr: 'محاولات كثيرة جداً. يرجى الانتظار بضع دقائق ثم المحاولة مجدداً.',
+        isOfflineOrNetwork: false,
+      };
+    case 'auth/operation-not-allowed':
+      return {
+        code,
+        messageEn:
+          'Email/Password sign-in is not enabled yet in Firebase Console (Authentication → Sign-in method → Email/Password).',
+        messageAr:
+          'تسجيل الدخول بالبريد الإلكتروني غير مفعّل بعد في لوحة Firebase (Authentication ← Sign-in method ← Email/Password).',
+        isOfflineOrNetwork: false,
+      };
+    case 'auth/user-disabled':
+      return {
+        code,
+        messageEn: 'This email account has been disabled.',
+        messageAr: 'تم تعطيل حساب البريد الإلكتروني هذا.',
+        isOfflineOrNetwork: false,
+      };
+    case 'auth/network-request-failed':
+      return {
+        code,
+        messageEn: 'No internet connection. Use your offline PIN or local password.',
+        messageAr: 'لا يوجد اتصال بالإنترنت. استخدم رمز الدخول السريع PIN أو كلمة المرور المحلية.',
+        isOfflineOrNetwork: true,
+      };
+    default:
+      return {
+        code: code || 'auth/unknown',
+        messageEn:
+          error instanceof Error && error.message
+            ? error.message
+            : 'Email authentication failed. Please try again.',
+        messageAr: 'تعذر إتمام المصادقة عبر البريد الإلكتروني. يرجى المحاولة مرة أخرى.',
+        isOfflineOrNetwork: false,
+      };
+  }
+}
+
+export async function registerWithFirebaseEmail(
+  email: string,
+  password: string,
+  displayName?: string
+): Promise<{ user: FirebaseUser; idToken: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+  const credential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+  if (displayName && displayName.trim()) {
+    await updateProfile(credential.user, { displayName: displayName.trim() }).catch(() => {});
+  }
+  // Best-effort verification email; never blocks onboarding
+  sendEmailVerification(credential.user).catch(() => {});
+  const idToken = await credential.user.getIdToken(true);
+  return { user: credential.user, idToken };
+}
+
+export async function signInWithFirebaseEmail(
+  email: string,
+  password: string
+): Promise<{ user: FirebaseUser; idToken: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+  const credential = await signInWithEmailAndPassword(auth, cleanEmail, password);
+  const idToken = await credential.user.getIdToken(true);
+  return { user: credential.user, idToken };
+}
+
+export async function sendFirebasePasswordReset(
+  email: string,
+  language: 'ar' | 'en' = 'ar'
+): Promise<void> {
+  const cleanEmail = email.trim().toLowerCase();
+  auth.languageCode = language === 'ar' ? 'ar' : 'en';
+  await sendPasswordResetEmail(auth, cleanEmail);
+}
+
+export async function getCurrentFirebaseIdToken(forceRefresh = false): Promise<string | null> {
+  if (!auth.currentUser) return null;
+  try {
+    return await auth.currentUser.getIdToken(forceRefresh);
+  } catch {
+    return null;
+  }
 }
 
 export { signInWithPopup, signOut, onAuthStateChanged };

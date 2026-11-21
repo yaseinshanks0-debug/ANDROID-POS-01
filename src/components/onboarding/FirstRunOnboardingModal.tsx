@@ -23,9 +23,13 @@ import {
   Globe2,
   ArchiveRestore,
   Upload,
+  Mail,
+  WifiOff,
 } from 'lucide-react';
 import { usePOS, OnboardingModalView } from '../../context/POSContext';
 import { BackupEnvelopeV1, remapBackupPayloadForNewCompany } from '../../lib/backup-merge-engine';
+import { mapFirebaseAuthError, registerWithFirebaseEmail } from '../../lib/firebase';
+import { isValidEmailFormat, normalizeEmail } from '../../lib/invitation-utils';
 
 export const FirstRunOnboardingModal: React.FC = () => {
   const {
@@ -110,6 +114,7 @@ export const FirstRunOnboardingModal: React.FC = () => {
   const [ownerPassword, setOwnerPassword] = useState('');
   const [ownerConfirmPassword, setOwnerConfirmPassword] = useState('');
   const [ownerPin, setOwnerPin] = useState('');
+  const [useEmailAuthForOwner, setUseEmailAuthForOwner] = useState(true);
 
   useEffect(() => {
     if (isOnboardingModalOpen) {
@@ -310,7 +315,19 @@ export const FirstRunOnboardingModal: React.FC = () => {
       if (!ownerName.trim()) setOwnerName(effectiveOwner);
       if (!ownerNameAr.trim()) setOwnerNameAr(effectiveOwner);
 
-      if (!ownerUsername.trim() && !ownerEmail.trim()) {
+      if (useEmailAuthForOwner) {
+        if (!isValidEmailFormat(ownerEmail)) {
+          setErrorMessage(
+            isAr
+              ? 'يرجى إدخال بريد إلكتروني صحيح للمالك لتفعيل استعادة كلمة المرور ودعوة الموظفين (أو اختر المتابعة بدون إنترنت).'
+              : 'Please enter a valid Owner Email for password recovery and staff invitations (or switch to Continue Offline).'
+          );
+          return false;
+        }
+        if (!ownerUsername.trim()) {
+          setOwnerUsername(normalizeEmail(ownerEmail));
+        }
+      } else if (!ownerUsername.trim() && !ownerEmail.trim()) {
         setErrorMessage(
           isAr
             ? 'يرجى إدخال اسم المستخدم (Username) لحساب المالك.'
@@ -336,7 +353,7 @@ export const FirstRunOnboardingModal: React.FC = () => {
       if (ownerPassword !== ownerConfirmPassword) {
         setErrorMessage(
           isAr
-            ? 'كلمة المرور وتأكيد كلمة المرور غير متطابقين.'
+            ? 'كلمة المرور وتأكيد كلمة المرور غير متطابقتين.'
             : 'Password and Confirm Password do not match.'
         );
         return false;
@@ -422,7 +439,36 @@ export const FirstRunOnboardingModal: React.FC = () => {
       const finalOwnerNameAr = ownerNameAr.trim() || finalOwnerName;
       const finalPassword = ownerPassword.trim();
       const uniqueSuffix = Date.now().toString(36).slice(-4);
-      const finalUsername = ownerUsername.trim() || ownerEmail.trim();
+      const normalizedOwnerEmail = normalizeEmail(ownerEmail);
+      const finalUsername =
+        (useEmailAuthForOwner && normalizedOwnerEmail) ||
+        ownerUsername.trim() ||
+        normalizedOwnerEmail;
+
+      let firebaseIdToken: string | undefined;
+      if (useEmailAuthForOwner && isValidEmailFormat(normalizedOwnerEmail)) {
+        try {
+          const fbRes = await registerWithFirebaseEmail(
+            normalizedOwnerEmail,
+            finalPassword,
+            finalOwnerName
+          );
+          firebaseIdToken = fbRes.idToken;
+        } catch (fbErr) {
+          const mapped = mapFirebaseAuthError(fbErr);
+          setWizardStep(4);
+          setErrorMessage(
+            mapped.isOfflineOrNetwork
+              ? isAr
+                ? 'لا يوجد اتصال بالإنترنت لتسجيل البريد الآن. يمكنك تفعيل خيار "المتابعة بدون إنترنت (ربط الإيميل لاحقاً)" في الخطوة 4.'
+                : 'No internet connection to register email right now. Switch to "Continue Offline (Link Email Later)" in Step 4.'
+              : isAr
+              ? mapped.messageAr
+              : mapped.messageEn
+          );
+          return;
+        }
+      }
 
       const idempotencyKey = `onboard-${Date.now().toString(36)}-${uniqueSuffix}`;
 
@@ -450,6 +496,7 @@ export const FirstRunOnboardingModal: React.FC = () => {
 
       const result = await createNewCompanyWorkspace({
         idempotencyKey,
+        firebaseIdToken,
         skipInitialCurrencies,
         legalName: finalLegalName,
         displayName: finalDisplayName,
@@ -459,7 +506,7 @@ export const FirstRunOnboardingModal: React.FC = () => {
         city: city.trim(),
         address: address.trim(),
         phone: phone.trim(),
-        email: email.trim(),
+        email: email.trim() || normalizedOwnerEmail,
         taxNumber: taxNumber.trim(),
         defaultLanguage,
         timezone,
@@ -477,7 +524,7 @@ export const FirstRunOnboardingModal: React.FC = () => {
         ownerName: finalOwnerName,
         ownerNameAr: finalOwnerNameAr,
         ownerUsername: finalUsername,
-        ownerEmail: ownerEmail.trim(),
+        ownerEmail: normalizedOwnerEmail,
         ownerPhone: ownerPhone.trim() || phone.trim(),
         ownerPassword: finalPassword,
         ownerConfirmPassword: ownerConfirmPassword.trim(),
@@ -1434,108 +1481,193 @@ export const FirstRunOnboardingModal: React.FC = () => {
 
               {/* STEP 4: INITIAL OWNER / ADMIN ACCOUNT */}
               {wizardStep === 4 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-zinc-950/60 p-4 sm:p-5 rounded-2xl border border-zinc-800">
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-300 mb-1">
-                      {isAr ? 'الاسم الكامل للمالك / المدير العام *' : 'Owner / Super Admin Full Name *'}
-                    </label>
-                    <input
-                      type="text"
-                      data-testid="wizard-owner-name"
-                      value={ownerName}
-                      onChange={(e) => setOwnerName(e.target.value)}
-                      placeholder="e.g. Tariq Al-Mansoor"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
-                    />
+                <div className="space-y-4 bg-zinc-950/60 p-4 sm:p-5 rounded-2xl border border-zinc-800">
+                  {/* Email Recovery vs Offline Mode Switch */}
+                  <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                          useEmailAuthForOwner
+                            ? 'bg-emerald-500/15 border-emerald-500/35 text-emerald-400'
+                            : 'bg-amber-500/15 border-amber-500/35 text-amber-400'
+                        }`}
+                      >
+                        {useEmailAuthForOwner ? (
+                          <Mail className="w-4 h-4" />
+                        ) : (
+                          <WifiOff className="w-4 h-4" />
+                        )}
+                      </div>
+                      <div className="text-xs space-y-0.5">
+                        <p className="font-black text-zinc-100">
+                          {useEmailAuthForOwner
+                            ? isAr
+                              ? 'حساب بالبريد الإلكتروني (استعادة كلمة المرور + دعوة الموظفين)'
+                              : 'Email Account (Password Recovery & Staff Invites)'
+                            : isAr
+                            ? 'إنشاء محلي بدون إنترنت (ربط الإيميل لاحقاً من الإعدادات)'
+                            : 'Offline Local Setup (Link Email Later in Settings)'}
+                        </p>
+                        <p className="text-[11px] text-zinc-400">
+                          {useEmailAuthForOwner
+                            ? isAr
+                              ? 'يضمن عدم فقدان الوصول لشركتك عند نسيان كلمة المرور، ويتيح دعوة الموظفين عبر رابط أو QR.'
+                              : 'Prevents lockout if you forget your password and lets you invite staff by link or QR.'
+                            : isAr
+                            ? 'يعمل بدون إنترنت الآن، ويمكنك ربط بريدك الإلكتروني لاحقاً من إعدادات المستخدمين.'
+                            : 'Works completely offline now; you can link your email anytime from Users settings.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      data-testid="wizard-toggle-offline-owner-btn"
+                      onClick={() => {
+                        setUseEmailAuthForOwner((prev) => !prev);
+                        setErrorMessage(null);
+                      }}
+                      className={`px-3 py-2 rounded-xl text-[11px] font-extrabold border shrink-0 transition-colors ${
+                        useEmailAuthForOwner
+                          ? 'bg-zinc-950 hover:bg-zinc-800 border-zinc-700 text-zinc-300'
+                          : 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/40 text-emerald-300'
+                      }`}
+                    >
+                      {useEmailAuthForOwner
+                        ? isAr
+                          ? 'المتابعة بدون إنترنت (ربط الإيميل لاحقاً)'
+                          : 'Continue Offline (Link Email Later)'
+                        : isAr
+                        ? 'تفعيل التسجيل بالبريد الإلكتروني (موصى به)'
+                        : 'Use Email Account (Recommended)'}
+                    </button>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-300 mb-1">
-                      {isAr ? 'الاسم بالعربية' : 'Owner Name (Arabic)'}
-                    </label>
-                    <input
-                      type="text"
-                      value={ownerNameAr}
-                      onChange={(e) => setOwnerNameAr(e.target.value)}
-                      placeholder="مثال: طارق المنصور"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-zinc-300 mb-1">
+                        {isAr ? 'الاسم الكامل للمالك / المدير العام *' : 'Owner / Super Admin Full Name *'}
+                      </label>
+                      <input
+                        type="text"
+                        data-testid="wizard-owner-name"
+                        value={ownerName}
+                        onChange={(e) => setOwnerName(e.target.value)}
+                        placeholder="e.g. Tariq Al-Mansoor"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-300 mb-1">
-                      {isAr ? 'اسم المستخدم للدخول (Username)' : 'Login Username'}
-                    </label>
-                    <input
-                      type="text"
-                      data-testid="wizard-owner-username"
-                      value={ownerUsername}
-                      onChange={(e) => setOwnerUsername(e.target.value)}
-                      placeholder="tariq.owner"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm font-mono text-zinc-100 focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
+                    <div>
+                      <label className="block text-xs font-bold text-zinc-300 mb-1">
+                        {isAr ? 'الاسم بالعربية' : 'Owner Name (Arabic)'}
+                      </label>
+                      <input
+                        type="text"
+                        value={ownerNameAr}
+                        onChange={(e) => setOwnerNameAr(e.target.value)}
+                        placeholder="مثال: طارق المنصور"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-300 mb-1">
-                      {isAr ? 'البريد الإلكتروني للمالك' : 'Owner Email'}
-                    </label>
-                    <input
-                      type="email"
-                      value={ownerEmail}
-                      onChange={(e) => setOwnerEmail(e.target.value)}
-                      placeholder="owner@company.com"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
+                    <div>
+                      <label className="block text-xs font-bold text-zinc-300 mb-1">
+                        {useEmailAuthForOwner
+                          ? isAr
+                            ? 'البريد الإلكتروني للمالك (لاستعادة كلمة المرور) *'
+                            : 'Owner Email (for Password Recovery) *'
+                          : isAr
+                          ? 'البريد الإلكتروني للمالك (اختياري)'
+                          : 'Owner Email (Optional)'}
+                      </label>
+                      <input
+                        type="email"
+                        data-testid="wizard-owner-email"
+                        value={ownerEmail}
+                        onChange={(e) => setOwnerEmail(e.target.value)}
+                        placeholder="owner@company.com"
+                        dir="ltr"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm font-mono text-zinc-100 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-300 mb-1">
-                      {isAr ? 'كلمة المرور (6 أحرف على الأقل) *' : 'Password (min 6 chars) *'}
-                    </label>
-                    <input
-                      type="password"
-                      data-testid="wizard-owner-password"
-                      value={ownerPassword}
-                      onChange={(e) => setOwnerPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
+                    <div>
+                      <label className="block text-xs font-bold text-zinc-300 mb-1">
+                        {useEmailAuthForOwner
+                          ? isAr
+                            ? 'اسم مستخدم إضافي (اختياري)'
+                            : 'Username Alias (Optional)'
+                          : isAr
+                          ? 'اسم المستخدم للدخول (Username) *'
+                          : 'Login Username *'}
+                      </label>
+                      <input
+                        type="text"
+                        data-testid="wizard-owner-username"
+                        value={ownerUsername}
+                        onChange={(e) => setOwnerUsername(e.target.value)}
+                        placeholder="tariq.owner"
+                        dir="ltr"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm font-mono text-zinc-100 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-300 mb-1">
-                      {isAr ? 'تأكيد كلمة المرور *' : 'Confirm Password *'}
-                    </label>
-                    <input
-                      type="password"
-                      data-testid="wizard-owner-confirm-password"
-                      value={ownerConfirmPassword}
-                      onChange={(e) => setOwnerConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
+                    <div>
+                      <label className="block text-xs font-bold text-zinc-300 mb-1">
+                        {isAr ? 'كلمة المرور (8 خانات: أحرف وأرقام) *' : 'Password (min 8 chars: letters + numbers) *'}
+                      </label>
+                      <input
+                        type="password"
+                        data-testid="wizard-owner-password"
+                        value={ownerPassword}
+                        onChange={(e) => setOwnerPassword(e.target.value)}
+                        placeholder="••••••••"
+                        dir="ltr"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-300 mb-1">
-                      {isAr ? 'رمز نقطة البيع السريع (PIN)' : 'Quick Terminal PIN (4-8 digits)'}
-                    </label>
-                    <input
-                      type="text"
-                      value={ownerPin}
-                      onChange={(e) => setOwnerPin(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm font-mono text-zinc-100 focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
+                    <div>
+                      <label className="block text-xs font-bold text-zinc-300 mb-1">
+                        {isAr ? 'تأكيد كلمة المرور *' : 'Confirm Password *'}
+                      </label>
+                      <input
+                        type="password"
+                        data-testid="wizard-owner-confirm-password"
+                        value={ownerConfirmPassword}
+                        onChange={(e) => setOwnerConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        dir="ltr"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
 
-                  <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs">
-                    <Lock className="w-4 h-4 shrink-0" />
-                    <span>
-                      {isAr
-                        ? 'سيتم منح هذا الحساب دور المالك (COMPANY_OWNER) مع جميع الصلاحيات الـ 46 وتشفير كلمة المرور عبر scrypt.'
-                        : 'Account is assigned COMPANY_OWNER role with all 46 capabilities and scrypt password hashing.'}
-                    </span>
+                    <div>
+                      <label className="block text-xs font-bold text-zinc-300 mb-1">
+                        {isAr ? 'رمز نقطة البيع السريع أوفلاين (PIN — 4 إلى 6 أرقام)' : 'Offline Quick Terminal PIN (4-6 digits)'}
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        data-testid="wizard-owner-pin"
+                        value={ownerPin}
+                        onChange={(e) => setOwnerPin(e.target.value.replace(/\D/g, ''))}
+                        placeholder="1234"
+                        dir="ltr"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-sm font-mono text-zinc-100 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs">
+                      <Lock className="w-4 h-4 shrink-0" />
+                      <span>
+                        {isAr
+                          ? 'سيتم منح هذا الحساب دور المالك (COMPANY_OWNER) بجميع الصلاحيات مع حماية كلمة المرور ورمز PIN السريع للعمل أوفلاين.'
+                          : 'Assigned COMPANY_OWNER role with all capabilities plus protected password & offline Quick PIN.'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}

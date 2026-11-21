@@ -8,6 +8,7 @@ import { usePOS } from '../../context/POSContext';
 import { getTranslation } from '../../lib/translations';
 import { formatCurrency } from '../../lib/pos-calculations';
 import { TactileButton } from '../ui/TactileButton';
+import { DqnamoBrandIcon } from '../ui/DqnamoBrandIcon';
 import { AppModal } from '../ui/AppModal';
 import {
   ShoppingBag,
@@ -202,7 +203,7 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
             className="flex items-center gap-2 text-start focus:outline-none group min-w-0 shrink-0"
             aria-label="Go to Dashboard"
           >
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center font-bold text-neutral-950 shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform overflow-hidden shrink-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#090a0f] border border-amber-500/30 flex items-center justify-center shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform overflow-hidden shrink-0">
               {settings.storeLogo ? (
                 <img
                   src={settings.storeLogo}
@@ -210,7 +211,12 @@ export const AppHeader: React.FC<{ onOpenCart?: () => void }> = ({ onOpenCart })
                   className="w-full h-full object-contain bg-neutral-950 p-0.5"
                 />
               ) : (
-                <span className="font-mono text-sm sm:text-base">DQ</span>
+                <DqnamoBrandIcon
+                  variant="dark"
+                  showBackground={true}
+                  className="w-full h-full"
+                  title="D POS - Point of Sale"
+                />
               )}
             </div>
             <div className="hidden sm:block min-w-0">

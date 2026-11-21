@@ -235,7 +235,7 @@ async function createMainWindow(distDir) {
     height: 880,
     minWidth: 1024,
     minHeight: 680,
-    title: 'Dqnamo POS — نظام نقاط البيع والمزامنة المحلية',
+    title: 'D POS - Point of Sale',
     autoHideMenuBar: true,
     backgroundColor: '#090a0f',
     webPreferences: {

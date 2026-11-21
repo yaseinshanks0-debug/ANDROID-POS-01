@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Dqnamo POS Dark Mode Adaptive Foreground (all geometry inside 60dp optical keyline / 66dp safe zone) -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M35,33 L53,33 A21,21 0 0,1 53,75 L35,75 L43.5,66.5 L53,66.5 A12.5,12.5 0 0,0 53,41.5 L43.5,41.5 Z" />
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M35,33 L43.5,41.5 L43.5,66.5 L35,75 Z" />
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M48.0,47.5 h1.9 v13.0 h-1.9 Z M51.5,47.5 h2.6 v13.0 h-2.6 Z" />
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M59.3,51.2 A2.8,2.8 0 1,0 59.3,56.8 A2.8,2.8 0 1,0 59.3,51.2 Z" />
+</vector>

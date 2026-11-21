@@ -45,6 +45,7 @@ import {
 } from './src/server/release-onboarding.service.ts';
 import { backupRestoreRouter } from './src/server/backup-restore.service.ts';
 import { lanSyncRouter } from './src/server/lan-sync.service.ts';
+import { invitationsRouter } from './src/server/invitations.service.ts';
 import {
   validateBankTransferTransaction,
   validateServerTransactionsBatch,
@@ -109,8 +110,10 @@ app.use(express.json({ limit: '50mb' }));
 // W3C Server-Timing Telemetry (#18) & Non-Blocking Async Brotli / Gzip Response Compression (#9)
 app.use(nonBlockingJsonCompressionMiddleware);
 
-// API Rate Limiting (#22): stricter limit on authentication routes + general limit across /api
+// API Rate Limiting (#22): stricter limit on authentication & public invite routes + general limit across /api
 app.use('/api/auth', authRateLimiter);
+app.use('/api/invitations/preview', authRateLimiter);
+app.use('/api/invitations/accept', authRateLimiter);
 app.use('/api', apiRateLimiter);
 
 // API: Business Intelligence, Smart Store Operations & Customer Demand Intelligence Endpoints
@@ -120,6 +123,9 @@ app.use('/api/unmet-demand', unmetDemandRouter);
 
 // API: Phase 11 Onboarding, Practice Mode, Company Isolation, Auth & RBAC Endpoints
 app.use('/api', releasePlatformRouter);
+
+// API: Company Staff Invitations (Link + Short Code + QR)
+app.use('/api/invitations', invitationsRouter);
 
 // API: Backup, Restore, Company Migration & Intelligent Data Merge Endpoints
 app.use('/api/backups', backupRestoreRouter);

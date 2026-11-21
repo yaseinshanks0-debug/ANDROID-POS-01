@@ -13,6 +13,8 @@ import type {
   CompanyProfile,
   BranchRecord,
   AppSettings,
+  CompanyInvitationSummary,
+  InvitationPreviewResult,
 } from '../../lib/types';
 import {
   CapabilityCode,
@@ -39,6 +41,13 @@ import {
   validatePinPolicy,
   type AuthErrorCode,
 } from '../../lib/local-auth';
+import {
+  mapFirebaseAuthError,
+  registerWithFirebaseEmail,
+  sendFirebasePasswordReset,
+  signInWithFirebaseEmail,
+} from '../../lib/firebase';
+import { isValidEmailFormat, normalizeEmail } from '../../lib/invitation-utils';
 
 export interface LoginCredentialsInput {
   usernameOrEmail?: string;
@@ -52,6 +61,65 @@ export interface LoginCredentialsResult {
   user?: POSUser;
   error?: string;
   errorCode?: AuthErrorCode | string;
+}
+
+export interface EmailSignInResult extends LoginCredentialsResult {
+  unbound?: boolean;
+  email?: string;
+  firebaseIdToken?: string;
+}
+
+export interface PasswordResetResult {
+  ok: boolean;
+  message?: string;
+  error?: string;
+}
+
+export interface LinkFirebaseEmailInput {
+  email: string;
+  password: string;
+  mode?: 'create' | 'signin';
+}
+
+export interface LinkFirebaseEmailResult {
+  ok: boolean;
+  user?: POSUser;
+  error?: string;
+  errorCode?: string;
+}
+
+export interface CreateCompanyInviteActionInput {
+  email: string;
+  invitedName?: string;
+  roleId: string;
+  branchId?: string;
+}
+
+export interface CreateCompanyInviteActionResult {
+  ok: boolean;
+  invitation?: CompanyInvitationSummary;
+  inviteUrl?: string;
+  shortCode?: string;
+  expiresAt?: string;
+  error?: string;
+}
+
+export interface AcceptCompanyInviteActionInput {
+  token?: string;
+  shortCode?: string;
+  email: string;
+  password: string;
+  fullName: string;
+  pin?: string;
+  accountMode: 'create' | 'signin';
+}
+
+export interface AcceptCompanyInviteActionResult {
+  ok: boolean;
+  user?: POSUser;
+  company?: CompanyProfile;
+  error?: string;
+  errorCode?: string;
 }
 
 export interface InitialOwnerSetupInput {
@@ -1124,6 +1192,614 @@ export function useUserAccountsDomain({
     [currentUser]
   );
 
+  const hydrateAuthenticatedServerPayload = useCallback(
+    (payload: {
+      user: POSUser;
+      company?: CompanyProfile;
+      branches?: BranchRecord[];
+      sessionToken?: string;
+      localPassword?: string;
+      localPin?: string;
+    }): POSUser => {
+      const { user: serverUser, company: serverCompany, branches: serverBranches, sessionToken } =
+        payload;
+
+      if (sessionToken) {
+        try {
+          localStorage.setItem(STORAGE_KEYS.SESSION_TOKEN, sessionToken);
+        } catch {}
+      }
+
+      if (payload.localPassword || payload.localPin) {
+        saveLocalUserCredentials(serverUser.id, {
+          password: payload.localPassword || undefined,
+          pin: payload.localPin || undefined,
+        });
+      }
+
+      if (serverCompany && serverCompany.id && serverCompany.id !== 'comp-demo-practice') {
+        setCompanies((prev) => {
+          const exists = prev.some((c) => c.id === serverCompany.id);
+          return exists
+            ? prev.map((c) => (c.id === serverCompany.id ? { ...c, ...serverCompany } : c))
+            : [...prev, serverCompany];
+        });
+        if (currentCompany.id === 'comp-clean-store' || currentCompany.id !== serverCompany.id) {
+          setCurrentCompanyId(serverCompany.id);
+        }
+      }
+
+      if (Array.isArray(serverBranches) && serverBranches.length > 0) {
+        setAllBranches((prev) => {
+          const map = new Map<string, BranchRecord>();
+          for (const b of prev) map.set(b.id, b);
+          for (const b of serverBranches) map.set(b.id, b);
+          return Array.from(map.values());
+        });
+        setActiveBranchId(serverUser.branchId || serverBranches[0].id);
+      }
+
+      const nowIso = new Date().toISOString();
+      const normalizedUser: POSUser = {
+        ...serverUser,
+        hasPassword: serverUser.hasPassword || Boolean(payload.localPassword),
+        hasPin: serverUser.hasPin || Boolean(payload.localPin),
+        lastLoginAt: nowIso,
+        lastActiveAt: nowIso,
+      };
+
+      setUsers((prev) => {
+        const exists = prev.some((u) => u.id === normalizedUser.id);
+        return exists
+          ? prev.map((u) => (u.id === normalizedUser.id ? { ...u, ...normalizedUser } : u))
+          : [...prev, normalizedUser];
+      });
+      setCurrentUserId(normalizedUser.id);
+      setActiveSessions((prev) => {
+        const exists = prev.some((s) => s.userId === normalizedUser.id);
+        if (exists) {
+          return prev.map((s) =>
+            s.userId === normalizedUser.id ? { ...s, lastPingAt: nowIso, status: 'online' } : s
+          );
+        }
+        return [
+          ...prev,
+          {
+            sessionId: `sess-${normalizedUser.id}-${Date.now()}`,
+            userId: normalizedUser.id,
+            companyId: serverCompany?.id || currentCompany.id,
+            workspaceMode: 'PRODUCTION',
+            userName: normalizedUser.name,
+            userNameAr: normalizedUser.nameAr,
+            role: normalizedUser.role,
+            systemRole: normalizedUser.systemRole,
+            branchId: normalizedUser.branchId,
+            terminalName: normalizedUser.terminalName,
+            terminalNameAr: normalizedUser.terminalNameAr,
+            startedAt: nowIso,
+            lastPingAt: nowIso,
+            status: 'online',
+          },
+        ];
+      });
+
+      markSessionAuthenticated(
+        normalizedUser.id,
+        serverCompany?.id || currentCompany.id,
+        'PRODUCTION'
+      );
+      playSuccessChime(settings.soundEnabled);
+      triggerHaptic('success', settings.hapticsEnabled);
+      return normalizedUser;
+    },
+    [
+      currentCompany.id,
+      setCompanies,
+      setCurrentCompanyId,
+      setAllBranches,
+      setActiveBranchId,
+      setUsers,
+      setCurrentUserId,
+      setActiveSessions,
+      markSessionAuthenticated,
+      settings.soundEnabled,
+      settings.hapticsEnabled,
+    ]
+  );
+
+  const buildAuthenticatedHeaders = useCallback((): Record<string, string> => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-user-id': currentUser.id,
+      'x-company-id': currentCompany.id,
+    };
+    try {
+      const token = localStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+    } catch {}
+    return headers;
+  }, [currentUser.id, currentCompany.id]);
+
+  const signInWithEmailAccount = useCallback(
+    async (email: string, password: string): Promise<EmailSignInResult> => {
+      const isAr = settings.language === 'ar';
+      const cleanEmail = normalizeEmail(email);
+      const cleanPassword = String(password || '').trim();
+
+      if (!isValidEmailFormat(cleanEmail)) {
+        return {
+          ok: false,
+          errorCode: 'INVALID_EMAIL',
+          error: isAr ? 'يرجى إدخال بريد إلكتروني صحيح.' : 'Please enter a valid email address.',
+        };
+      }
+      if (!cleanPassword) {
+        return {
+          ok: false,
+          errorCode: AUTH_ERROR_CODES.PASSWORD_REQUIRED,
+          error: isAr ? 'يرجى إدخال كلمة المرور.' : 'Please enter your password.',
+        };
+      }
+
+      try {
+        const { idToken } = await signInWithFirebaseEmail(cleanEmail, cleanPassword);
+        const exchangeRes = await fetch('/api/auth/firebase-exchange', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ firebaseIdToken: idToken }),
+        });
+        const exchangeJson = await exchangeRes.json().catch(() => null);
+
+        if (exchangeRes.ok && exchangeJson?.success) {
+          const data = exchangeJson.data;
+          if (data?.status === 'AUTHENTICATED' && data?.user) {
+            const hydratedUser = hydrateAuthenticatedServerPayload({
+              user: data.user as POSUser,
+              company: data.company as CompanyProfile | undefined,
+              branches: Array.isArray(data.branches) ? (data.branches as BranchRecord[]) : [],
+              sessionToken: typeof data.sessionToken === 'string' ? data.sessionToken : undefined,
+              localPassword: cleanPassword,
+            });
+            return { ok: true, user: hydratedUser };
+          }
+          if (data?.status === 'UNBOUND') {
+            return {
+              ok: false,
+              unbound: true,
+              email: cleanEmail,
+              firebaseIdToken: idToken,
+              errorCode: 'FIREBASE_ACCOUNT_UNBOUND',
+              error: isAr
+                ? 'تم التحقق من بريدك الإلكتروني، لكنه غير مرتبط بشركة بعد. يمكنك إنشاء شركة جديدة أو الانضمام بكود دعوة.'
+                : 'Your email is verified, but it is not linked to any company yet. Create a new company or join with an invite code.',
+            };
+          }
+        }
+
+        const serverCode = String(exchangeJson?.errorCode || exchangeJson?.code || '');
+        if (serverCode === 'USER_ACCOUNT_DEACTIVATED') {
+          return {
+            ok: false,
+            errorCode: serverCode,
+            error: isAr
+              ? 'تم تعطيل هذا الحساب من قبل المدير ولا يمكن تسجيل الدخول به.'
+              : 'This employee account has been deactivated by an administrator.',
+          };
+        }
+        return {
+          ok: false,
+          errorCode: serverCode || 'EXCHANGE_FAILED',
+          error:
+            String(exchangeJson?.error || '') ||
+            (isAr ? 'تعذر إكمال تسجيل الدخول عبر البريد الإلكتروني.' : 'Failed to complete email sign-in.'),
+        };
+      } catch (err) {
+        const mapped = mapFirebaseAuthError(err);
+        // If offline or Firebase email sign-in fails with invalid credential for a legacy local account, try POS login fallback
+        if (
+          mapped.isOfflineOrNetwork ||
+          mapped.code === 'auth/user-not-found' ||
+          mapped.code === 'auth/invalid-credential' ||
+          mapped.code === 'auth/operation-not-allowed'
+        ) {
+          const localFallback = await loginWithCredentials({
+            usernameOrEmail: cleanEmail,
+            password: cleanPassword,
+          });
+          if (localFallback.ok) {
+            return localFallback;
+          }
+        }
+        return {
+          ok: false,
+          errorCode: mapped.code,
+          error: isAr ? mapped.messageAr : mapped.messageEn,
+        };
+      }
+    },
+    [settings.language, hydrateAuthenticatedServerPayload, loginWithCredentials]
+  );
+
+  const sendPasswordResetForEmail = useCallback(
+    async (email: string): Promise<PasswordResetResult> => {
+      const isAr = settings.language === 'ar';
+      const cleanEmail = normalizeEmail(email);
+      if (!isValidEmailFormat(cleanEmail)) {
+        return {
+          ok: false,
+          error: isAr ? 'يرجى إدخال بريد إلكتروني صحيح.' : 'Please enter a valid email address.',
+        };
+      }
+
+      const antiEnumMessage = isAr
+        ? 'إذا كان هذا البريد الإلكتروني مسجلاً لدينا، فقد تم إرسال رابط استعادة كلمة المرور إليه. يرجى فحص صندوق الوارد أو البريد غير المرغوب فيه (Spam).'
+        : 'If an account exists for this email, a password reset link has been sent. Please check your inbox and spam folder.';
+
+      try {
+        await sendFirebasePasswordReset(cleanEmail, settings.language === 'en' ? 'en' : 'ar');
+        return { ok: true, message: antiEnumMessage };
+      } catch (err) {
+        const mapped = mapFirebaseAuthError(err);
+        if (mapped.code === 'auth/user-not-found') {
+          // Anti-enumeration: never confirm or deny whether an email is registered
+          return { ok: true, message: antiEnumMessage };
+        }
+        return {
+          ok: false,
+          error: isAr ? mapped.messageAr : mapped.messageEn,
+        };
+      }
+    },
+    [settings.language]
+  );
+
+  const linkCurrentUserFirebaseEmail = useCallback(
+    async (input: LinkFirebaseEmailInput): Promise<LinkFirebaseEmailResult> => {
+      const isAr = settings.language === 'ar';
+      const cleanEmail = normalizeEmail(input.email);
+      const cleanPassword = String(input.password || '').trim();
+      const mode = input.mode || 'create';
+
+      if (!isValidEmailFormat(cleanEmail)) {
+        return {
+          ok: false,
+          error: isAr ? 'يرجى إدخال بريد إلكتروني صحيح.' : 'Please enter a valid email address.',
+        };
+      }
+      if (cleanPassword.length < 8) {
+        return {
+          ok: false,
+          error: isAr
+            ? 'يجب أن تتكون كلمة المرور من 8 خانات على الأقل.'
+            : 'Password must be at least 8 characters long.',
+        };
+      }
+
+      let idToken = '';
+      try {
+        const result =
+          mode === 'signin'
+            ? await signInWithFirebaseEmail(cleanEmail, cleanPassword)
+            : await registerWithFirebaseEmail(cleanEmail, cleanPassword, currentUser.name);
+        idToken = result.idToken;
+      } catch (err) {
+        const mapped = mapFirebaseAuthError(err);
+        return {
+          ok: false,
+          errorCode: mapped.code,
+          error: isAr ? mapped.messageAr : mapped.messageEn,
+        };
+      }
+
+      try {
+        const res = await fetch('/api/auth/link-firebase-email', {
+          method: 'POST',
+          headers: buildAuthenticatedHeaders(),
+          body: JSON.stringify({ firebaseIdToken: idToken }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.success || !json?.data?.user) {
+          const code = String(json?.errorCode || json?.code || '');
+          return {
+            ok: false,
+            errorCode: code,
+            error:
+              code === 'FIREBASE_UID_ALREADY_LINKED'
+                ? isAr
+                  ? 'هذا البريد الإلكتروني مرتبط بمستخدم آخر بالفعل.'
+                  : 'This email account is already linked to another user.'
+                : String(json?.error || '') ||
+                  (isAr ? 'تعذر ربط البريد الإلكتروني بالحساب.' : 'Failed to link email account.'),
+          };
+        }
+
+        const updatedUser = json.data.user as POSUser;
+        setUsers((prev) =>
+          prev.map((u) => (u.id === updatedUser.id ? { ...u, ...updatedUser } : u))
+        );
+        saveLocalUserCredentials(updatedUser.id, { password: cleanPassword });
+        playSuccessChime(settings.soundEnabled);
+        triggerHaptic('success', settings.hapticsEnabled);
+        return { ok: true, user: updatedUser };
+      } catch {
+        return {
+          ok: false,
+          error: isAr
+            ? 'تعذر الاتصال بالخادم لربط البريد الإلكتروني.'
+            : 'Unable to reach server to link email account.',
+        };
+      }
+    },
+    [
+      settings.language,
+      settings.soundEnabled,
+      settings.hapticsEnabled,
+      currentUser.name,
+      buildAuthenticatedHeaders,
+      setUsers,
+    ]
+  );
+
+  const previewCompanyInvite = useCallback(
+    async (lookup: {
+      token?: string;
+      shortCode?: string;
+    }): Promise<{ ok: boolean; preview?: InvitationPreviewResult; error?: string }> => {
+      const isAr = settings.language === 'ar';
+      try {
+        const res = await fetch('/api/invitations/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: lookup.token?.trim() || undefined,
+            shortCode: lookup.shortCode?.trim() || undefined,
+          }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.success) {
+          return {
+            ok: false,
+            error:
+              String(json?.error || '') ||
+              (isAr ? 'تعذر التحقق من الدعوة.' : 'Failed to verify invitation.'),
+          };
+        }
+        return { ok: true, preview: json.data as InvitationPreviewResult };
+      } catch {
+        return {
+          ok: false,
+          error: isAr
+            ? 'تعذر الاتصال بالخادم للتحقق من رابط أو كود الدعوة.'
+            : 'Could not reach server to verify the invitation.',
+        };
+      }
+    },
+    [settings.language]
+  );
+
+  const acceptCompanyInvite = useCallback(
+    async (input: AcceptCompanyInviteActionInput): Promise<AcceptCompanyInviteActionResult> => {
+      const isAr = settings.language === 'ar';
+      const cleanEmail = normalizeEmail(input.email);
+      const cleanPassword = String(input.password || '').trim();
+      const cleanName = String(input.fullName || '').trim();
+      const cleanPin = String(input.pin || '').trim();
+
+      if (!isValidEmailFormat(cleanEmail)) {
+        return {
+          ok: false,
+          error: isAr ? 'يرجى إدخال البريد الإلكتروني المدعو.' : 'Please enter the invited email address.',
+        };
+      }
+      if (cleanPassword.length < 8) {
+        return {
+          ok: false,
+          error: isAr
+            ? 'يجب أن تتكون كلمة المرور من 8 خانات على الأقل.'
+            : 'Password must be at least 8 characters long.',
+        };
+      }
+      if (cleanPin && !/^\d{4,6}$/.test(cleanPin)) {
+        return {
+          ok: false,
+          error: isAr
+            ? 'رمز الدخول السريع PIN يجب أن يتكون من 4 إلى 6 أرقام.'
+            : 'Offline PIN must be 4 to 6 digits.',
+        };
+      }
+
+      let idToken = '';
+      try {
+        const fbResult =
+          input.accountMode === 'signin'
+            ? await signInWithFirebaseEmail(cleanEmail, cleanPassword)
+            : await registerWithFirebaseEmail(cleanEmail, cleanPassword, cleanName);
+        idToken = fbResult.idToken;
+      } catch (err) {
+        const mapped = mapFirebaseAuthError(err);
+        return {
+          ok: false,
+          errorCode: mapped.code,
+          error: isAr ? mapped.messageAr : mapped.messageEn,
+        };
+      }
+
+      try {
+        const res = await fetch('/api/invitations/accept', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            token: input.token?.trim() || undefined,
+            shortCode: input.shortCode?.trim() || undefined,
+            fullName: cleanName || undefined,
+            pin: cleanPin || undefined,
+          }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.success || !json?.data?.user) {
+          const code = String(json?.errorCode || json?.code || '');
+          let errorText = String(json?.error || '');
+          if (code === 'INVITE_EMAIL_MISMATCH') {
+            errorText = isAr
+              ? 'البريد الإلكتروني الذي سجّلت به لا يطابق البريد المدعو في هذه الدعوة.'
+              : 'The email address you signed in with does not match the invited email.';
+          } else if (code === 'INVITE_EXPIRED') {
+            errorText = isAr
+              ? 'انتهت صلاحية هذه الدعوة. يرجى طلب دعوة جديدة من مدير الشركة.'
+              : 'This invitation has expired. Ask your company admin for a new invite.';
+          } else if (code === 'INVITE_REVOKED') {
+            errorText = isAr
+              ? 'تم إلغاء هذه الدعوة من قبل مدير الشركة.'
+              : 'This invitation was revoked by a company administrator.';
+          } else if (code === 'INVITE_ALREADY_USED') {
+            errorText = isAr
+              ? 'تم استخدام هذه الدعوة مسبقاً.'
+              : 'This invitation has already been used.';
+          } else if (code === 'FIREBASE_UID_ALREADY_LINKED') {
+            errorText = isAr
+              ? 'هذا البريد الإلكتروني مرتبط بحساب شركة آخر بالفعل.'
+              : 'This email account is already linked to another company account.';
+          }
+          return {
+            ok: false,
+            errorCode: code,
+            error:
+              errorText || (isAr ? 'تعذر قبول الدعوة.' : 'Failed to accept company invitation.'),
+          };
+        }
+
+        const hydratedUser = hydrateAuthenticatedServerPayload({
+          user: json.data.user as POSUser,
+          company: json.data.company as CompanyProfile | undefined,
+          branches: Array.isArray(json.data.branches)
+            ? (json.data.branches as BranchRecord[])
+            : [],
+          sessionToken:
+            typeof json.data.sessionToken === 'string' ? json.data.sessionToken : undefined,
+          localPassword: cleanPassword,
+          localPin: cleanPin || undefined,
+        });
+
+        return {
+          ok: true,
+          user: hydratedUser,
+          company: json.data.company as CompanyProfile | undefined,
+        };
+      } catch {
+        return {
+          ok: false,
+          error: isAr
+            ? 'تعذر الاتصال بالخادم لقبول الدعوة.'
+            : 'Unable to reach server to accept the invitation.',
+        };
+      }
+    },
+    [settings.language, hydrateAuthenticatedServerPayload]
+  );
+
+  const createCompanyInvite = useCallback(
+    async (input: CreateCompanyInviteActionInput): Promise<CreateCompanyInviteActionResult> => {
+      const isAr = settings.language === 'ar';
+      try {
+        const res = await fetch('/api/invitations', {
+          method: 'POST',
+          headers: buildAuthenticatedHeaders(),
+          body: JSON.stringify(input),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.success || !json?.data) {
+          return {
+            ok: false,
+            error:
+              String(json?.error || '') ||
+              (isAr ? 'تعذر إنشاء الدعوة.' : 'Failed to create staff invitation.'),
+          };
+        }
+        playSuccessChime(settings.soundEnabled);
+        triggerHaptic('success', settings.hapticsEnabled);
+        return {
+          ok: true,
+          invitation: json.data.invitation as CompanyInvitationSummary,
+          inviteUrl: String(json.data.inviteUrl || ''),
+          shortCode: String(json.data.shortCode || ''),
+          expiresAt: String(json.data.expiresAt || ''),
+        };
+      } catch {
+        return {
+          ok: false,
+          error: isAr
+            ? 'تعذر الاتصال بالخادم لإنشاء رابط الدعوة.'
+            : 'Unable to reach server to create invitation link.',
+        };
+      }
+    },
+    [settings.language, settings.soundEnabled, settings.hapticsEnabled, buildAuthenticatedHeaders]
+  );
+
+  const listCompanyInvites = useCallback(async (): Promise<{
+    ok: boolean;
+    invitations: CompanyInvitationSummary[];
+    error?: string;
+  }> => {
+    try {
+      const res = await fetch('/api/invitations', {
+        method: 'GET',
+        headers: buildAuthenticatedHeaders(),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        return {
+          ok: false,
+          invitations: [],
+          error: String(json?.error || 'Failed to load invitations.'),
+        };
+      }
+      return {
+        ok: true,
+        invitations: Array.isArray(json.data) ? (json.data as CompanyInvitationSummary[]) : [],
+      };
+    } catch {
+      return { ok: false, invitations: [] };
+    }
+  }, [buildAuthenticatedHeaders]);
+
+  const revokeCompanyInvite = useCallback(
+    async (invitationId: string): Promise<{ ok: boolean; error?: string }> => {
+      const isAr = settings.language === 'ar';
+      try {
+        const res = await fetch(`/api/invitations/${encodeURIComponent(invitationId)}/revoke`, {
+          method: 'POST',
+          headers: buildAuthenticatedHeaders(),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.success) {
+          return {
+            ok: false,
+            error:
+              String(json?.error || '') ||
+              (isAr ? 'تعذر إلغاء الدعوة.' : 'Failed to revoke invitation.'),
+          };
+        }
+        triggerHaptic('medium', settings.hapticsEnabled);
+        return { ok: true };
+      } catch {
+        return {
+          ok: false,
+          error: isAr ? 'تعذر الاتصال بالخادم.' : 'Unable to reach server.',
+        };
+      }
+    },
+    [settings.language, settings.hapticsEnabled, buildAuthenticatedHeaders]
+  );
+
   return {
     isAuthenticated,
     isScreenLocked,
@@ -1131,6 +1807,14 @@ export function useUserAccountsDomain({
     markSessionAuthenticated,
     markSessionUnauthenticated,
     loginWithCredentials,
+    signInWithEmailAccount,
+    sendPasswordResetForEmail,
+    linkCurrentUserFirebaseEmail,
+    previewCompanyInvite,
+    acceptCompanyInvite,
+    createCompanyInvite,
+    listCompanyInvites,
+    revokeCompanyInvite,
     setupInitialOwnerAccount,
     setLegacyAccountPassword,
     logoutCurrentUser,

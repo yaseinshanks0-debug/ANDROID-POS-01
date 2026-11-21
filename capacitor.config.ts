@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.dqnamo.pos',
-  appName: 'Dqnamo POS',
+  appName: 'D POS - Point of Sale',
   webDir: 'dist',
   server: {
     androidScheme: 'https',

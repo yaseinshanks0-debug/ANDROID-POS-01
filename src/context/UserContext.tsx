@@ -13,8 +13,20 @@ import {
 import { CapabilityCode } from '../lib/rbac-capabilities';
 
 import type {
+  CompanyInvitationSummary,
+  InvitationPreviewResult,
+} from '../lib/types';
+import type {
   LoginCredentialsInput,
   LoginCredentialsResult,
+  EmailSignInResult,
+  PasswordResetResult,
+  LinkFirebaseEmailInput,
+  LinkFirebaseEmailResult,
+  CreateCompanyInviteActionInput,
+  CreateCompanyInviteActionResult,
+  AcceptCompanyInviteActionInput,
+  AcceptCompanyInviteActionResult,
   InitialOwnerSetupInput,
   InitialOwnerSetupResult,
 } from './domains/useUserAccountsDomain';
@@ -27,6 +39,27 @@ export interface UserContextType {
   isScreenLocked: boolean;
   pendingSwitchUserId: string | null;
   loginWithCredentials: (input: LoginCredentialsInput) => Promise<LoginCredentialsResult>;
+  signInWithEmailAccount: (email: string, password: string) => Promise<EmailSignInResult>;
+  sendPasswordResetForEmail: (email: string) => Promise<PasswordResetResult>;
+  linkCurrentUserFirebaseEmail: (
+    input: LinkFirebaseEmailInput
+  ) => Promise<LinkFirebaseEmailResult>;
+  previewCompanyInvite: (lookup: {
+    token?: string;
+    shortCode?: string;
+  }) => Promise<{ ok: boolean; preview?: InvitationPreviewResult; error?: string }>;
+  acceptCompanyInvite: (
+    input: AcceptCompanyInviteActionInput
+  ) => Promise<AcceptCompanyInviteActionResult>;
+  createCompanyInvite: (
+    input: CreateCompanyInviteActionInput
+  ) => Promise<CreateCompanyInviteActionResult>;
+  listCompanyInvites: () => Promise<{
+    ok: boolean;
+    invitations: CompanyInvitationSummary[];
+    error?: string;
+  }>;
+  revokeCompanyInvite: (invitationId: string) => Promise<{ ok: boolean; error?: string }>;
   setupInitialOwnerAccount: (input: InitialOwnerSetupInput) => Promise<InitialOwnerSetupResult>;
   setLegacyAccountPassword: (
     userId: string,

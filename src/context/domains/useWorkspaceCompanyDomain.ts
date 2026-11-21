@@ -798,14 +798,30 @@ export function useWorkspaceCompanyDomain({
       let finalOwner = localOwner;
 
       try {
+        const firebaseIdToken =
+          typeof input.firebaseIdToken === 'string' ? input.firebaseIdToken.trim() : '';
+        const sessionToken = (() => {
+          try {
+            return localStorage.getItem(STORAGE_KEYS.SESSION_TOKEN) || '';
+          } catch {
+            return '';
+          }
+        })();
+        const authToken = firebaseIdToken || sessionToken;
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+          'x-company-id': currentCompany.id,
+        };
+        if (authToken) {
+          headers.Authorization = `Bearer ${authToken}`;
+        }
+
+        const { firebaseIdToken: _omitToken, ...bodyPayload } = input;
         const res = await fetch('/api/onboarding/companies', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': currentUser.id,
-            'x-company-id': currentCompany.id,
-          },
-          body: JSON.stringify(input),
+          headers,
+          body: JSON.stringify(bodyPayload),
         });
         if (res.ok) {
           const payload = await res.json();
@@ -817,6 +833,24 @@ export function useWorkspaceCompanyDomain({
               localStorage.setItem(STORAGE_KEYS.SESSION_TOKEN, payload.data.sessionToken);
             } catch {}
           }
+        } else if (firebaseIdToken) {
+          const errPayload = await res.json().catch(() => null);
+          const errorCode = String(errPayload?.errorCode || errPayload?.code || '');
+          const isAr = settings.language === 'ar';
+          if (errorCode === 'FIREBASE_UID_ALREADY_LINKED') {
+            return {
+              ok: false,
+              error: isAr
+                ? 'هذا البريد الإلكتروني مرتبط بشركة قائمة بالفعل. يرجى تسجيل الدخول به بدلاً من إنشاء شركة جديدة.'
+                : 'This email account is already linked to an existing company. Please sign in instead.',
+            };
+          }
+          return {
+            ok: false,
+            error:
+              String(errPayload?.error || '') ||
+              (isAr ? 'تعذر إنشاء الشركة على الخادم.' : 'Failed to create company on server.'),
+          };
         }
       } catch {
         // Offline mode: localCompany, localBranch, localOwner are used directly

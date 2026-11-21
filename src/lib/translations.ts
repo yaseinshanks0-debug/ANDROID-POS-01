@@ -7,7 +7,7 @@ import { AppLanguage } from './types';
 
 export const translations = {
   en: {
-    appName: 'Dqnamo POS',
+    appName: 'D POS - Point of Sale',
     tagline: 'Modern Mobile POS for Retail',
     // Nav
     dashboard: 'Dashboard',
@@ -198,7 +198,7 @@ export const translations = {
     syncNow: 'Synchronize Now',
   },
   ar: {
-    appName: 'دينامو للمبيعات',
+    appName: 'D POS - Point of Sale',
     tagline: 'نظام نقاط بيع متنقل وعصري للتجزئة',
     // Nav
     dashboard: 'الرئيسية',

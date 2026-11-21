@@ -54,6 +54,13 @@ import type {
   WorkspaceMode,
 } from '../lib/types.ts';
 import type { UnmetDemandRequestRecord } from '../analytics/analytics.types.ts';
+import {
+  extractBearerToken,
+  FirebaseAuthVerificationError,
+  verifyFirebaseIdToken,
+  type VerifiedFirebaseIdentity,
+} from './firebase-admin.ts';
+import { normalizeEmail, type InvitationStatus } from '../lib/invitation-utils.ts';
 
 const ROOT_DIR = getRootDir();
 const DATA_DIR = getDataDir();
@@ -216,6 +223,8 @@ export interface StoredUserRecord extends POSUser {
   companyId: string;
   username: string;
   email?: string;
+  firebaseUid?: string | null;
+  emailVerified?: boolean;
   phone?: string;
   systemRole: SystemRoleCode;
   capabilities: CapabilityCode[];
@@ -238,7 +247,14 @@ export type SeedOrStoredUserInput = POSUser &
   Partial<
     Pick<
       StoredUserRecord,
-      'pinHash' | 'pinSalt' | 'passwordHash' | 'passwordSalt' | 'systemRole' | 'companyId'
+      | 'pinHash'
+      | 'pinSalt'
+      | 'passwordHash'
+      | 'passwordSalt'
+      | 'systemRole'
+      | 'companyId'
+      | 'firebaseUid'
+      | 'emailVerified'
     >
   >;
 
@@ -289,6 +305,26 @@ export interface StoredAuditLogRecord {
   createdAt: string;
 }
 
+export interface StoredCompanyInvitationRecord {
+  id: string;
+  companyId: string;
+  branchId: string | null;
+  invitedEmail: string;
+  invitedName: string | null;
+  roleId: SystemRoleCode;
+  tokenHash: string;
+  shortCode: string;
+  status: InvitationStatus;
+  expiresAt: string;
+  invitedByUserId: string | null;
+  invitedByName: string | null;
+  acceptedByUserId: string | null;
+  acceptedAt: string | null;
+  revokedByUserId: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
 export interface PlatformOnboardingState {
   cleanProductionInitialized?: boolean;
   companies: CompanyProfile[];
@@ -297,6 +333,7 @@ export interface PlatformOnboardingState {
   sessions: StoredSessionRecord[];
   auditLogs: StoredAuditLogRecord[];
   idempotencyKeys: Record<string, string>; // key -> companyId
+  invitations: StoredCompanyInvitationRecord[];
 }
 
 function buildDefaultCompanies(): CompanyProfile[] {
@@ -540,6 +577,8 @@ export function loadPlatformState(): PlatformOnboardingState {
               );
               return {
                 ...enriched,
+                firebaseUid: u.firebaseUid ?? null,
+                emailVerified: Boolean(u.emailVerified),
                 pinHash: u.pinHash || enriched.pinHash || null,
                 pinSalt: u.pinSalt || enriched.pinSalt || null,
                 passwordHash: u.passwordHash || null,
@@ -565,6 +604,7 @@ export function loadPlatformState(): PlatformOnboardingState {
           : [],
         auditLogs: Array.isArray(raw.auditLogs) ? raw.auditLogs : [],
         idempotencyKeys: raw.idempotencyKeys || {},
+        invitations: Array.isArray(raw.invitations) ? raw.invitations : [],
       };
 
       if (!raw.cleanProductionInitialized) {
@@ -584,6 +624,7 @@ export function loadPlatformState(): PlatformOnboardingState {
     sessions: [],
     auditLogs: [],
     idempotencyKeys: {},
+    invitations: [],
   };
   savePlatformState(initial);
   return initial;
@@ -810,6 +851,7 @@ export interface CreateCompanyOnboardingInput {
   ownerPassword?: string;
   ownerConfirmPassword?: string;
   ownerPin?: string;
+  firebaseIdentity?: VerifiedFirebaseIdentity;
 }
 
 export async function createCompanyAndInitialOwner(
@@ -891,8 +933,10 @@ export async function createCompanyAndInitialOwner(
   const branchName = (input.mainBranch?.name || '').trim() || `${displayName} — Main Branch`;
 
   // 4. Validate Initial Owner Account
-  const ownerName = (input.owner?.fullName || '').trim();
-  const usernameOrEmail = (input.owner?.usernameOrEmail || '').trim().toLowerCase();
+  const firebaseIdentity = rawInput.firebaseIdentity;
+  const ownerName = (input.owner?.fullName || firebaseIdentity?.name || '').trim();
+  const normalizedFirebaseEmail = firebaseIdentity ? normalizeEmail(firebaseIdentity.email) : '';
+  const usernameOrEmail = normalizedFirebaseEmail || (input.owner?.usernameOrEmail || '').trim().toLowerCase();
   const password = input.owner?.password || '';
   const confirmPassword = input.owner?.confirmPassword || '';
 
@@ -910,23 +954,40 @@ export async function createCompanyAndInitialOwner(
       'Owner email or login username is required (at least 3 characters).'
     );
   }
-  if (password !== confirmPassword) {
-    throw new ReleasePlatformError(
-      400,
-      'PASSWORD_CONFIRMATION_MISMATCH',
-      'Password and password confirmation do not match.'
+
+  if (firebaseIdentity) {
+    const existingBoundUser = state.users.find(
+      (u) => u.firebaseUid && u.firebaseUid === firebaseIdentity.uid && u.companyId !== PRACTICE_COMPANY_ID
     );
-  }
-  const pwdCheck = validatePasswordStrength(password);
-  if (!pwdCheck.valid) {
-    throw new ReleasePlatformError(
-      400,
-      'WEAK_OWNER_PASSWORD',
-      pwdCheck.messageEn || 'Password does not meet security policy.'
-    );
+    if (existingBoundUser) {
+      throw new ReleasePlatformError(
+        409,
+        'FIREBASE_UID_ALREADY_LINKED',
+        'This email account is already linked to an existing company account. Please sign in instead.'
+      );
+    }
   }
 
-  // Check if a non-demo company with the exact same legalName + owner username was already created within the last 5 minutes
+  const hasLocalPassword = password.trim().length > 0;
+  if (!firebaseIdentity || hasLocalPassword) {
+    if (password !== confirmPassword) {
+      throw new ReleasePlatformError(
+        400,
+        'PASSWORD_CONFIRMATION_MISMATCH',
+        'Password and password confirmation do not match.'
+      );
+    }
+    const pwdCheck = validatePasswordStrength(password);
+    if (!pwdCheck.valid) {
+      throw new ReleasePlatformError(
+        400,
+        'WEAK_OWNER_PASSWORD',
+        pwdCheck.messageEn || 'Password does not meet security policy.'
+      );
+    }
+  }
+
+  // Check if a non-demo company with the exact same legalName + owner username was already created
   const duplicateCompany = state.companies.find(
     (c) =>
       !c.isDemo &&
@@ -971,7 +1032,9 @@ export async function createCompanyAndInitialOwner(
     ? `${usernameOrEmail}.${suffix.toLowerCase()}`
     : usernameOrEmail;
 
-  const { hash: passwordHash, salt: passwordSalt } = hashPasswordScrypt(password);
+  const hashedPwd = hasLocalPassword ? hashPasswordScrypt(password) : null;
+  const passwordHash = hashedPwd ? hashedPwd.hash : null;
+  const passwordSalt = hashedPwd ? hashedPwd.salt : null;
 
   const newCompany: CompanyProfile = {
     id: companyId,
@@ -1022,7 +1085,11 @@ export async function createCompanyAndInitialOwner(
     id: ownerId,
     companyId,
     username: resolvedUsername,
-    email: usernameOrEmail.includes('@') ? usernameOrEmail : input.company.email || '',
+    email:
+      normalizedFirebaseEmail ||
+      (usernameOrEmail.includes('@') ? usernameOrEmail : input.company.email || ''),
+    firebaseUid: firebaseIdentity ? firebaseIdentity.uid : null,
+    emailVerified: firebaseIdentity ? firebaseIdentity.emailVerified : false,
     phone: input.owner.phone || input.company.phone || '',
     name: ownerName,
     nameAr: (input.owner.fullNameAr || ownerName).trim(),
@@ -1036,7 +1103,7 @@ export async function createCompanyAndInitialOwner(
     pinSalt: ownerPinHashed.salt,
     passwordHash,
     passwordSalt,
-    hasPassword: true,
+    hasPassword: Boolean(passwordHash),
     mustChangePassword: false,
     terminalName: `${newBranch.name} — Owner Terminal`,
     terminalNameAr: `${newBranch.nameAr} — جهاز المالك`,
@@ -1159,6 +1226,8 @@ export async function createCompanyAndInitialOwner(
           name: newOwner.name,
           nameAr: newOwner.nameAr,
           email: newOwner.email,
+          firebaseUid: newOwner.firebaseUid ?? null,
+          emailVerified: Boolean(newOwner.emailVerified),
           phone: newOwner.phone,
           roleId: 'COMPANY_OWNER',
           branchId: newBranch.id,
@@ -1882,8 +1951,17 @@ export function updateEmployeeAccount(
 
 export const releasePlatformRouter = Router();
 
-function sendPlatformError(res: Response, err: unknown, fallbackMessage: string): void {
+export function sendPlatformError(res: Response, err: unknown, fallbackMessage: string): void {
   if (err instanceof ReleasePlatformError) {
+    res.status(err.statusCode).json({
+      success: false,
+      code: err.errorCode,
+      errorCode: err.errorCode,
+      error: err.message,
+    });
+    return;
+  }
+  if (err instanceof FirebaseAuthVerificationError) {
     res.status(err.statusCode).json({
       success: false,
       code: err.errorCode,
@@ -2109,6 +2187,7 @@ export function executeCompanyFactoryReset(input: FactoryResetCompanyInput): {
   state.companies = state.companies.filter((c) => c.id !== targetCompany.id);
   state.branches = state.branches.filter((b) => b.companyId !== targetCompany.id);
   state.users = state.users.filter((u) => u.companyId !== targetCompany.id);
+  state.invitations = (state.invitations || []).filter((inv) => inv.companyId !== targetCompany.id);
 
   // Remove idempotency keys pointing to this company so the owner can re-onboard cleanly
   for (const [k, v] of Object.entries(state.idempotencyKeys)) {
@@ -2199,6 +2278,10 @@ export function executeCompanyFactoryReset(input: FactoryResetCompanyInput): {
 
 // POST /api/onboarding/companies — Create New Production Company & Initial Owner
 // Security Rule (Part 2): Do not expose an unauthenticated company creation endpoint after initial setup is completed.
+// Supports either:
+//  (a) Fresh setup (no configured production companies yet), OR
+//  (b) Authenticated Firebase Email user creating their own new company (verified Firebase ID token in Authorization Bearer), OR
+//  (c) Authenticated POS COMPANY_OWNER/ADMIN creating an additional company.
 releasePlatformRouter.post('/onboarding/companies', async (req: Request, res: Response) => {
   try {
     const state = loadPlatformState();
@@ -2206,7 +2289,15 @@ releasePlatformRouter.post('/onboarding/companies', async (req: Request, res: Re
     const idemKey = (req.body?.idempotencyKey || '').trim();
     const isIdempotentReplay = Boolean(idemKey && state.idempotencyKeys[idemKey]);
 
-    if (existingProdCompanies.length > 0 && !isIdempotentReplay) {
+    const bearerToken = extractBearerToken(req.headers.authorization);
+    const isFirebaseBearer = Boolean(bearerToken && !bearerToken.startsWith('dqsess_'));
+    let verifiedFirebaseIdentity: VerifiedFirebaseIdentity | undefined;
+
+    if (isFirebaseBearer && bearerToken) {
+      verifiedFirebaseIdentity = await verifyFirebaseIdToken(bearerToken);
+    }
+
+    if (existingProdCompanies.length > 0 && !isIdempotentReplay && !verifiedFirebaseIdentity) {
       // Require an authenticated COMPANY_OWNER or ADMIN to create additional companies after initial setup
       const actor = resolveAuthenticatedActorFromRequest(req);
       if (
@@ -2222,7 +2313,10 @@ releasePlatformRouter.post('/onboarding/companies', async (req: Request, res: Re
       }
     }
 
-    const result = await createCompanyAndInitialOwner(req.body);
+    const result = await createCompanyAndInitialOwner({
+      ...(req.body || {}),
+      firebaseIdentity: verifiedFirebaseIdentity,
+    });
     res.status(result.idempotentReplay ? 200 : 201).json({
       success: true,
       data: result,
@@ -2467,6 +2561,184 @@ releasePlatformRouter.post('/auth/logout', (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (err) {
     sendPlatformError(res, err, 'Logout failed');
+  }
+});
+
+// POST /api/auth/firebase-exchange — Exchange a verified Firebase ID token for an authoritative POS session
+releasePlatformRouter.post('/auth/firebase-exchange', async (req: Request, res: Response) => {
+  try {
+    const bearerToken = extractBearerToken(req.headers.authorization);
+    const bodyToken =
+      typeof req.body?.firebaseIdToken === 'string' ? req.body.firebaseIdToken.trim() : '';
+    const rawToken = bearerToken || bodyToken;
+
+    const identity = await verifyFirebaseIdToken(rawToken);
+    const state = loadPlatformState();
+
+    // Match strictly by firebaseUid — NEVER auto-link by unverified email to prevent account takeover
+    const matchedUser = state.users.find(
+      (u) => u.firebaseUid && u.firebaseUid === identity.uid && u.companyId !== PRACTICE_COMPANY_ID
+    );
+
+    if (!matchedUser) {
+      return res.json({
+        success: true,
+        data: {
+          status: 'UNBOUND' as const,
+          email: identity.email,
+          emailVerified: identity.emailVerified,
+          firebaseUid: identity.uid,
+        },
+      });
+    }
+
+    if (!matchedUser.isActive) {
+      let revokedCount = 0;
+      for (const s of state.sessions) {
+        if (s.userId === matchedUser.id && s.companyId === matchedUser.companyId && !s.isRevoked) {
+          s.isRevoked = true;
+          revokedCount += 1;
+        }
+      }
+      if (revokedCount > 0) {
+        savePlatformState(state);
+      }
+      throw new ReleasePlatformError(
+        403,
+        'USER_ACCOUNT_DEACTIVATED',
+        'This employee account has been deactivated by an administrator.'
+      );
+    }
+
+    const nowIso = new Date().toISOString();
+    matchedUser.email = identity.email;
+    matchedUser.emailVerified = identity.emailVerified;
+    matchedUser.lastLoginAt = nowIso;
+    matchedUser.lastActiveAt = nowIso;
+
+    const sessionToken = issueSessionForUser(state, matchedUser, 'PRODUCTION');
+    const company =
+      state.companies.find((c) => c.id === matchedUser.companyId) || state.companies[0];
+    const companyBranches = state.branches.filter((b) => b.companyId === company.id);
+
+    appendPlatformAuditLog(state, {
+      companyId: company.id,
+      userId: matchedUser.id,
+      actorName: matchedUser.name,
+      action: 'USER_LOGIN_FIREBASE',
+      entityType: 'session',
+      entityId: matchedUser.id,
+      details: {
+        workspaceMode: 'PRODUCTION',
+        systemRole: matchedUser.systemRole,
+        emailVerified: identity.emailVerified,
+      },
+    });
+
+    savePlatformState(state);
+
+    return res.json({
+      success: true,
+      data: {
+        status: 'AUTHENTICATED' as const,
+        sessionToken,
+        workspaceMode: 'PRODUCTION' as const,
+        company,
+        branches: companyBranches,
+        user: sanitizeStoredUser(matchedUser),
+        capabilities: matchedUser.capabilities,
+      },
+    });
+  } catch (err) {
+    sendPlatformError(res, err, 'Firebase sign-in exchange failed');
+  }
+});
+
+// POST /api/auth/link-firebase-email — Link an existing authenticated POS account to a verified Firebase email account
+releasePlatformRouter.post('/auth/link-firebase-email', async (req: Request, res: Response) => {
+  try {
+    const actor = resolveAuthenticatedActorFromRequest(req);
+    if (actor.workspaceMode === 'PRACTICE' || actor.company.id === PRACTICE_COMPANY_ID) {
+      throw new ReleasePlatformError(
+        403,
+        'PRACTICE_MODE_LINK_FORBIDDEN',
+        'Cannot link a real email account while in Practice Mode.'
+      );
+    }
+
+    const firebaseIdToken =
+      typeof req.body?.firebaseIdToken === 'string' ? req.body.firebaseIdToken.trim() : '';
+    const identity = await verifyFirebaseIdToken(firebaseIdToken);
+
+    const state = loadPlatformState();
+    const conflictUser = state.users.find(
+      (u) =>
+        u.firebaseUid &&
+        u.firebaseUid === identity.uid &&
+        u.id !== actor.user.id &&
+        u.companyId !== PRACTICE_COMPANY_ID
+    );
+    if (conflictUser) {
+      throw new ReleasePlatformError(
+        409,
+        'FIREBASE_UID_ALREADY_LINKED',
+        'This email account is already linked to another POS user.'
+      );
+    }
+
+    const idx = state.users.findIndex(
+      (u) => u.id === actor.user.id && u.companyId === actor.company.id
+    );
+    if (idx === -1) {
+      throw new ReleasePlatformError(404, 'USER_NOT_FOUND', 'Authenticated user record not found.');
+    }
+
+    state.users[idx] = {
+      ...state.users[idx],
+      firebaseUid: identity.uid,
+      email: identity.email,
+      emailVerified: identity.emailVerified,
+    };
+
+    appendPlatformAuditLog(state, {
+      companyId: actor.company.id,
+      userId: actor.user.id,
+      actorName: actor.user.name,
+      action: 'USER_FIREBASE_EMAIL_LINKED',
+      entityType: 'user',
+      entityId: actor.user.id,
+      details: {
+        email: identity.email,
+        emailVerified: identity.emailVerified,
+      },
+    });
+
+    savePlatformState(state);
+
+    // Best-effort PostgreSQL mirror
+    if (hasDatabaseCredentials() && db) {
+      try {
+        await db
+          .update(users)
+          .set({
+            firebaseUid: identity.uid,
+            email: identity.email,
+            emailVerified: identity.emailVerified,
+          })
+          .where(and(eq(users.id, actor.user.id), eq(users.companyId, actor.company.id)));
+      } catch (dbErr) {
+        console.warn('Non-fatal PostgreSQL sync warning during firebase email linking:', dbErr);
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        user: sanitizeStoredUser(state.users[idx]),
+      },
+    });
+  } catch (err) {
+    sendPlatformError(res, err, 'Failed to link email account');
   }
 });
 

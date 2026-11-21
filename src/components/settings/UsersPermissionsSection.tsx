@@ -3,9 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePOS } from '../../context/POSContext';
-import { BranchRecord, POSUser, RolePermissions, UserRole } from '../../lib/types';
+import type {
+  BranchRecord,
+  CompanyInvitationSummary,
+  POSUser,
+  RolePermissions,
+  UserRole,
+} from '../../lib/types';
 import { DEFAULT_ROLE_PERMISSIONS } from '../../lib/initial-data';
 import {
   CAPABILITY_GROUPS,
@@ -25,6 +31,17 @@ import {
   validatePasswordStrengthPolicy,
   validatePinPolicy,
 } from '../../lib/local-auth';
+import { isValidEmailFormat } from '../../lib/invitation-utils';
+import { CompanyInviteShareModal } from './CompanyInviteShareModal';
+
+interface CreatedInviteShareData {
+  companyName: string;
+  invitedEmail: string;
+  roleName: string;
+  inviteUrl: string;
+  shortCode: string;
+  expiresAt: string;
+}
 import {
   Users,
   ShieldCheck,
@@ -50,6 +67,12 @@ import {
   Phone,
   Mail,
   UserCheck,
+  Send,
+  Ticket,
+  Clock,
+  XCircle,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 const PERMISSION_ITEMS: {
@@ -82,6 +105,7 @@ export const UsersPermissionsSection: React.FC = () => {
   const {
     settings,
     updateSettings,
+    workspaceMode,
     users,
     activeSessions,
     currentUser,
@@ -95,6 +119,10 @@ export const UsersPermissionsSection: React.FC = () => {
     reactivateUserAccount,
     resetUserPasswordOrPin,
     toggleUserActiveSession,
+    linkCurrentUserFirebaseEmail,
+    createCompanyInvite,
+    listCompanyInvites,
+    revokeCompanyInvite,
     syncTransactions,
     isSyncing,
     lastSyncedAt,
@@ -108,6 +136,7 @@ export const UsersPermissionsSection: React.FC = () => {
   } = usePOS();
 
   const isAr = settings.language === 'ar';
+  const isProductionWorkspace = workspaceMode === 'PRODUCTION';
 
   // Add / Edit Account Form State (zero pre-filled default values)
   const [isAccountFormOpen, setIsAccountFormOpen] = useState(false);
@@ -154,6 +183,241 @@ export const UsersPermissionsSection: React.FC = () => {
   } | null>(null);
 
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // Email Recovery Linking state (for legacy accounts without Firebase email)
+  const [isLinkEmailOpen, setIsLinkEmailOpen] = useState(false);
+  const [linkEmailMode, setLinkEmailMode] = useState<'create' | 'signin'>('create');
+  const [linkEmailInput, setLinkEmailInput] = useState(currentUser.email || '');
+  const [linkPasswordInput, setLinkPasswordInput] = useState('');
+  const [showLinkPassword, setShowLinkPassword] = useState(false);
+  const [isLinkingEmail, setIsLinkingEmail] = useState(false);
+
+  // Staff Invitation Form, List & Share Modal state
+  const [isInviteFormOpen, setIsInviteFormOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteFullName, setInviteFullName] = useState('');
+  const [inviteSystemRole, setInviteSystemRole] = useState<SystemRoleCode>('CASHIER');
+  const [inviteBranchId, setInviteBranchId] = useState<string>(
+    activeBranchId || branches[0]?.id || ''
+  );
+  const [isCreatingInvite, setIsCreatingInvite] = useState(false);
+  const [invitations, setInvitations] = useState<CompanyInvitationSummary[]>([]);
+  const [isLoadingInvites, setIsLoadingInvites] = useState(false);
+  const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
+  const [copiedInviteCodeId, setCopiedInviteCodeId] = useState<string | null>(null);
+  const [createdShareInvite, setCreatedShareInvite] = useState<CreatedInviteShareData | null>(null);
+
+  const actorSystemRole = mapLegacyRoleToSystemRole(currentUser.systemRole || currentUser.role);
+  const canManageInvites =
+    isProductionWorkspace &&
+    (actorSystemRole === 'COMPANY_OWNER' ||
+      actorSystemRole === 'ADMIN' ||
+      actorSystemRole === 'MANAGER' ||
+      currentUser.permissions?.canManageUsers === true);
+
+  const invitableRoles = useMemo(() => {
+    const allowed: SystemRoleCode[] =
+      actorSystemRole === 'COMPANY_OWNER'
+        ? [
+            'COMPANY_OWNER',
+            'ADMIN',
+            'MANAGER',
+            'CASHIER',
+            'INVENTORY_MANAGER',
+            'ACCOUNTANT',
+            'PURCHASING_MANAGER',
+            'REPORT_VIEWER',
+          ]
+        : actorSystemRole === 'ADMIN'
+        ? [
+            'ADMIN',
+            'MANAGER',
+            'CASHIER',
+            'INVENTORY_MANAGER',
+            'ACCOUNTANT',
+            'PURCHASING_MANAGER',
+            'REPORT_VIEWER',
+          ]
+        : ['CASHIER', 'INVENTORY_MANAGER', 'ACCOUNTANT', 'PURCHASING_MANAGER', 'REPORT_VIEWER'];
+    return SYSTEM_ROLE_DEFINITIONS.filter((def) => allowed.includes(def.code));
+  }, [actorSystemRole]);
+
+  const refreshCompanyInvites = useCallback(async () => {
+    if (!canManageInvites) {
+      setInvitations([]);
+      return;
+    }
+    setIsLoadingInvites(true);
+    try {
+      const res = await listCompanyInvites();
+      if (res.ok && Array.isArray(res.invitations)) {
+        setInvitations(res.invitations);
+      }
+    } finally {
+      setIsLoadingInvites(false);
+    }
+  }, [canManageInvites, listCompanyInvites]);
+
+  useEffect(() => {
+    if (canManageInvites) {
+      void refreshCompanyInvites();
+    } else {
+      setInvitations([]);
+    }
+  }, [canManageInvites, currentCompany.id, refreshCompanyInvites]);
+
+  useEffect(() => {
+    if (!inviteBranchId && (activeBranchId || branches[0]?.id)) {
+      setInviteBranchId(activeBranchId || branches[0]?.id || '');
+    }
+  }, [activeBranchId, branches, inviteBranchId]);
+
+  const handleLinkEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionFeedback(null);
+    const cleanEmail = linkEmailInput.trim().toLowerCase();
+    if (!isValidEmailFormat(cleanEmail)) {
+      setActionFeedback({
+        type: 'error',
+        message: isAr ? 'يرجى إدخال بريد إلكتروني صحيح.' : 'Please enter a valid email address.',
+      });
+      return;
+    }
+    if (linkPasswordInput.length < 6) {
+      setActionFeedback({
+        type: 'error',
+        message: isAr
+          ? 'كلمة المرور يجب أن تكون 6 خانات على الأقل.'
+          : 'Password must be at least 6 characters.',
+      });
+      return;
+    }
+    setIsLinkingEmail(true);
+    try {
+      const res = await linkCurrentUserFirebaseEmail({
+        email: cleanEmail,
+        password: linkPasswordInput,
+        mode: linkEmailMode,
+      });
+      if (!res.ok) {
+        setActionFeedback({
+          type: 'error',
+          message:
+            res.error ||
+            (isAr ? 'تعذر ربط البريد الإلكتروني الآن.' : 'Could not link email right now.'),
+        });
+        return;
+      }
+      setLinkPasswordInput('');
+      setIsLinkEmailOpen(false);
+      setActionFeedback({
+        type: 'success',
+        message: isAr
+          ? `تم ربط البريد الإلكتروني (${cleanEmail}) بحسابك بنجاح. يمكنك الآن استعادة كلمة المرور عبر البريد في أي وقت.`
+          : `Email (${cleanEmail}) linked successfully. You can now recover your password via email anytime.`,
+      });
+    } finally {
+      setIsLinkingEmail(false);
+    }
+  };
+
+  const handleCreateInviteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionFeedback(null);
+    const cleanEmail = inviteEmail.trim().toLowerCase();
+    if (!isValidEmailFormat(cleanEmail)) {
+      setActionFeedback({
+        type: 'error',
+        message: isAr
+          ? 'يرجى إدخال بريد إلكتروني صحيح للموظف.'
+          : 'Please enter a valid staff email address.',
+      });
+      return;
+    }
+    const targetBranch = inviteBranchId || activeBranchId || branches[0]?.id || '';
+    if (!targetBranch) {
+      setActionFeedback({
+        type: 'error',
+        message: isAr ? 'يرجى اختيار الفرع للموظف.' : 'Please select a branch for the staff member.',
+      });
+      return;
+    }
+    setIsCreatingInvite(true);
+    try {
+      const res = await createCompanyInvite({
+        email: cleanEmail,
+        invitedName: inviteFullName.trim() || undefined,
+        roleId: inviteSystemRole,
+        branchId: targetBranch,
+      });
+      if (!res.ok || !res.invitation || !res.inviteUrl || !res.shortCode) {
+        setActionFeedback({
+          type: 'error',
+          message:
+            res.error ||
+            (isAr ? 'تعذر إنشاء دعوة الموظف.' : 'Could not create staff invitation.'),
+        });
+        return;
+      }
+      const roleDef = SYSTEM_ROLE_DEFINITIONS.find((d) => d.code === inviteSystemRole);
+      setCreatedShareInvite({
+        companyName: isAr
+          ? currentCompany.displayNameAr || currentCompany.displayName
+          : currentCompany.displayName,
+        invitedEmail: cleanEmail,
+        roleName: roleDef ? (isAr ? roleDef.labelAr : roleDef.labelEn) : inviteSystemRole,
+        inviteUrl: res.inviteUrl,
+        shortCode: res.shortCode,
+        expiresAt: res.invitation.expiresAt,
+      });
+      setInviteEmail('');
+      setInviteFullName('');
+      setIsInviteFormOpen(false);
+      await refreshCompanyInvites();
+      setActionFeedback({
+        type: 'success',
+        message: isAr
+          ? `تم إنشاء رابط وكود دعوة للموظف (${cleanEmail}) بنجاح.`
+          : `Invitation link and code created for ${cleanEmail}.`,
+      });
+    } finally {
+      setIsCreatingInvite(false);
+    }
+  };
+
+  const handleRevokeInvite = async (invitationId: string) => {
+    setActionFeedback(null);
+    setRevokingInviteId(invitationId);
+    try {
+      const res = await revokeCompanyInvite(invitationId);
+      if (!res.ok) {
+        setActionFeedback({
+          type: 'error',
+          message: res.error || (isAr ? 'تعذر إلغاء الدعوة.' : 'Failed to revoke invitation.'),
+        });
+        return;
+      }
+      await refreshCompanyInvites();
+      setActionFeedback({
+        type: 'success',
+        message: isAr ? 'تم إلغاء الدعوة بنجاح.' : 'Invitation revoked successfully.',
+      });
+    } finally {
+      setRevokingInviteId(null);
+    }
+  };
+
+  const handleCopyInviteCode = async (invitationId: string, shortCode: string) => {
+    try {
+      await navigator.clipboard.writeText(shortCode);
+    } catch {
+      // Clipboard fallback ignored
+    }
+    setCopiedInviteCodeId(invitationId);
+    setTimeout(() => {
+      setCopiedInviteCodeId((curr) => (curr === invitationId ? null : curr));
+    }, 2000);
+  };
 
   const sharedPosUrl =
     typeof window !== 'undefined' ? window.location.origin : 'https://localhost:3000';
@@ -592,6 +856,23 @@ export const UsersPermissionsSection: React.FC = () => {
             {isAr ? 'إضافة فرع' : 'Add Branch'}
           </TactileButton>
 
+          {canManageInvites && (
+            <TactileButton
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setIsInviteFormOpen((prev) => !prev);
+                setIsAccountFormOpen(false);
+                setActionFeedback(null);
+              }}
+              leftIcon={<Send className="w-3.5 h-3.5 text-emerald-400" />}
+              data-testid="open-invite-staff-btn"
+            >
+              {isAr ? 'دعوة موظف' : 'Invite Staff'}
+            </TactileButton>
+          )}
+
           <TactileButton
             type="button"
             variant="amber"
@@ -665,6 +946,252 @@ export const UsersPermissionsSection: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Link Email for Password Recovery Card (for production accounts not yet linked to Firebase) */}
+      {isProductionWorkspace &&
+        !currentUser.firebaseUid &&
+        currentUser.id !== 'unassigned-operator' && (
+          <div
+            data-testid="link-email-recovery-card"
+            className="p-3.5 rounded-2xl bg-sky-950/30 border border-sky-500/35 space-y-3"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center shrink-0">
+                  <Mail className="w-4 h-4 text-sky-400" />
+                </div>
+                <div>
+                  <p className="text-xs font-extrabold text-white">
+                    {isAr
+                      ? 'ربط البريد الإلكتروني لاستعادة كلمة المرور'
+                      : 'Link Email for Password Recovery'}
+                  </p>
+                  <p className="text-[11px] text-neutral-400 mt-0.5">
+                    {isAr
+                      ? 'حسابك الحالي غير مربوط ببريد إلكتروني سحابي. اربط بريدك الآن لتتمكن من استعادة كلمة المرور تلقائياً عبر البريد في حال نسيانها.'
+                      : 'Your account is not linked to a cloud email yet. Link an email now so you can reset your password anytime if forgotten.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                data-testid="toggle-link-email-form-btn"
+                onClick={() => {
+                  setIsLinkEmailOpen((prev) => !prev);
+                  setLinkEmailInput(currentUser.email || '');
+                }}
+                className="px-3.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-neutral-950 text-xs font-black shrink-0 transition-colors"
+              >
+                {isLinkEmailOpen
+                  ? isAr
+                    ? 'إغلاق'
+                    : 'Close'
+                  : isAr
+                  ? 'ربط البريد الإلكتروني الآن'
+                  : 'Link Email Now'}
+              </button>
+            </div>
+
+            {isLinkEmailOpen && (
+              <form
+                onSubmit={handleLinkEmailSubmit}
+                data-testid="link-email-recovery-form"
+                className="p-3.5 rounded-xl bg-neutral-950/90 border border-sky-500/30 space-y-3"
+              >
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setLinkEmailMode('create')}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-colors ${
+                      linkEmailMode === 'create'
+                        ? 'bg-sky-500/20 border-sky-500/50 text-sky-200'
+                        : 'bg-neutral-900 border-neutral-800 text-neutral-400'
+                    }`}
+                  >
+                    {isAr ? 'بريد جديد للحساب' : 'Create New Email Login'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLinkEmailMode('signin')}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-colors ${
+                      linkEmailMode === 'signin'
+                        ? 'bg-sky-500/20 border-sky-500/50 text-sky-200'
+                        : 'bg-neutral-900 border-neutral-800 text-neutral-400'
+                    }`}
+                  >
+                    {isAr ? 'ربط بحساب بريد مسجل مسبقاً' : 'Link Existing Email Account'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <AppInput
+                    label={isAr ? 'البريد الإلكتروني *' : 'Email Address *'}
+                    type="email"
+                    placeholder="owner@company.com"
+                    value={linkEmailInput}
+                    onChange={(e) => setLinkEmailInput(e.target.value)}
+                    dir="ltr"
+                    data-testid="link-email-input"
+                  />
+                  <div>
+                    <label className="text-xs font-semibold text-neutral-300 block mb-1.5">
+                      {isAr ? 'كلمة مرور البريد *' : 'Email Account Password *'}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showLinkPassword ? 'text' : 'password'}
+                        value={linkPasswordInput}
+                        onChange={(e) => setLinkPasswordInput(e.target.value)}
+                        placeholder={isAr ? '8 خانات أو أكثر' : '8+ characters'}
+                        dir="ltr"
+                        data-testid="link-email-password-input"
+                        className="w-full min-h-[42px] px-3 py-2 pe-9 rounded-xl bg-neutral-900 border border-neutral-800 text-xs text-white focus:outline-none focus:border-sky-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLinkPassword((v) => !v)}
+                        className="absolute inset-y-0 end-2.5 flex items-center text-neutral-400 hover:text-white"
+                      >
+                        {showLinkPassword ? (
+                          <EyeOff className="w-3.5 h-3.5" />
+                        ) : (
+                          <Eye className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <TactileButton
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsLinkEmailOpen(false)}
+                  >
+                    {isAr ? 'إلغاء' : 'Cancel'}
+                  </TactileButton>
+                  <TactileButton
+                    type="submit"
+                    variant="amber"
+                    size="sm"
+                    isLoading={isLinkingEmail}
+                    data-testid="submit-link-email-btn"
+                  >
+                    {isAr ? 'تأكيد وربط البريد' : 'Confirm & Link Email'}
+                  </TactileButton>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+
+      {/* Invite Staff Form (Email + Link/QR/Short Code) */}
+      {canManageInvites && isInviteFormOpen && (
+        <form
+          onSubmit={handleCreateInviteSubmit}
+          data-testid="invite-staff-form"
+          className="p-4 rounded-2xl bg-emerald-950/20 border-2 border-emerald-500/45 space-y-4 shadow-xl"
+        >
+          <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2.5">
+            <h4 className="text-xs sm:text-sm font-bold text-emerald-300 flex items-center gap-1.5">
+              <Send className="w-4 h-4" />
+              <span>
+                {isAr
+                  ? 'دعوة موظف جديد للانضمام إلى الشركة عبر البريد والرابط'
+                  : 'Invite Staff Member to Join Company via Email & Link'}
+              </span>
+            </h4>
+            <button
+              type="button"
+              onClick={() => setIsInviteFormOpen(false)}
+              className="p-1 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <p className="text-[11px] text-neutral-300 leading-relaxed">
+            {isAr
+              ? 'سيقوم النظام بتوليد رابط دعوة خاص للاستخدام مرة واحدة + كود مختصر + رمز QR يمكنك مشاركته فوراً عبر واتساب أو تطبيق البريد. لن يتمكن من قبول الدعوة إلا صاحب البريد الإلكتروني المحدد أدناه.'
+              : 'Generates a single-use invite link, short code, and QR code to share via WhatsApp or Email. Only the exact email address entered below can accept this invitation.'}
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <AppInput
+              label={isAr ? 'البريد الإلكتروني للموظف *' : 'Staff Email Address *'}
+              type="email"
+              placeholder="cashier@company.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              dir="ltr"
+              data-testid="invite-staff-email-input"
+            />
+            <AppInput
+              label={isAr ? 'الاسم المقترح (اختياري)' : 'Suggested Name (Optional)'}
+              placeholder={isAr ? 'مثال: أحمد علي' : 'e.g. Ahmed Ali'}
+              value={inviteFullName}
+              onChange={(e) => setInviteFullName(e.target.value)}
+              data-testid="invite-staff-name-input"
+            />
+            <div>
+              <label className="text-xs font-semibold text-neutral-300 block mb-1.5">
+                {isAr ? 'الدور الوظيفي *' : 'Assigned Role *'}
+              </label>
+              <select
+                data-testid="invite-staff-role-select"
+                value={inviteSystemRole}
+                onChange={(e) => setInviteSystemRole(e.target.value as SystemRoleCode)}
+                className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
+              >
+                {invitableRoles.map((def) => (
+                  <option key={def.code} value={def.code}>
+                    {isAr ? def.labelAr : def.labelEn}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-neutral-300 block mb-1.5">
+                {isAr ? 'الفرع المخصص *' : 'Assigned Branch *'}
+              </label>
+              <select
+                data-testid="invite-staff-branch-select"
+                value={inviteBranchId}
+                onChange={(e) => setInviteBranchId(e.target.value)}
+                className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {isAr ? b.nameAr || b.name : b.name} ({b.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-emerald-500/20">
+            <TactileButton
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsInviteFormOpen(false)}
+            >
+              {isAr ? 'إلغاء' : 'Cancel'}
+            </TactileButton>
+            <TactileButton
+              type="submit"
+              variant="amber"
+              size="sm"
+              isLoading={isCreatingInvite}
+              leftIcon={<Send className="w-3.5 h-3.5" />}
+              data-testid="submit-invite-staff-btn"
+            >
+              {isAr ? 'توليد رابط وكود الدعوة' : 'Generate Invite Link & Code'}
+            </TactileButton>
+          </div>
+        </form>
+      )}
 
       {actionFeedback && (
         <div
@@ -1490,6 +2017,168 @@ export const UsersPermissionsSection: React.FC = () => {
         </div>
       )}
 
+      {/* Company Staff Invitations History & Status Panel */}
+      {canManageInvites && (
+        <div
+          data-testid="company-invitations-panel"
+          className="p-3.5 rounded-2xl bg-neutral-950/85 border border-neutral-800 space-y-3"
+        >
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Ticket className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="text-xs font-black text-white">
+                {isAr
+                  ? `دعوات الموظفين (${invitations.length})`
+                  : `Staff Invitations (${invitations.length})`}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void refreshCompanyInvites()}
+                disabled={isLoadingInvites}
+                className="px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-[11px] font-bold text-neutral-300 inline-flex items-center gap-1.5"
+              >
+                <RefreshCw
+                  className={`w-3 h-3 ${isLoadingInvites ? 'animate-spin text-emerald-400' : ''}`}
+                />
+                <span>{isAr ? 'تحديث' : 'Refresh'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsInviteFormOpen(true);
+                  setIsAccountFormOpen(false);
+                }}
+                className="px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/35 text-[11px] font-extrabold text-emerald-300 inline-flex items-center gap-1"
+              >
+                <Send className="w-3 h-3" />
+                <span>{isAr ? 'دعوة جديدة' : 'New Invite'}</span>
+              </button>
+            </div>
+          </div>
+
+          {invitations.length === 0 ? (
+            <p className="text-xs text-neutral-400 py-2">
+              {isAr
+                ? 'لا توجد دعوات مرسلة بعد. اضغط على "دعوة موظف" لإضافة كاشير أو مدير فرع بالبريد الإلكتروني ورابط الدعوة.'
+                : 'No invitations created yet. Click "Invite Staff" to onboard cashiers or branch managers via email invite links.'}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {invitations.map((inv) => {
+                const roleDef = SYSTEM_ROLE_DEFINITIONS.find((d) => d.code === inv.roleId);
+                const brObj = branches.find((b) => b.id === inv.branchId);
+                const statusStyles =
+                  inv.status === 'PENDING'
+                    ? 'bg-amber-500/15 border-amber-500/35 text-amber-300'
+                    : inv.status === 'ACCEPTED'
+                    ? 'bg-emerald-500/15 border-emerald-500/35 text-emerald-300'
+                    : inv.status === 'REVOKED'
+                    ? 'bg-rose-500/15 border-rose-500/35 text-rose-300'
+                    : 'bg-neutral-800 border-neutral-700 text-neutral-400';
+                const statusLabel =
+                  inv.status === 'PENDING'
+                    ? isAr
+                      ? 'بانتظار القبول'
+                      : 'Pending'
+                    : inv.status === 'ACCEPTED'
+                    ? isAr
+                      ? 'تم القبول'
+                      : 'Accepted'
+                    : inv.status === 'REVOKED'
+                    ? isAr
+                      ? 'ملغاة'
+                      : 'Revoked'
+                    : isAr
+                    ? 'منتهية الصلاحية'
+                    : 'Expired';
+
+                return (
+                  <div
+                    key={inv.id}
+                    data-testid={`invitation-row-${inv.id}`}
+                    className="p-3 rounded-xl bg-neutral-900/80 border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-extrabold text-white" dir="ltr">
+                          {inv.invitedEmail}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusStyles}`}
+                        >
+                          {statusLabel}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 text-[10px] font-bold text-neutral-300">
+                          {roleDef ? (isAr ? roleDef.labelAr : roleDef.labelEn) : inv.roleId}
+                        </span>
+                        {brObj && (
+                          <span className="text-[10px] text-neutral-400">
+                            {isAr ? brObj.nameAr || brObj.name : brObj.name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 flex-wrap text-[11px] text-neutral-400">
+                        <span className="inline-flex items-center gap-1 font-mono text-amber-300 font-bold">
+                          <Ticket className="w-3 h-3" />
+                          <span dir="ltr">{inv.shortCode}</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          <span>
+                            {isAr ? 'تنتهي: ' : 'Expires: '}
+                            {new Date(inv.expiresAt).toLocaleString()}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {inv.status === 'PENDING' && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void handleCopyInviteCode(inv.id, inv.shortCode)}
+                            className="px-2.5 py-1.5 rounded-lg bg-neutral-950 hover:bg-neutral-800 border border-neutral-700 text-[11px] font-bold text-neutral-200 inline-flex items-center gap-1"
+                            data-testid={`copy-invite-code-${inv.id}`}
+                          >
+                            {copiedInviteCodeId === inv.id ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                            <span>
+                              {copiedInviteCodeId === inv.id
+                                ? isAr
+                                  ? 'تم النسخ'
+                                  : 'Copied'
+                                : isAr
+                                ? 'نسخ الكود'
+                                : 'Copy Code'}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={revokingInviteId === inv.id}
+                            onClick={() => void handleRevokeInvite(inv.id)}
+                            className="px-2.5 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/35 text-[11px] font-bold text-rose-300 inline-flex items-center gap-1 disabled:opacity-50"
+                            data-testid={`revoke-invite-${inv.id}`}
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span>{isAr ? 'إلغاء الدعوة' : 'Revoke'}</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Multi-Device Pairing & Linking Guide Banner */}
       <div className="p-3.5 rounded-2xl bg-sky-950/25 border border-sky-500/30 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1556,6 +2245,19 @@ export const UsersPermissionsSection: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Share Newly Created Staff Invitation Modal (QR + Short Code + WhatsApp + Mail) */}
+      <CompanyInviteShareModal
+        isOpen={Boolean(createdShareInvite)}
+        inviteUrl={createdShareInvite?.inviteUrl || ''}
+        shortCode={createdShareInvite?.shortCode || ''}
+        invitedEmail={createdShareInvite?.invitedEmail || ''}
+        roleName={createdShareInvite?.roleName || ''}
+        companyName={createdShareInvite?.companyName || ''}
+        expiresAt={createdShareInvite?.expiresAt || ''}
+        language={settings.language}
+        onClose={() => setCreatedShareInvite(null)}
+      />
     </AppCard>
   );
 };

@@ -40,6 +40,8 @@ import {
   OnboardingChecklistStatus,
   ExpenseRecord,
   ExpenseInput,
+  CompanyInvitationSummary,
+  InvitationPreviewResult,
 } from '../lib/types';
 import {
   CapabilityCode,
@@ -115,6 +117,14 @@ import {
   useUserAccountsDomain,
   type LoginCredentialsInput,
   type LoginCredentialsResult,
+  type EmailSignInResult,
+  type PasswordResetResult,
+  type LinkFirebaseEmailInput,
+  type LinkFirebaseEmailResult,
+  type CreateCompanyInviteActionInput,
+  type CreateCompanyInviteActionResult,
+  type AcceptCompanyInviteActionInput,
+  type AcceptCompanyInviteActionResult,
   type InitialOwnerSetupInput,
   type InitialOwnerSetupResult,
 } from './domains/useUserAccountsDomain';
@@ -210,6 +220,27 @@ export interface POSContextType {
   isScreenLocked: boolean;
   pendingSwitchUserId: string | null;
   loginWithCredentials: (input: LoginCredentialsInput) => Promise<LoginCredentialsResult>;
+  signInWithEmailAccount: (email: string, password: string) => Promise<EmailSignInResult>;
+  sendPasswordResetForEmail: (email: string) => Promise<PasswordResetResult>;
+  linkCurrentUserFirebaseEmail: (
+    input: LinkFirebaseEmailInput
+  ) => Promise<LinkFirebaseEmailResult>;
+  previewCompanyInvite: (lookup: {
+    token?: string;
+    shortCode?: string;
+  }) => Promise<{ ok: boolean; preview?: InvitationPreviewResult; error?: string }>;
+  acceptCompanyInvite: (
+    input: AcceptCompanyInviteActionInput
+  ) => Promise<AcceptCompanyInviteActionResult>;
+  createCompanyInvite: (
+    input: CreateCompanyInviteActionInput
+  ) => Promise<CreateCompanyInviteActionResult>;
+  listCompanyInvites: () => Promise<{
+    ok: boolean;
+    invitations: CompanyInvitationSummary[];
+    error?: string;
+  }>;
+  revokeCompanyInvite: (invitationId: string) => Promise<{ ok: boolean; error?: string }>;
   setupInitialOwnerAccount: (input: InitialOwnerSetupInput) => Promise<InitialOwnerSetupResult>;
   setLegacyAccountPassword: (
     userId: string,
@@ -1230,6 +1261,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     markSessionAuthenticated,
     markSessionUnauthenticated,
     loginWithCredentials,
+    signInWithEmailAccount,
+    sendPasswordResetForEmail,
+    linkCurrentUserFirebaseEmail,
+    previewCompanyInvite,
+    acceptCompanyInvite,
+    createCompanyInvite,
+    listCompanyInvites,
+    revokeCompanyInvite,
     setupInitialOwnerAccount,
     setLegacyAccountPassword,
     logoutCurrentUser,
@@ -1512,6 +1551,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isScreenLocked,
       pendingSwitchUserId,
       loginWithCredentials,
+      signInWithEmailAccount,
+      sendPasswordResetForEmail,
+      linkCurrentUserFirebaseEmail,
+      previewCompanyInvite,
+      acceptCompanyInvite,
+      createCompanyInvite,
+      listCompanyInvites,
+      revokeCompanyInvite,
       setupInitialOwnerAccount,
       setLegacyAccountPassword,
       logoutCurrentUser,
@@ -1538,6 +1585,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isScreenLocked,
       pendingSwitchUserId,
       loginWithCredentials,
+      signInWithEmailAccount,
+      sendPasswordResetForEmail,
+      linkCurrentUserFirebaseEmail,
+      previewCompanyInvite,
+      acceptCompanyInvite,
+      createCompanyInvite,
+      listCompanyInvites,
+      revokeCompanyInvite,
       setupInitialOwnerAccount,
       setLegacyAccountPassword,
       logoutCurrentUser,
@@ -1679,6 +1734,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isScreenLocked,
       pendingSwitchUserId,
       loginWithCredentials,
+      signInWithEmailAccount,
+      sendPasswordResetForEmail,
+      linkCurrentUserFirebaseEmail,
+      previewCompanyInvite,
+      acceptCompanyInvite,
+      createCompanyInvite,
+      listCompanyInvites,
+      revokeCompanyInvite,
       setupInitialOwnerAccount,
       setLegacyAccountPassword,
       logoutCurrentUser,
@@ -1814,6 +1877,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isScreenLocked,
       pendingSwitchUserId,
       loginWithCredentials,
+      signInWithEmailAccount,
+      sendPasswordResetForEmail,
+      linkCurrentUserFirebaseEmail,
+      previewCompanyInvite,
+      acceptCompanyInvite,
+      createCompanyInvite,
+      listCompanyInvites,
+      revokeCompanyInvite,
       setupInitialOwnerAccount,
       setLegacyAccountPassword,
       logoutCurrentUser,
